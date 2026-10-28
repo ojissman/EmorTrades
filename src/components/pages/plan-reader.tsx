@@ -20,12 +20,14 @@
  *
  * CONTENTS — the rail is the document's instrument panel: a scroll-spy that
  * tracks sections AND setups (one passive listener on #main-content, the
- * app's only scrollport), an old-style folio ("3 of 9") over a hairline
- * reading-progress rule, and the rail keeps its own active entry in view.
+ * app's only scrollport), a gliding accent marker that slides along the
+ * hairline guide to whatever entry the reader is on, setup lists that fold
+ * into a quiet count and expand only for the section in view, and an
+ * old-style folio ("3 of 9 · 44%") over a hairline reading-progress rule.
  * Below lg the contents fold into a sheet opened from the hero's utility
  * links — the same list, the same folio, sized for touch.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
@@ -254,26 +256,6 @@ export function PlanReader({
     }
   }, [grouped, showUnanswered])
 
-  // the rail keeps its own active entry inside its scroll box
-  const railRef = useRef<HTMLUListElement>(null)
-  useEffect(() => {
-    const ul = railRef.current
-    if (!ul) return
-    if (ul.scrollHeight <= ul.clientHeight) return // the rail fits — nothing to scroll
-    const leaf = ul.querySelector<HTMLElement>('[data-toc-leaf="true"]')
-    if (!leaf) return
-    const r = leaf.getBoundingClientRect()
-    const ur = ul.getBoundingClientRect()
-    if (r.top < ur.top + 6 || r.bottom > ur.bottom - 6) {
-      // scroll ONLY the rail's own box: scrollIntoView would also issue a
-      // (zero-delta) smooth scroll on every ancestor scrollport — cancelling
-      // the document jump that is still animating in #main-content
-      const target = (r.top - ur.top) + ul.scrollTop - (ul.clientHeight - r.height) / 2
-      const max = ul.scrollHeight - ul.clientHeight
-      ul.scrollTo({ top: Math.max(0, Math.min(max, target)), behavior: 'smooth' })
-    }
-  }, [active, grouped])
-
   // Discard (called from the editor; kept here so the reader stays the source of truth)
   const discard = useMutation({
     mutationFn: async () => {
@@ -436,31 +418,32 @@ export function PlanReader({
       )}
 
       {/* ---------- the document: contents rail + editorial body ---------- */}
-      <div className="grid lg:grid-cols-[220px_1fr] gap-10 tp-reader-doc">
+      <div className="grid lg:grid-cols-[240px_1fr] gap-10 tp-reader-doc">
         {/* contents rail — the document's instrument panel: hairline guide,
             scroll-spy over sections AND setups, an old-style folio and a
             hairline reading-progress rule; unboxed, no tree chrome */}
         {grouped.sections.length > 0 && (
           <nav aria-label="Plan contents" className="hidden lg:block" data-testid="tp-contents-rail">
             <div className="sticky top-4 flex max-h-[calc(100vh-10rem)] flex-col">
-              <p
-                className="pl-4 text-[9px] font-bold uppercase tracking-[0.3em]"
-                style={{ color: accent, opacity: 0.72 }}
-              >
-                Contents
-              </p>
-              <ul
-                ref={railRef}
-                className="shell-scroll mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto border-l border-border/60 pr-1.5"
-              >
-                <TocEntries
-                  sections={grouped.sections}
-                  active={active}
-                  accent={accent}
-                  variant="rail"
-                  onJump={scrollToId}
-                />
-              </ul>
+              <div className="pl-4">
+                <p
+                  className="text-[9px] font-bold uppercase tracking-[0.3em]"
+                  style={{ color: accent, opacity: 0.72 }}
+                >
+                  Contents
+                </p>
+                <p className="tp-serif mt-1.5 truncate text-[12px] italic text-muted-foreground/70">
+                  {tree.plan.name}
+                </p>
+              </div>
+              <TocList
+                className="shell-scroll mt-3 min-h-0 flex-1 overflow-y-auto pr-1.5"
+                sections={grouped.sections}
+                active={active}
+                accent={accent}
+                variant="rail"
+                onJump={scrollToId}
+              />
               <TocFolio
                 className="mt-4 border-t border-border/60 pl-4 pr-1.5 pt-3"
                 position={active.sec + 1}
@@ -585,18 +568,16 @@ export function PlanReader({
               <p className="tp-serif mt-1.5 truncate text-[13px] italic text-muted-foreground/80">{tree.plan.name}</p>
             </div>
             <div className="shell-scroll min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              <ul className="space-y-1 border-l border-border/60">
-                <TocEntries
-                  sections={grouped.sections}
-                  active={active}
-                  accent={accent}
-                  variant="sheet"
-                  onJump={(id, target) => {
-                    scrollToId(id, target)
-                    setTocOpen(false)
-                  }}
-                />
-              </ul>
+              <TocList
+                sections={grouped.sections}
+                active={active}
+                accent={accent}
+                variant="sheet"
+                onJump={(id, target) => {
+                  scrollToId(id, target)
+                  setTocOpen(false)
+                }}
+              />
             </div>
             <TocFolio
               className="border-t border-border/60 px-5 py-4"
@@ -621,12 +602,119 @@ export function PlanReader({
   )
 }
 
-// ---------- contents: the shared TOC entries + the folio ----------
+// ---------- contents: the gliding rail + the shared TOC entries + the folio ----------
+
+/**
+ * The contents list — one component for the desktop rail and the mobile
+ * sheet. The accent bar is the signature: a single gliding marker (2px,
+ * softly lit) that slides along the hairline guide to whatever entry the
+ * scroll-spy favors, instead of every entry carrying its own border. It is
+ * positioned imperatively (no re-render churn) and a ResizeObserver keeps it
+ * glued to the active entry while the setup lists expand and collapse
+ * around it.
+ */
+function TocList({
+  sections,
+  active,
+  accent,
+  onJump,
+  variant,
+  className,
+}: {
+  sections: DocSection[]
+  active: { sec: number; sub: number | null }
+  accent: string
+  onJump: (id: string, target: { sec: number; sub: number | null }) => void
+  variant: 'rail' | 'sheet'
+  className?: string
+}) {
+  const ulRef = useRef<HTMLUListElement>(null)
+  const barRef = useRef<HTMLLIElement>(null)
+  const placedRef = useRef(false)
+
+  useEffect(() => {
+    const ul = ulRef.current
+    const bar = barRef.current
+    if (!ul || !bar) return
+
+    // aim the gliding bar at the active entry (data-toc-leaf)
+    const positionBar = () => {
+      const leaf = ul.querySelector<HTMLElement>('[data-toc-leaf="true"]')
+      if (!leaf) {
+        bar.style.opacity = '0'
+        return
+      }
+      const top = leaf.offsetTop
+      const height = leaf.offsetHeight
+      if (!placedRef.current) {
+        // the first placement must not slide in from the top of the rail
+        bar.style.transition = 'none'
+        bar.style.top = `${top}px`
+        bar.style.height = `${height}px`
+        bar.style.opacity = '1'
+        void bar.offsetHeight
+        bar.style.transition = ''
+        placedRef.current = true
+        return
+      }
+      bar.style.top = `${top}px`
+      bar.style.height = `${height}px`
+      bar.style.opacity = '1'
+    }
+
+    // the list keeps its own active entry inside its scroll box — scroll ONLY
+    // this box: scrollIntoView would also issue a (zero-delta) smooth scroll
+    // on every ancestor scrollport, cancelling the document jump that may
+    // still be animating in #main-content
+    const keepLeafInView = () => {
+      if (ul.scrollHeight <= ul.clientHeight) return // the list fits — nothing to scroll
+      const leaf = ul.querySelector<HTMLElement>('[data-toc-leaf="true"]')
+      if (!leaf) return
+      const r = leaf.getBoundingClientRect()
+      const ur = ul.getBoundingClientRect()
+      if (r.top < ur.top + 6 || r.bottom > ur.bottom - 6) {
+        const target = (r.top - ur.top) + ul.scrollTop - (ul.clientHeight - r.height) / 2
+        const max = ul.scrollHeight - ul.clientHeight
+        ul.scrollTo({ top: Math.max(0, Math.min(max, target)), behavior: 'smooth' })
+      }
+    }
+
+    positionBar()
+    keepLeafInView()
+    // while an expand/collapse animation moves the entries, the observer
+    // lets the bar (and the auto-scroll) follow without tearing
+    const ro = new ResizeObserver(() => {
+      positionBar()
+      keepLeafInView()
+    })
+    ro.observe(ul)
+    return () => ro.disconnect()
+  }, [active, sections])
+
+  return (
+    <ul
+      ref={ulRef}
+      className={cn('relative space-y-1 border-l border-border/60', className)}
+      style={{ '--toc-accent': accent } as CSSProperties}
+    >
+      {/* the gliding marker — sits on the guide line, slides between entries */}
+      <li
+        ref={barRef}
+        aria-hidden
+        className="pointer-events-none absolute left-[-1.5px] top-0 h-0 w-[2px] rounded-full opacity-0 transition-[top,height,opacity] duration-300 ease-out motion-reduce:transition-none"
+        style={{ background: accent, boxShadow: `0 0 8px ${accent}59` }}
+      />
+      <TocEntries sections={sections} active={active} accent={accent} variant={variant} onJump={onJump} />
+    </ul>
+  )
+}
 
 /**
  * Section and setup entries — the desktop rail and the contents sheet render
  * the same list; only the type scale differs (the sheet is sized for touch).
- * The active leaf carries data-toc-leaf so the rail can keep it in view.
+ * The active entry carries data-toc-leaf so the gliding marker can find it.
+ * A section's setups stay folded into a quiet count unless that section is
+ * the one in view — the rail keeps its focus on where the reader is.
  */
 function TocEntries({
   sections,
@@ -654,49 +742,64 @@ function TocEntries({
               data-toc-leaf={secActive && active.sub === null ? 'true' : undefined}
               data-testid={`tp-toc-sec-${i}`}
               className={cn(
-                'group -ml-px flex w-full items-baseline gap-2.5 border-l-2 py-2 pl-3.5 pr-1 text-left transition-all cursor-pointer',
+                'group flex w-full items-baseline gap-2.5 py-2 pl-4 pr-1 text-left transition-colors cursor-pointer',
                 sheet && 'py-2.5',
-                secActive
-                  ? '-ml-[3px] pl-4 text-foreground'
-                  : 'border-transparent text-muted-foreground/80 hover:text-foreground',
+                secActive ? 'text-foreground' : 'text-muted-foreground/80 hover:text-foreground',
               )}
-              style={secActive ? { borderLeftColor: accent } : undefined}
             >
               <span
                 className={cn(
-                  'tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em] transition-opacity',
-                  secActive ? 'opacity-100' : 'opacity-50 group-hover:opacity-80',
+                  'tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em] transition-opacity group-hover:text-[var(--toc-accent)]',
+                  secActive ? 'opacity-100' : 'opacity-50 group-hover:opacity-90',
                 )}
-                style={{ color: secActive ? accent : undefined }}
+                style={secActive ? { color: accent } : undefined}
               >
                 {s.number ?? '·'}
               </span>
-              <span className={cn('text-[11.5px] leading-snug font-medium', sheet && 'text-[13px]')}>{s.title}</span>
+              <span className={cn('min-w-0 text-[11.5px] leading-snug font-medium', sheet && 'text-[13px]')}>{s.title}</span>
+              {s.subs.length > 0 && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    'tnum ml-auto shrink-0 pt-px text-[9px] leading-none text-muted-foreground/45 transition-opacity duration-200',
+                    secActive && 'opacity-0',
+                  )}
+                >
+                  {s.subs.length}
+                </span>
+              )}
             </button>
             {s.subs.length > 0 && (
-              <ul className="mb-1 ml-[15px] mt-0.5 space-y-0.5 pl-[27px]">
-                {s.subs.map((sub, j) => {
-                  const subActive = secActive && active.sub === j
-                  return (
-                    <li key={j}>
-                      <button
-                        onClick={() => onJump(`sec-${i}-sub-${j}`, { sec: i, sub: j })}
-                        aria-current={subActive ? 'true' : undefined}
-                        data-toc-leaf={subActive ? 'true' : undefined}
-                        data-testid={`tp-toc-sub-${i}-${j}`}
-                        className={cn(
-                          '-ml-[2px] block w-full border-l-2 border-transparent py-1 pr-1 text-left text-[10.5px] italic leading-snug transition-colors cursor-pointer',
-                          sheet && 'py-1.5 text-[12px]',
-                          subActive ? 'font-semibold' : 'font-normal text-muted-foreground/65 hover:text-foreground',
-                        )}
-                        style={subActive ? { color: accent, borderLeftColor: accent } : undefined}
-                      >
-                        {sub.setupName ?? sub.title}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div
+                className="grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none"
+                style={{ gridTemplateRows: secActive ? '1fr' : '0fr' }}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <ul className="mb-1 ml-[15px] mt-0.5 space-y-0.5 pl-[27px]">
+                    {s.subs.map((sub, j) => {
+                      const subActive = secActive && active.sub === j
+                      return (
+                        <li key={j}>
+                          <button
+                            onClick={() => onJump(`sec-${i}-sub-${j}`, { sec: i, sub: j })}
+                            aria-current={subActive ? 'true' : undefined}
+                            data-toc-leaf={subActive ? 'true' : undefined}
+                            data-testid={`tp-toc-sub-${i}-${j}`}
+                            className={cn(
+                              'block w-full py-1 pr-1 text-left text-[10.5px] italic leading-snug transition-colors cursor-pointer',
+                              sheet && 'py-1.5 text-[12px]',
+                              subActive ? 'font-semibold' : 'font-normal text-muted-foreground/65 hover:text-foreground',
+                            )}
+                            style={subActive ? { color: accent } : undefined}
+                          >
+                            {sub.setupName ?? sub.title}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              </div>
             )}
           </li>
         )
@@ -705,7 +808,7 @@ function TocEntries({
   )
 }
 
-/** The folio — an old-style "3 of 9" over a hairline reading-progress rule. */
+/** The folio — an old-style "3 of 9 · 44%" over a hairline reading-progress rule. */
 function TocFolio({
   className,
   position,
@@ -722,9 +825,12 @@ function TocFolio({
   const pct = Math.round(progress * 100)
   return (
     <div className={className} data-testid="tp-contents-folio">
-      <p className="tp-serif text-[11px] leading-none text-muted-foreground/75">
-        {position} <span className="italic">of</span> {total}
-      </p>
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="tp-serif text-[11px] leading-none text-muted-foreground/75">
+          {position} <span className="italic">of</span> {total}
+        </p>
+        <p className="tnum text-[9.5px] leading-none tracking-[0.08em] text-muted-foreground/55">{pct}%</p>
+      </div>
       <div
         className="mt-2.5 h-px w-full bg-border"
         role="progressbar"
