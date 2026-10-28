@@ -1,0 +1,999 @@
+// Tradesviz - Comprehensive Trading Journal Database Schema
+// Expanded based on TradesViz blog research: executions, MFE/MAE, day tags,
+// trade plans, goals, day notes, screenshots, drawdown tracking
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String?
+  passwordHash    String?
+  avatar          String?
+  defaultCurrency String         @default("USD")
+  timezone        String         @default("UTC")
+  riskPerTrade     Float          @default(1.0)
+  startingCapital Float          @default(10000)
+  displayMode     String         @default("pnl") // pnl, r, points, ticks
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  accounts        Account[]
+  trades          Trade[]
+  executions      Execution[]
+  watchlists      Watchlist[]
+  journals        Journal[]
+  dayNotes        DayNote[]
+  miscNotes       MiscNote[]
+  setups          Setup[]
+  tags            Tag[]
+  dayTags         DayTag[]
+  noteTags        NoteTag[]
+  dayPlans        DayPlan[]
+  goals           Goal[]
+  screenshots     Screenshot[]
+  settings        UserSettings?
+  dashboards      Dashboard[]
+  mistakes        Mistake[]
+  missedTrades    MissedTrade[]
+  sessions        Session[]
+  challenges      Challenge[]
+  moneyTransactions MoneyTransaction[]
+  aiReports      AiReport[]
+  // ── Trading Plan feature (TP) ─────────────────────────────────────────
+  tradingPlans   TradingPlan[]
+  systemGroups   SystemGroup[]
+  systems        System[]
+  setupGroups    SetupGroup[]
+  tradeLinkEvents TradeLinkEvent[]
+  tradeStopEvents TradeStopEvent[]
+  planEvidences  PlanEvidence[]
+  psychChainLinks PsychChainLink[]
+  planMarks      PlanMark[]
+  tradeWarningLogs TradeWarningLog[]
+}
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  theme           String   @default("dark")
+  defaultAccount  String?
+  enableAI        Boolean  @default(true)
+  enableSounds    Boolean  @default(false)
+  calendarType    String   @default("month")
+  firstDayOfWeek  Int      @default(0)
+  dateFormat      String   @default("YYYY-MM-DD")
+  numberFormat    String   @default("en-US")
+  rMultipleZero  Boolean  @default(false) // zero out MAE when never adverse
+  // Task 149 — L1/L2 settings envelope (verbatim keys: regional/display/
+  // charts/advanced/public-dashboard…). Scalar columns above stay canonical
+  // for the keys they already carry; everything else lands here as JSON.
+  data            String   @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  broker          String   @default("Manual")
+  type            String   @default("stock") // stock, options, futures, forex, crypto
+  currency        String   @default("USD")
+  startingBalance Float    @default(10000)
+  isActive        Boolean  @default(true)
+  color           String   @default("#10b981")
+  isProp          Boolean  @default(false)
+  propFirm        String?
+  // Protection: system/protected accounts cannot be deleted or renamed
+  isProtected     Boolean  @default(false)
+  isSystem        Boolean  @default(false)
+  // Soft delete
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades          Trade[]
+  executions      Execution[]
+  moneyTransactions MoneyTransaction[]
+  systemAccounts  SystemAccount[]
+}
+
+// Execution-first model: an execution is atomic; trades are grouped collections
+model Execution {
+  id          String   @id @default(cuid())
+  userId      String
+  accountId   String
+  tradeId     String?  // null until grouped
+  symbol      String
+  side        String   // buy, sell
+  quantity    Float
+  price       Float
+  timestamp   DateTime
+  fees        Float    @default(0)
+  commission  Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  // Task 19 — executions are trade mirrors (import-bulk creates entry+exit
+  // per trade; there is no standalone "ungrouped fills" workflow). They die
+  // with their trade, matching the delete-modal copy. Without this the FK
+  // defaulted to SetNull and deleted trades leaked executions forever.
+  trade       Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model Trade {
+  id              String       @id @default(cuid())
+  userId          String
+  accountId       String
+  symbol          String
+  side            String       @default("long") // long, short
+  assetClass      String       @default("stock")
+  // Task 179 — options/multi-leg strategy classification. Single-leg trades
+  // (and every pre-Task-179 trade) carry 'single'. Multi-leg options trades
+  // carry the structure name; the legs themselves live in TradeLeg.
+  strategy        String?      // single, vertical, straddle, strangle, iron-condor, butterfly, custom
+  // Task 177 — derivatives contract multiplier (P&L = price move × qty ×
+  // multiplier). Futures examples: GC=F 100, ES=F 50, CL=F 1000. Stocks,
+  // forex (lot-sized in quantity) and crypto stay at the default 1.
+  multiplier      Float        @default(1)
+  quantity        Float
+  entryPrice      Float
+  exitPrice       Float?
+  entryTime       DateTime
+  exitTime        DateTime?
+  stopLoss        Float?
+  takeProfit      Float?
+  fees            Float        @default(0)
+  commission      Float        @default(0)
+  pnl            Float        @default(0)
+  pnlPercent      Float        @default(0)
+  rMultiple       Float?
+  status          String       @default("open") // open, closed
+  rating          Int?
+  notes           String?
+  setupId         String?
+  // MFE/MAE tracking
+  mfe             Float?  // Maximum Favorable Excursion ($)
+  mae             Float?  // Maximum Adverse Excursion ($)
+  mfePrice        Float?  // peak price during trade
+  maePrice        Float?  // trough price during trade
+  mfeTime         DateTime?
+  maeTime         DateTime?
+  // Best exit analysis
+  bestExit        Float?  // optimal exit price (risk-constrained)
+  bestExitPnl     Float?
+  bestExitTime    DateTime?
+  eodExitPnl      Float?  // hold-to-close PnL
+  // Running PnL analytics
+  timeInProfit    Int?    // minutes in profit
+  timeInLoss      Int?    // minutes in loss
+  holdingPeriod   Int?
+  // Provenance marker for imported/real trades
+  source          String       @default("real")
+  // ── Trading Plan link (TP) ────────────────────────────────────────────
+  tradingPlanId  String?   // current link: TradingPlan
+  systemId       String?   // current link: System variant
+  // setupId above now means the setup VARIANT inside a system
+  planVersionId  String?   // pinned PlanVersion in force at link time
+  systemVersionId String?  // pinned SystemVersion
+  setupVersionId String?   // pinned SetupVersion
+  linkedAt       DateTime? // when the link was set
+  linkTiming     String?   // before_entry | while_open | after_close
+  // ── Stop audit + new rule-engine fields (TP) ──────────────────────
+  initialStopLoss Float?   // set once, never overwritten; legacy = stopLoss
+  stopSetAt      DateTime? // when the stop was first set
+  timeframe      String?   // execution timeframe, e.g. 5m
+  setupGrade     String?   // A | B | null
+  entryNote      String?   // entry-time note (rule entry_note_present)
+  plannedRiskAmount Float? // risk the plan allowed at entry
+  adherenceStatus String?  // cached: followed | broke | cant_tell | no_plan
+  planFollowed    Boolean?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  setup           Setup?       @relation(fields: [setupId], references: [id])
+  tags            TradeTag[]
+  mistakes        TradeMistake[]
+  news            TradeNews[]
+  screenshots     Screenshot[]
+  journal         Journal?
+  executions      Execution[]
+  tradingPlan     TradingPlan? @relation(fields: [tradingPlanId], references: [id])
+  system          System?      @relation(fields: [systemId], references: [id])
+  linkEvents      TradeLinkEvent[]
+  stopEvents      TradeStopEvent[]
+  aiReports       AiReport[]
+  legs            TradeLeg[]
+  planMarks       PlanMark[]
+  warningLogs     TradeWarningLog[]
+
+  @@index([userId, tradingPlanId])
+  @@index([userId, systemId])
+  @@index([userId, setupId])
+  @@index([userId, adherenceStatus])
+}
+
+// Task 179 — options/multi-leg support. A Trade keeps its denormalized
+// rollups (pnl / rMultiple / symbol = UNDERLYING) so every analytics consumer
+// keeps working unchanged; the legs carry the structure detail:
+// verticals, straddles, strangles, iron condors, butterflies, stock+option
+// combos. legPnl = (long ? exit−entry : entry−exit) × qty × multiplier
+// (multiplier is conventionally 100 for equity options contracts).
+// Trade.pnl = Σ legPnl − trade-level fees & commission.
+model TradeLeg {
+  id          String    @id @default(cuid())
+  tradeId     String
+  symbol      String    // OCC root / underlying (e.g. AAPL, SPXW) — informational
+  legType     String    // call, put, stock, future
+  side        String    // long, short (buy to open / sell to open)
+  quantity    Float
+  multiplier  Float     @default(100) // equity options 100; stock legs 1
+  entryPrice  Float     // premium paid/received (or share price for stock legs)
+  exitPrice   Float?    // premium at close; null = leg still open
+  strike      Float?
+  expiry      DateTime?
+  entryTime   DateTime?
+  exitTime    DateTime?
+  legPnl      Float     @default(0) // gross (trade-level fees subtracted on Trade.pnl)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  trade       Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+}
+
+// Economic news events linked to trades
+model TradeNews {
+  id          String   @id @default(cuid())
+  tradeId     String
+  title       String
+  source      String   @default("forexfactory")
+  currency    String?  // USD, EUR, GBP, etc.
+  impact      String   @default("medium") // high, medium, low
+  eventTime   DateTime
+  actual      String?
+  forecast    String?
+  previous    String?
+  url         String?
+  relevance   String?  // How it relates to the trade
+  createdAt   DateTime @default(now())
+  trade       Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+// Mistakes - reusable categorization of trading errors
+model Mistake {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  color       String   @default("#ef4444")
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades      TradeMistake[]
+}
+
+model TradeMistake {
+  tradeId   String
+  mistakeId String
+  notes     String?
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  mistake   Mistake  @relation(fields: [mistakeId], references: [id], onDelete: Cascade)
+  @@id([tradeId, mistakeId])
+}
+
+// Missed Trades - opportunities not taken
+model MissedTrade {
+  id            String   @id @default(cuid())
+  userId        String
+  symbol        String
+  side          String   @default("long")
+  expectedEntry Float
+  expectedExit  Float?
+  expectedTime  DateTime
+  setupId       String?
+  // TP — plan context + intent flag
+  tradingPlanId String?
+  systemId      String?
+  skippedOnPurpose Boolean @default(false)
+  reasonCode    String?
+  reason        String?  // why missed
+  lesson        String?  // what to learn
+  expectedPnl   Float?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setup         Setup?   @relation(fields: [setupId], references: [id])
+}
+
+// Trading Sessions - pre-market, regular, after-hours
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String   // e.g. "Pre-Market", "Regular Hours", "After Hours", "London", "NY"
+  startTime   String   // "09:30"
+  endTime     String   // "16:00"
+  color       String   @default("#3b82f6")
+  description String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Setup — TP: becomes the setup VARIANT inside one system. Existing ids and
+// every existing column stay valid; the old free-text `rules` is read-only
+// legacy text (its content moves into the migration's SetupVersion v1).
+model Setup {
+  id               String    @id @default(cuid())
+  userId           String
+  name             String
+  description      String?
+  color            String    @default("#6366f1")
+  rules            String?
+  // ── TP columns ─────────────────────────────────────────────────────
+  systemId         String?   // the system variant this setup lives in
+  groupId          String?   // SetupGroup identity across plans/systems
+  status           String    @default("concept") // concept|testing|live_small|live_full|paused|retired
+  currentVersionId String?   // latest PUBLISHED SetupVersion
+  copiedFromId     String?
+  archivedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  system           System?      @relation(fields: [systemId], references: [id])
+  group            SetupGroup? @relation(fields: [groupId], references: [id])
+  currentVersion   SetupVersion? @relation("CurrentSetupVersion", fields: [currentVersionId], references: [id])
+  versions         SetupVersion[]
+  trades           Trade[]
+  missedTrades     MissedTrade[]
+
+  @@index([systemId])
+  @@index([groupId])
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  userId    String
+  name      String
+  color     String     @default("#64748b")
+  groupId   String?
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades    TradeTag[]
+  group     TagGroup?  @relation(fields: [groupId], references: [id])
+}
+
+model TagGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#64748b")
+  createdAt DateTime @default(now())
+  tags      Tag[]
+}
+
+model TradeTag {
+  tradeId String
+  tagId   String
+  trade   Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@id([tradeId, tagId])
+}
+
+// Day Tags - separate axis from trade tags
+model DayTag {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#f59e0b")
+  groupId   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     DayTagGroup? @relation(fields: [groupId], references: [id])
+  days      DayDayTag[]
+}
+
+model DayTagGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#f59e0b")
+  createdAt DateTime @default(now())
+  tags      DayTag[]
+}
+
+model DayDayTag {
+  date     DateTime
+  dayTagId String
+  dayTag   DayTag @relation(fields: [dayTagId], references: [id], onDelete: Cascade)
+  @@id([date, dayTagId])
+}
+
+// Note Tags - separate from trade/day tags
+model NoteTag {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#06b6d4")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     MiscNoteNoteTag[]
+}
+
+model MiscNoteNoteTag {
+  noteId    String
+  noteTagId String
+  note      MiscNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  noteTag   NoteTag  @relation(fields: [noteTagId], references: [id], onDelete: Cascade)
+  @@id([noteId, noteTagId])
+}
+
+model Screenshot {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String?
+  note      String?
+  url       String
+  caption   String?
+  // Short user-facing label marking WHEN in the trade lifecycle this evidence
+  // was captured ("Before Entry", "After Entry", …) — distinct from `caption`
+  // (the longer description) and `note` (free context).
+  tag       String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade     Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model Watchlist {
+  id          String           @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       WatchlistItem[]
+}
+
+model WatchlistItem {
+  id           String     @id @default(cuid())
+  watchlistId  String
+  symbol       String
+  notes        String?
+  targetPrice  Float?
+  stopPrice    Float?
+  addedAt      DateTime   @default(now())
+  watchlist    Watchlist  @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  // Task 125 — provenance audit trail: every re-anchor clamps an event row
+  // (old levels, new levels, the live price it was anchored to).
+  reanchorEvents ReanchorEvent[]
+}
+
+// Task 125 — re-anchor provenance (queued since Task 119). The reanchor
+// toast vanished with the change; now every clamp persists who/what/when:
+// the db-verified old levels, the clamped new levels, and the live price
+// the new bracket was anchored to.
+model ReanchorEvent {
+  id          String        @id @default(cuid())
+  itemId      String
+  symbol      String
+  oldTarget   Float?
+  oldStop     Float?
+  newTarget   Float?
+  newStop     Float?
+  anchorPrice Float
+  createdAt   DateTime      @default(now())
+  item        WatchlistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model Journal {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String?  @unique
+  title     String
+  content   String
+  mood      String?
+  // Task 176 — trade-level psychology (mentor's lens): emotional state at
+  // entry and a 1-5 confidence rating. Feeds AI trade-chat/review context.
+  emotion   String?  // calm, confident, anxious, greedy, fearful, frustrated, neutral, fomo
+  confidence Int?     // 1-5 pre-trade conviction
+  rating    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Task 19 — a journal entry is trade-level psychology (1:1 via unique
+  // tradeId). It dies with its trade; SetNull would leave invisible orphans.
+  trade     Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+// Task 177 — AI coaching report persistence: the AI Suite's generated
+// output (trade reviews, weekly coach reports) is STORED so the trader
+// builds a coaching history instead of one-shot outputs.
+model AiReport {
+  id          String    @id @default(cuid())
+  userId      String
+  kind        String    // trade-review | weekly-review | adherence-review | plan-review | belief-check | decay-check
+  tradeId     String?   // set when kind = trade-review
+  // ── TP scoping (null plan = across all plans) ────────────────────
+  tradingPlanId String?
+  systemId    String?
+  setupId     String?
+  periodType  String?   // day | week | month | quarter | year
+  // TP2 — stable period key for the explore report kinds
+  // (explore-week: 2026-W43, explore-month: 2026-10, explore-quarter: 2026-Q4, explore-year: 2026)
+  periodKey   String?
+  title       String
+  content     String    // markdown body
+  model       String?   // provider label when LLM-generated
+  fallback    Boolean   @default(false) // true = deterministic offline coach
+  periodStart DateTime? // week/window start (weekly-review)
+  periodEnd   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade       Trade?    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, createdAt])
+  @@index([tradingPlanId, kind])
+}
+
+// 3 note types: trade, day, misc
+model DayNote {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  title     String
+  content   String
+  mood      String?
+  rating    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MiscNote {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  tradeId   String?  // optional link to any trade
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags      MiscNoteNoteTag[]
+}
+
+// Day Plans - sleep/stress/mood + checklist per day
+model DayPlan {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  sleepHours  Float?
+  stressLevel Int?     // 1-10
+  mood        String?
+  energyLevel Int?     // 1-10
+  notes       String?
+  checklist   String?  // JSON array
+  // ── TP columns ─────────────────────────────────────────────────────
+  planIds     String?  // JSON list of plans active that day
+  content     String?  // JSON: pre-market sections (calendar/map/risk budget/stand-down)
+  completedAt DateTime? // routine completion time (process rule day_plan_before_first_trade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// Trading Goals
+model Goal {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // daily, weekly, monthly, annual
+  metric      String   // pnl, winRate, profitFactor, trades, rMultiple, adherence_rate, routine_completion, rule_breaks_max
+  target      Float
+  color       String   @default("#10b981")
+  isActive    Boolean  @default(true)
+  order       Int      @default(0) // Task 118 — global display rank (sections filter this)
+  // ── TP columns ─────────────────────────────────────────────────────
+  planId      String?  // the TradingPlan this goal belongs to
+  planVersionId String? // projected from this published version
+  goalKey     String?  // stable across versions
+  kind        String?  // outcome | performance | process | development
+  floor       Float?   // minimum that keeps the business viable
+  stretch     Float?
+  deadline    DateTime?
+  parentGoalKey String?
+  status      String?  // active | achieved | missed | failed | superseded
+  supersededAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, goalKey, planVersionId])
+  @@index([userId, type])
+}
+
+// Custom Dashboards
+model Dashboard {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  layout      String   // JSON of widget positions
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Discipline Challenges — gamified behavior rules auto-scored from journal data.
+// Progress/bestStreak are recomputed deterministically from trades (server-authoritative);
+// the row itself only stores identity (template+target), lifecycle status and timing.
+model Challenge {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId  String    // e.g. cool-down, trade-cap, stop-loss, green-streak…
+  target      Int       @default(5) // streak length (days or trades) to complete
+  status      String    @default("active") // active | completed | abandoned
+  bestStreak  Int       @default(0) // mirror of engine-computed max streak
+  startedAt   DateTime  @default(now()) // only units after this count
+  completedAt DateTime?
+  restartCount Int      @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  @@index([userId, status])
+}
+
+// Task 148 — L2 money transactions: deposits/withdrawals that link cash
+// activity into the equity curve (broker imports bring trades only).
+model MoneyTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  accountId String
+  type      String   @default("deposit") // deposit | withdrawal
+  amount    Float
+  date      DateTime
+  currency  String   @default("USD")
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([userId, date])
+}
+
+// Task 152 — server-backed system-alert read registry. The alerts API
+// recomputes its list on every request, so "read" must live somewhere
+// durable: GET /api/alerts emits readIds from this table and the bell
+// counts only unread rows. Keyed by the STABLE alert id (pattern-warnings,
+// current-drawdown, …); localStorage remains only a pre-fetch hint so the
+// badge is correct even if browser storage is wiped between sessions.
+model AlertRead {
+  alertId String   @id
+  readAt  DateTime @default(now())
+}
+
+// ============================================================================
+// EconomicEvent — REAL economic-calendar news releases (Task 7).
+// Source: ForexFactory's public weekly JSON feeds (nfs.faireconomy.media),
+// synced server-side with upsert + dedupe. This is shared reference data
+// (like market quotes) — not user-scoped. `currency` is the release's
+// currency code ('USD', 'EUR'…); 'ALL' marks global events (IMF, G20…).
+// forecast/previous/actual stay strings — the feed formats them ("0.2%",
+// "$40.2B") and re-formatting would lose units.
+// ============================================================================
+model EconomicEvent {
+  id        String   @id @default(cuid())
+  sourceKey String   @unique // source|title|currency|ISO time — sync dedupe key
+  title     String
+  currency  String   @default("ALL")
+  impact    String   @default("medium") // high | medium | low
+  eventTime DateTime
+  forecast  String?
+  previous  String?
+  actual    String?
+  source    String   @default("forexfactory")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventTime])
+  @@index([currency, eventTime])
+}
+
+// ============================================================================
+// TRADING PLAN FEATURE (TP) — plans, systems, setups, versions, links, checks
+// ============================================================================
+// Identity (group) vs variant vs version:
+//   · A group (SystemGroup/SetupGroup) is an identity shared across plans.
+//   · A variant (System/Setup row) is a complete standalone copy edited only
+//     where it lives.
+//   · A version (PlanVersion/SystemVersion/SetupVersion) is a frozen snapshot.
+// Published versions are immutable (enforced in the API). Trades pin the
+// versions in force at link time. Histories (TradeLinkEvent, TradeStopEvent)
+// are append-only. TP2: the rule engine and its tables are gone — the AI
+// marks trades against the plan directly (PlanMark, Phase 4).
+
+// One standalone, complete trading plan (sections 1-3, 5-9 + 4.0).
+model TradingPlan {
+  id               String    @id @default(cuid())
+  userId           String
+  name             String
+  description      String?
+  color            String    @default("#0b6e6a")
+  status           String    @default("draft")   // draft | active | archived
+  currentVersionId String?                       // latest PUBLISHED PlanVersion
+  duplicatedFromId String?
+  isImported       Boolean   @default(false)     // the migration's "Imported" plan
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  archivedAt       DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentVersion   PlanVersion? @relation("CurrentPlanVersion", fields: [currentVersionId], references: [id])
+  versions         PlanVersion[]
+  systems          System[]
+  trades           Trade[]
+
+  @@index([userId, status])
+}
+
+// A frozen or draft snapshot of a plan's own sections as JSON keyed by
+// question number (e.g. "5.3.1"). SystemVersion/SetupVersion identical shape.
+model PlanVersion {
+  id              String    @id @default(cuid())
+  planId          String
+  versionNo       Int?                      // null while a draft; assigned on publish
+  status          String    @default("draft") // draft | published (immutable)
+  changeLevel     String?                   // initial | cosmetic | tweak | rework
+  changeNote      String?
+  templateVersion String                    // which question set produced `content`
+  content         String                    // JSON: { "<questionKey>": { type, value } }
+  effectiveFrom   DateTime?                 // publishedAt, or backdated for imports
+  publishedAt     DateTime?
+  supersedesId    String?
+  createdAt       DateTime  @default(now())
+  plan            TradingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  currentFor       TradingPlan[] @relation("CurrentPlanVersion")
+  supersededBy    PlanVersion? @relation("PlanVersionSupersedes", fields: [supersedesId], references: [id])
+  superseding     PlanVersion[] @relation("PlanVersionSupersedes")
+
+  @@unique([planId, versionNo])
+  @@index([planId, status])
+}
+
+// The shared identity of a system across plans (e.g. "Opening Range System").
+model SystemGroup {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  color      String    @default("#6366f1")
+  archivedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  systems    System[]
+
+  @@index([userId])
+}
+
+// One system variant inside one plan.
+model System {
+  id               String    @id @default(cuid())
+  userId           String
+  planId           String
+  groupId          String
+  name             String
+  status           String    @default("concept") // concept|testing|live_small|live_full|paused|retired
+  currentVersionId String?
+  copiedFromId     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  archivedAt       DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             TradingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  group            SystemGroup @relation(fields: [groupId], references: [id])
+  currentVersion   SystemVersion? @relation("CurrentSystemVersion", fields: [currentVersionId], references: [id])
+  versions         SystemVersion[]
+  setups           Setup[]
+  trades           Trade[]
+  accounts         SystemAccount[]
+
+  @@index([planId])
+  @@index([groupId])
+}
+
+model SystemVersion {
+  id              String    @id @default(cuid())
+  systemId        String
+  versionNo       Int?
+  status          String    @default("draft")
+  changeLevel     String?
+  changeNote      String?
+  templateVersion String
+  content         String    // JSON keyed by question number (4.1-4.6, 4.8-4.13)
+  effectiveFrom   DateTime?
+  publishedAt     DateTime?
+  supersedesId    String?
+  createdAt       DateTime  @default(now())
+  system          System    @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  currentFor      System[]  @relation("CurrentSystemVersion")
+  supersededBy    SystemVersion? @relation("SystemVersionSupersedes", fields: [supersedesId], references: [id])
+  superseding     SystemVersion[] @relation("SystemVersionSupersedes")
+
+  @@unique([systemId, versionNo])
+  @@index([systemId, status])
+}
+
+// The shared identity of a setup across systems and plans (e.g. "ORB").
+model SetupGroup {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  color      String    @default("#6366f1")
+  archivedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setups     Setup[]
+
+  @@index([userId])
+}
+
+model SetupVersion {
+  id              String    @id @default(cuid())
+  setupId         String
+  versionNo       Int?
+  status          String    @default("draft")
+  changeLevel     String?
+  changeNote      String?
+  templateVersion String
+  content         String    // JSON keyed by question number (4.7.x)
+  effectiveFrom   DateTime?
+  publishedAt     DateTime?
+  supersedesId    String?
+  createdAt       DateTime  @default(now())
+  setup           Setup     @relation(fields: [setupId], references: [id], onDelete: Cascade)
+  currentFor      Setup[]   @relation("CurrentSetupVersion")
+  supersededBy    SetupVersion? @relation("SetupVersionSupersedes", fields: [supersedesId], references: [id])
+  superseding     SetupVersion[] @relation("SetupVersionSupersedes")
+
+  @@unique([setupId, versionNo])
+  @@index([setupId, status])
+}
+
+// Append-only history of how a trade was linked to plan/system/setup.
+model TradeLinkEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  tradeId          String
+  action           String                   // set | changed | cleared
+  planId           String?
+  systemId         String?
+  setupId          String?
+  planVersionId    String?
+  systemVersionId  String?
+  setupVersionId   String?
+  timing           String                   // before_entry | while_open | after_close
+  linkedAt         DateTime @default(now())
+  previousEventId  String?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, linkedAt])
+}
+
+// Append-only history of a trade's stop, so setting and moving it can be
+// checked. stopLoss null = stop removed.
+model TradeStopEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String
+  stopLoss  Float?
+  setAt     DateTime
+  source    String   @default("manual")     // manual | import | execution | api
+  note      String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, setAt])
+}
+
+// TP2 Phase 4 — the AI plan-compliance mark. Append-only: a new mark sets
+// supersededAt on the previous one; history is never deleted. mark is one of
+// respected | not_respected | unclear | no_plan (no_plan is stored for linked-
+// to-nothing trades so every counting surface sees one shape). findings JSON:
+// [{ sectionKey, quote, result: respected|broken|unclear, severity: critical|
+// major|minor, reason }] — sectionKey is the plan question number so every
+// finding links back to the plan text. facts JSON: exactly what the facts
+// helper gave the AI (value or unknown+reason), so the review block can show
+// the numbers behind a verdict without recomputing.
+model PlanMark {
+  id               String    @id @default(cuid())
+  userId           String
+  tradeId          String
+  mark             String
+  confidence       Float?
+  findings         String    @default("[]")
+  facts            String    @default("{}")
+  planVersionId    String?
+  systemVersionId  String?
+  setupVersionId   String?
+  model            String?
+  createdAt        DateTime  @default(now())
+  supersededAt     DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade            Trade     @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, supersededAt])
+  @@index([userId, mark])
+}
+
+// TP2 Phase 5 — which trade-form warnings were shown and whether the trade
+// was saved anyway. warnings JSON: [{ kind, message, value, limit }].
+model TradeWarningLog {
+  id          String   @id @default(cuid())
+  userId      String
+  tradeId     String
+  warnings    String   @default("[]")
+  savedAnyway Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade       Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+}
+
+// Evidence for or against a belief, a version change, a decay signal or a
+// goal. Read backwards by the trade page ("contributed to the change in v2").
+model PlanEvidence {
+  id         String   @id @default(cuid())
+  userId     String
+  planId     String
+  systemId   String?
+  setupId    String?
+  targetKind String                         // belief | version_change | decay | goal | rule
+  targetKey  String                         // question number, version id or plan point key
+  refType    String                         // trade | review | metric | note
+  refId      String?
+  stance     String   @default("neutral")   // for | against | neutral
+  note       String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([planId, targetKind, targetKey])
+}
+
+// A confirmed or proposed psychology link: action → emotion → belief.
+// The AI proposes (status hypothesis, proposedBy ai); the user confirms or
+// rejects. Nothing is auto-confirmed.
+model PsychChainLink {
+  id          String   @id @default(cuid())
+  userId      String
+  planId      String
+  actionKey   String                        // a Mistake id or an action name
+  emotion     String?
+  belief      String?
+  status      String   @default("hypothesis") // hypothesis | confirmed | rejected
+  proposedBy  String   @default("ai")        // ai | user
+  evidence    String?                        // JSON: trade ids and patterns
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([planId, status])
+}
+
+// Which broker accounts a system executes on (question 4.4.3).
+model SystemAccount {
+  systemId   String
+  accountId  String
+  system     System   @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([systemId, accountId])
+}

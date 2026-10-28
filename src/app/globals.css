@@ -1,0 +1,923 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --brand-hue: 165;
+  --brand-chroma: 1;
+  /* Neutral shadcn tokens map 1:1 onto the SHELL palette (shell.css) so any
+     context that misses the .dark class still renders the same surfaces.
+     The shell palette is re-declared per theme (html[data-theme=…]), so these
+     derive automatically for all 6 themes; brand tokens (primary/ring/charts)
+     are re-declared per theme in the block below. Fallback hexes keep the
+     DEFAULT (midnight) values stable even if shell.css has not loaded. */
+  --background: var(--bg-content, #111827);
+  --foreground: var(--text-primary, #f9fafb);
+  --card: var(--bg-card, #111727);
+  --card-foreground: var(--text-primary, #f9fafb);
+  --popover: var(--bg-bar, #1f2937);
+  --popover-foreground: var(--text-primary, #f9fafb);
+  --primary: oklch(0.7 0.16 165);
+  --primary-foreground: oklch(0.16 0.02 200);
+  --secondary: var(--bg-hover, #374151);
+  --secondary-foreground: var(--text-primary, #f9fafb);
+  --muted: var(--bg-inset, #2b3544);
+  --muted-foreground: var(--text-secondary, #9ca3af);
+  --accent: var(--bg-hover, #374151);
+  --accent-foreground: var(--text-primary, #f9fafb);
+  --destructive: var(--shell-danger, #ef4444);
+  --border: var(--border-strong, #2b3544);
+  --input: var(--bg-inset, #2b3544);
+  --ring: oklch(0.7 0.16 165);
+  --chart-1: oklch(0.6 0.15 165);
+  --chart-2: oklch(0.65 0.18 145);
+  --chart-3: oklch(0.7 0.18 200);
+  --chart-4: oklch(0.75 0.15 90);
+  --chart-5: oklch(0.6 0.22 25);
+  --sidebar: var(--bg-bar, #1f2937);
+  --sidebar-foreground: var(--text-primary, #f9fafb);
+  --sidebar-primary: oklch(0.55 0.15 165);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--bg-hover, #374151);
+  --sidebar-accent-foreground: var(--text-primary, #f9fafb);
+  --sidebar-border: var(--border-strong, #2b3544);
+  --sidebar-ring: oklch(0.55 0.15 165);
+}
+
+.dark {
+  /* THEME EVENNESS (user request): the shadcn token set is mapped 1:1 onto
+     the shell palette (src/components/shell/shell.css) so EVERY page, card,
+     section and popover — whether built on shell tokens or shadcn
+     primitives — renders the exact same surfaces. Neutrals are unified;
+     the brand primary, chart ramp and profit/loss semantics are preserved
+     (they are the theme's intentional accents). */
+  --background: var(--bg-content, #111827);
+  --foreground: var(--text-primary, #f9fafb);
+  --card: var(--bg-card, #111727);
+  --card-foreground: var(--text-primary, #f9fafb);
+  --popover: var(--bg-bar, #1f2937);
+  --popover-foreground: var(--text-primary, #f9fafb);
+  --primary: oklch(0.7 0.16 165);
+  --primary-foreground: oklch(0.16 0.02 200);
+  --secondary: var(--bg-hover, #374151);
+  --secondary-foreground: var(--text-primary, #f9fafb);
+  --muted: var(--bg-inset, #2b3544);
+  --muted-foreground: var(--text-secondary, #9ca3af);
+  --accent: var(--bg-hover, #374151);
+  --accent-foreground: var(--text-primary, #f9fafb);
+  --destructive: var(--shell-danger, #ef4444);
+  --border: var(--border-strong, #2b3544);
+  --input: var(--bg-inset, #2b3544);
+  --ring: oklch(0.7 0.16 165);
+  --chart-1: oklch(0.7 0.16 165);
+  --chart-2: oklch(0.7 0.18 145);
+  --chart-3: oklch(0.7 0.18 200);
+  --chart-4: oklch(0.75 0.15 90);
+  --chart-5: oklch(0.7 0.2 25);
+  --sidebar: var(--bg-bar, #1f2937);
+  --sidebar-foreground: var(--text-primary, #f9fafb);
+  --sidebar-primary: oklch(0.7 0.16 165);
+  --sidebar-primary-foreground: oklch(0.16 0.02 200);
+  --sidebar-accent: var(--bg-hover, #374151);
+  --sidebar-accent-foreground: var(--text-primary, #f9fafb);
+  --sidebar-border: var(--border-strong, #2b3544);
+  --sidebar-ring: oklch(0.7 0.16 165);
+}
+
+/* ---- Per-theme BRAND tokens (Task 151-a) ----------------------------------
+   Surfaces derive from the shell palette per theme; each theme only re-declares
+   the brand hue family (primary/ring/sidebar/chart) + --brand-hue/--brand-chroma
+   (selection, glow, nav tint). Lightness follows the mode for contrast. */
+html[data-theme='obsidian'] {
+  --primary: oklch(0.72 0.128 75);
+  --primary-foreground: oklch(0.16 0.02 200);
+  --ring: oklch(0.72 0.128 75);
+  --sidebar-primary: oklch(0.72 0.128 75);
+  --sidebar-primary-foreground: oklch(0.16 0.02 200);
+  --sidebar-ring: oklch(0.72 0.128 75);
+  --chart-1: oklch(0.7 0.128 75);
+  --chart-2: oklch(0.7 0.144 55);
+  --chart-3: oklch(0.7 0.144 110);
+  --chart-4: oklch(0.75 0.12 0);
+  --chart-5: oklch(0.7 0.16 295);
+  --brand-hue: 75;
+  --brand-chroma: 0.8;
+}
+html[data-theme='abyss'] {
+  --primary: oklch(0.7 0.15 192);
+  --primary-foreground: oklch(0.16 0.02 200);
+  --ring: oklch(0.7 0.15 192);
+  --sidebar-primary: oklch(0.7 0.15 192);
+  --sidebar-primary-foreground: oklch(0.16 0.02 200);
+  --sidebar-ring: oklch(0.7 0.15 192);
+  --chart-1: oklch(0.7 0.152 192);
+  --chart-2: oklch(0.7 0.171 172);
+  --chart-3: oklch(0.7 0.171 227);
+  --chart-4: oklch(0.75 0.1425 117);
+  --chart-5: oklch(0.7 0.19 52);
+  --brand-hue: 192;
+  --brand-chroma: 0.95;
+}
+html[data-theme='porcelain'] {
+  --primary: oklch(0.55 0.15 163);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.55 0.15 163);
+  --sidebar-primary: oklch(0.55 0.15 163);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.55 0.15 163);
+  --accent: oklch(0.94 0.03 163);
+  --accent-foreground: oklch(0.25 0.05 163);
+  --chart-1: oklch(0.6 0.15 163);
+  --chart-2: oklch(0.65 0.18 143);
+  --chart-3: oklch(0.7 0.18 198);
+  --chart-4: oklch(0.75 0.15 88);
+  --chart-5: oklch(0.6 0.22 23);
+  --brand-hue: 163;
+  --brand-chroma: 1;
+}
+html[data-theme='ivory'] {
+  --primary: oklch(0.52 0.12 75);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.52 0.12 75);
+  --sidebar-primary: oklch(0.52 0.12 75);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.52 0.12 75);
+  --accent: oklch(0.94 0.024 75);
+  --accent-foreground: oklch(0.25 0.04 75);
+  --chart-1: oklch(0.6 0.12 75);
+  --chart-2: oklch(0.65 0.144 55);
+  --chart-3: oklch(0.7 0.144 110);
+  --chart-4: oklch(0.75 0.12 0);
+  --chart-5: oklch(0.6 0.176 295);
+  --brand-hue: 75;
+  --brand-chroma: 0.8;
+}
+html[data-theme='mist'] {
+  --primary: oklch(0.52 0.12 192);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.52 0.12 192);
+  --sidebar-primary: oklch(0.52 0.12 192);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-ring: oklch(0.52 0.12 192);
+  --accent: oklch(0.94 0.0285 192);
+  --accent-foreground: oklch(0.25 0.0475 192);
+  --chart-1: oklch(0.6 0.1425 192);
+  --chart-2: oklch(0.65 0.171 172);
+  --chart-3: oklch(0.7 0.171 227);
+  --chart-4: oklch(0.75 0.1425 117);
+  --chart-5: oklch(0.6 0.209 52);
+  --brand-hue: 192;
+  --brand-chroma: 0.95;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    /* Scroll isolation: the window never scrolls (the app shell is a fixed
+       viewport frame; <main> and the sidebar own their own scrollports), so
+       wheel scrolling in one region can never chain into the other. */
+    overscroll-behavior: none;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "tnum" 1;
+  }
+}
+
+/* Selection — brand accent (follows Appearance → Accent color) */
+::selection {
+  background: oklch(0.7 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.35);
+  color: inherit;
+}
+
+/* Charts: kill focus outlines on svg wrappers */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+/* Custom scrollbar — token-driven (theme-aware) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-secondary, #9ca3af) 35%, transparent);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-secondary, #9ca3af) 55%, transparent);
+}
+
+/* Number tabular */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle glassmorphism — token-driven (theme-aware) */
+.glass {
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--bg-bar, #1f2937) 78%, transparent);
+}
+
+/* Profit/Loss colors — light themes need darker steps for contrast */
+.text-profit {
+  color: oklch(0.75 0.18 145);
+}
+.text-loss {
+  color: oklch(0.7 0.22 25);
+}
+html[data-theme-mode='light'] .text-profit {
+  color: oklch(0.5 0.15 150);
+}
+html[data-theme-mode='light'] .text-loss {
+  color: oklch(0.52 0.19 25);
+}
+.bg-profit {
+  background-color: oklch(0.7 0.18 145 / 0.15);
+}
+.bg-loss {
+  background-color: oklch(0.7 0.22 25 / 0.15);
+}
+.border-profit {
+  border-color: oklch(0.7 0.18 145 / 0.4);
+}
+.border-loss {
+  border-color: oklch(0.7 0.22 25 / 0.4);
+}
+
+/* Colorblind Mode (Display ▸ Colorblind Mode, Task 22) — remaps the PnL
+   SEMANTIC classes to the colorblind-safe blue/orange pair. Brand accents
+   (emerald utilities, nav tint, buttons) are deliberately untouched: only
+   win/loss semantics change meaning. Charts fill via --shell-success /
+   --shell-danger (overridden in shell.css under the same attribute). */
+html[data-colorblind='1'] .text-profit {
+  color: oklch(0.75 0.13 245);
+}
+html[data-colorblind='1'] .text-loss {
+  color: oklch(0.78 0.15 60);
+}
+html[data-colorblind='1'][data-theme-mode='light'] .text-profit {
+  color: oklch(0.5 0.13 245);
+}
+html[data-colorblind='1'][data-theme-mode='light'] .text-loss {
+  color: oklch(0.6 0.15 55);
+}
+html[data-colorblind='1'] .bg-profit {
+  background-color: oklch(0.7 0.13 245 / 0.15);
+}
+html[data-colorblind='1'] .bg-loss {
+  background-color: oklch(0.75 0.15 60 / 0.15);
+}
+html[data-colorblind='1'] .border-profit {
+  border-color: oklch(0.7 0.13 245 / 0.4);
+}
+html[data-colorblind='1'] .border-loss {
+  border-color: oklch(0.75 0.15 60 / 0.4);
+}
+
+/* Animated gradient for hero */
+.animated-gradient {
+  background: linear-gradient(135deg, 
+    oklch(0.7 0.16 165), 
+    oklch(0.65 0.18 145), 
+    oklch(0.7 0.16 200)
+  );
+  background-size: 200% 200%;
+  animation: gradient 8s ease infinite;
+}
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Pulse glow for live indicators */
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.7 0.18 145 / 0.7); }
+  50% { box-shadow: 0 0 0 8px oklch(0.7 0.18 145 / 0); }
+}
+
+/* Sidebar active indicator — gradient pill + glow (brand-hue driven) */
+.nav-active {
+  background: linear-gradient(
+    90deg,
+    oklch(0.7 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.22) 0%,
+    oklch(0.7 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.08) 75%,
+    transparent 100%
+  );
+  color: oklch(0.88 0.14 var(--brand-hue, 165));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 0 12px -4px oklch(0.7 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.4);
+}
+html[data-theme-mode='light'] .nav-active {
+  color: oklch(0.42 0.13 var(--brand-hue, 165));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    0 0 12px -6px oklch(0.55 calc(0.15 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.45);
+}
+
+/* Sidebar active left accent bar */
+.nav-active-bar {
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    oklch(0.75 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165)),
+    oklch(0.65 calc(0.18 * var(--brand-chroma, 1)) calc(var(--brand-hue, 165) - 20))
+  );
+  box-shadow: 0 0 8px oklch(0.7 calc(0.16 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.8);
+}
+
+/* StatCard hover depth — token-driven highlight (theme-aware) */
+.stat-card {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--text-primary, #f9fafb) 16%, transparent);
+  box-shadow: 0 12px 28px -14px oklch(0 0 0 / 0.65);
+}
+html[data-theme-mode='light'] .stat-card:hover {
+  box-shadow: 0 12px 28px -16px oklch(0 0 0 / 0.35);
+}
+.stat-card:hover .stat-card-icon {
+  background: color-mix(in srgb, var(--text-primary, #f9fafb) 8%, transparent);
+  color: var(--text-primary, #f9fafb);
+  transform: scale(1.06);
+}
+.stat-card-icon {
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Primary action glow */
+.btn-glow-emerald {
+  transition:
+    background 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.15s ease;
+}
+.btn-glow-emerald:hover {
+  box-shadow: 0 0 0 1px oklch(0.75 calc(0.17 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.35), 0 6px 20px -6px oklch(0.7 calc(0.18 * var(--brand-chroma, 1)) var(--brand-hue, 165) / 0.55);
+}
+.btn-glow-emerald:active {
+  transform: translateY(1px);
+}
+
+/* Card hover lift — used by dashboards hub cards + template gallery.
+   Border warms toward the accent and the card floats slightly. */
+.card-hover {
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+.card-hover:hover {
+  border-color: color-mix(in srgb, var(--shell-accent) 45%, var(--border-strong));
+  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.55);
+  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-hover,
+  .card-hover:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Long-press drag sources must never pop the native selection/callout UI
+   (iOS Safari shows a text-callout / magnifier on long-press otherwise). */
+.touch-drag-source {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Smooth fade-in */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Skeleton shimmer — token-driven ramp (theme-aware) */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-inset, #2b3544) 0%,
+    var(--bg-hover, #374151) 50%,
+    var(--bg-inset, #2b3544) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Challenge / XP progress bars — animated barber-pole stripes while filling.
+   Overlay uses currentColor so the underlying accent bar shows through. */
+.progress-stripes::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: linear-gradient(
+    115deg,
+    rgb(255 255 255 / 0.16) 0 8px,
+    transparent 8px 16px
+  );
+  background-size: 24px 100%;
+  animation: stripes-slide 0.9s linear infinite;
+}
+@keyframes stripes-slide {
+  from { background-position: 0 0; }
+  to { background-position: 24px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-stripes::after {
+    animation: none;
+  }
+}
+
+/* Task 122 — drill-through highlight: a goal card reached from the import
+   impact panel (?highlight=<id>) pulses an emerald ring twice while a soft
+   green wash fades out, then returns to its normal surface. */
+.goal-highlight-flash {
+  animation: goal-flash-ring 1.4s ease-out 2;
+}
+@keyframes goal-flash-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.5);
+    background-color: rgb(16 185 129 / 0.1);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgb(16 185 129 / 0);
+    background-color: rgb(16 185 129 / 0.06);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .goal-highlight-flash {
+    animation: none;
+    /* Static ring instead of the pulse for reduced-motion users. */
+    box-shadow: 0 0 0 2px rgb(16 185 129 / 0.45);
+  }
+}
+
+/* Task 123 — required-gap pulse: when the column-mapping panel auto-opens
+   with a required field unmapped, the first missing Select pulses an amber
+   ring twice, then returns to its normal amber-required border. */
+.required-field-pulse {
+  animation: required-pulse-ring 1.2s ease-out 2;
+}
+@keyframes required-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgb(245 158 11 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .required-field-pulse {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(245 158 11 / 0.5);
+  }
+}
+
+/* ============================================================================
+   Task 132 — FullCalendar 6.1.21 dark integration (calendar page FC mode)
+   FullCalendar v6 auto-injects its own stylesheet; everything below re-skins
+   it via the official --fc-* custom properties + a few structural overrides.
+   ========================================================================== */
+.fc-dark {
+  --fc-border-color: rgba(255, 255, 255, 0.08);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: rgba(255, 255, 255, 0.03);
+  --fc-today-bg-color: rgba(16, 185, 129, 0.07);
+  --fc-highlight-color: rgba(16, 185, 129, 0.12);
+  --fc-event-border-color: transparent;
+  --fc-small-font-size: 11px;
+}
+.fc-dark .fc .fc-toolbar-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fafafa;
+  letter-spacing: -0.01em;
+}
+.fc-dark .fc .fc-button {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  box-shadow: none;
+  text-transform: capitalize;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.fc-dark .fc .fc-button:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.fc-dark .fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc-dark .fc .fc-button-primary:not(:disabled):active {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+.fc-dark .fc .fc-button:focus,
+.fc-dark .fc .fc-button-primary:focus {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+}
+.fc-dark .fc .fc-col-header-cell-cushion {
+  color: #a1a1aa;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 6px 4px;
+}
+.fc-dark .fc .fc-daygrid-day-number {
+  color: #d4d4d8;
+  font-size: 11px;
+  padding: 4px 6px;
+}
+.fc-dark .fc .fc-day-today .fc-daygrid-day-number {
+  color: #34d399;
+  font-weight: 700;
+}
+.fc-dark .fc .fc-daygrid-day-frame {
+  min-height: 84px;
+}
+.fc-dark .fc .fc-scrollgrid {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.fc-dark .fc a {
+  text-decoration: none;
+}
+/* Traded-day chip rendered through eventContent html injection */
+.fc-dark .fc .fc-daygrid-event {
+  background: transparent;
+  border: none;
+}
+.fc-dark .fc .fc-daygrid-event-harness {
+  margin: 1px 2px;
+}
+.fc-dark .fc .fc-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  width: 100%;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.fc-dark .fc .fc-chip:hover {
+  filter: brightness(1.25);
+}
+.fc-dark .fc .fc-chip .fc-chip-pnl {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fc-dark .fc .fc-chip .fc-chip-n {
+  opacity: 0.75;
+  font-size: 9px;
+}
+.fc-dark .fc .fc-h-event .fc-event-main {
+  color: inherit;
+}
+/* Task 133 — timeGrid week view + per-trade timed chips */
+.fc-dark .fc .fc-timegrid-slot-label-cushion {
+  color: #71717a;
+  font-size: 10px;
+}
+.fc-dark .fc .fc-timegrid-now-indicator-line {
+  border-color: #f59e0b;
+  border-width: 1.5px 0 0 0;
+}
+.fc-dark .fc .fc-timegrid-now-indicator-arrow {
+  border-color: #f59e0b;
+}
+.fc-dark .fc .fc-timegrid-col.fc-day-today {
+  background: var(--fc-today-bg-color);
+}
+.fc-dark .fc .fc-chip.fc-chip-timed {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  gap: 5px;
+  padding: 1px 5px;
+  font-size: 9px;
+  border-radius: 5px;
+  justify-content: flex-start;
+}
+.fc-dark .fc .fc-chip.fc-chip-timed .fc-chip-sym {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.fc-dark .fc .fc-chip.fc-chip-timed .fc-chip-pnl {
+  font-weight: 600;
+}
+.fc-dark .fc .fc-timegrid-event-harness {
+  margin: 0 2px;
+}
+
+/* Task 134 — Agenda (listMonth) view dark chrome. The list rows share the
+   fc-chip eventContent, so the chip carries the signed P&L; the row chrome
+   itself needs day-header, border and hover treatment to match the rest of
+   the dark calendar. */
+.fc-dark .fc .fc-list {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.fc-dark .fc .fc-list-day-cushion {
+  background: var(--bg-inset, #0d1117);
+  padding: 6px 10px;
+}
+.fc-dark .fc .fc-list-day-text,
+.fc-dark .fc .fc-list-day-side-text {
+  color: var(--text-secondary, #9ca3af);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-cushion {
+  background: rgba(16, 185, 129, 0.08);
+}
+.fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-text,
+.fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-side-text {
+  color: #34d399;
+}
+.fc-dark .fc .fc-list-event {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+.fc-dark .fc .fc-list-event td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.fc-dark .fc .fc-list-event:hover td {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.fc-dark .fc .fc-list-event-time {
+  color: var(--text-secondary, #9ca3af);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fc-dark .fc .fc-list-event-dot {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.fc-dark .fc .fc-list-event-title .fc-chip {
+  margin: 0;
+}
+.fc-dark .fc .fc-list-empty {
+  background: transparent;
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* Task 151-a — FullCalendar LIGHT chrome. The .fc-dark class stays applied
+   (its structural styles are mode-agnostic); when the active theme is light
+   these higher-specificity overrides re-skin the color-only rules. */
+html[data-theme-mode='light'] .fc-dark .fc {
+  --fc-border-color: rgba(0, 0, 0, 0.1);
+  --fc-neutral-bg-color: rgba(0, 0, 0, 0.03);
+  --fc-today-bg-color: rgba(16, 185, 129, 0.06);
+  --fc-highlight-color: rgba(16, 185, 129, 0.12);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-toolbar-title {
+  color: var(--text-primary, #111827);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-button {
+  background: var(--bg-inset, #eef2f1);
+  border: 1px solid var(--border-strong, #d3dcda);
+  color: var(--text-secondary, #6b7280);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-button:hover {
+  background: var(--bg-hover, #e4eae8);
+  border-color: var(--border-strong, #d3dcda);
+  color: var(--text-primary, #111827);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-button-primary:not(:disabled).fc-button-active,
+html[data-theme-mode='light'] .fc-dark .fc .fc-button-primary:not(:disabled):active {
+  background: var(--shell-accent, #059669);
+  border-color: var(--shell-accent, #059669);
+  color: #fff;
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-col-header-cell-cushion {
+  color: var(--text-secondary, #6b7280);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-daygrid-day-number {
+  color: var(--text-primary, #111827);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-day-today .fc-daygrid-day-number {
+  color: var(--shell-accent, #059669);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day-cushion {
+  background: var(--bg-inset, #eef2f1);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day-text,
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day-side-text {
+  color: var(--text-secondary, #6b7280);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-cushion {
+  background: rgba(16, 185, 129, 0.08);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-text,
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-day.fc-day-today .fc-list-day-side-text {
+  color: var(--shell-accent, #059669);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-event {
+  border-color: rgba(0, 0, 0, 0.06);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-event:hover td {
+  background: rgba(0, 0, 0, 0.03);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-event-time {
+  color: var(--text-secondary, #6b7280);
+}
+html[data-theme-mode='light'] .fc-dark .fc .fc-list-event-dot {
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================================
+   Task 151-a — LIGHT-THEME adaptation for alpha-white utilities.
+   Components were authored dark-first with `bg-white/5`-style surface tints,
+   `border-white/10` hairlines and `ring-white/40` focus rings. On light
+   themes those alphas vanish (white on white). Rather than rewriting ~170
+   call sites, light mode remaps the SURFACE/BORDER/RING variants to
+   black-based equivalents of the same strength. Text-white variants are
+   deliberately NOT remapped (they sit on colored chips/buttons).
+   Escaped class selectors — specificity (0,2,1) beats Tailwind's utilities.
+   ========================================================================== */
+html[data-theme-mode='light'] .bg-white\/5 { background-color: rgb(0 0 0 / 0.03); }
+html[data-theme-mode='light'] .bg-white\/10 { background-color: rgb(0 0 0 / 0.05); }
+html[data-theme-mode='light'] .bg-white\/15 { background-color: rgb(0 0 0 / 0.07); }
+html[data-theme-mode='light'] .bg-white\/50 { background-color: rgb(0 0 0 / 0.06); }
+html[data-theme-mode='light'] .hover\:bg-white\/5:hover { background-color: rgb(0 0 0 / 0.04); }
+html[data-theme-mode='light'] .hover\:bg-white\/10:hover { background-color: rgb(0 0 0 / 0.06); }
+html[data-theme-mode='light'] .border-white\/5 { border-color: rgb(0 0 0 / 0.06); }
+html[data-theme-mode='light'] .border-white\/10 { border-color: rgb(0 0 0 / 0.10); }
+html[data-theme-mode='light'] .border-white\/20 { border-color: rgb(0 0 0 / 0.14); }
+html[data-theme-mode='light'] .border-white\/25 { border-color: rgb(0 0 0 / 0.16); }
+html[data-theme-mode='light'] .border-white\/30 { border-color: rgb(0 0 0 / 0.18); }
+html[data-theme-mode='light'] .border-white\/40 { border-color: rgb(0 0 0 / 0.22); }
+html[data-theme-mode='light'] .hover\:border-white\/15:hover { border-color: rgb(0 0 0 / 0.14); }
+html[data-theme-mode='light'] .hover\:border-white\/20:hover { border-color: rgb(0 0 0 / 0.18); }
+html[data-theme-mode='light'] .ring-white\/10 { --tw-ring-color: rgb(0 0 0 / 0.10); }
+html[data-theme-mode='light'] .ring-white\/20 { --tw-ring-color: rgb(0 0 0 / 0.16); }
+html[data-theme-mode='light'] .ring-white\/30 { --tw-ring-color: rgb(0 0 0 / 0.22); }
+html[data-theme-mode='light'] .ring-white\/40 { --tw-ring-color: rgb(0 0 0 / 0.28); }
+html[data-theme-mode='light'] .hover\:ring-white\/20:hover { --tw-ring-color: rgb(0 0 0 / 0.16); }
+
+/* Task 151-a — LIGHT-THEME text-shade remap. Colored text utilities were
+   tuned for dark surfaces (-200/-300/-400 = light tints). On light themes
+   those wash out; each maps to a same-hue darker step with real contrast.
+   (Escaped-class selectors so they win over Tailwind's compiled utilities.) */
+html[data-theme-mode='light'] .text-emerald-200 { color: var(--color-emerald-700); }
+html[data-theme-mode='light'] .text-emerald-300 { color: var(--color-emerald-700); }
+html[data-theme-mode='light'] .text-emerald-400 { color: var(--color-emerald-600); }
+html[data-theme-mode='light'] .text-rose-300 { color: var(--color-rose-700); }
+html[data-theme-mode='light'] .text-rose-400 { color: var(--color-rose-600); }
+html[data-theme-mode='light'] .text-red-300 { color: var(--color-red-700); }
+html[data-theme-mode='light'] .text-red-400 { color: var(--color-red-600); }
+html[data-theme-mode='light'] .text-amber-200 { color: var(--color-amber-800); }
+html[data-theme-mode='light'] .text-amber-300 { color: var(--color-amber-700); }
+html[data-theme-mode='light'] .text-amber-400 { color: var(--color-amber-600); }
+html[data-theme-mode='light'] .text-yellow-400 { color: var(--color-yellow-600); }
+html[data-theme-mode='light'] .text-orange-400 { color: var(--color-orange-600); }
+html[data-theme-mode='light'] .text-sky-200 { color: var(--color-sky-800); }
+html[data-theme-mode='light'] .text-sky-300 { color: var(--color-sky-700); }
+html[data-theme-mode='light'] .text-sky-400 { color: var(--color-sky-600); }
+html[data-theme-mode='light'] .text-blue-400 { color: var(--color-blue-600); }
+html[data-theme-mode='light'] .text-indigo-400 { color: var(--color-indigo-600); }
+html[data-theme-mode='light'] .text-violet-300 { color: var(--color-violet-700); }
+html[data-theme-mode='light'] .text-violet-400 { color: var(--color-violet-600); }
+html[data-theme-mode='light'] .text-teal-400 { color: var(--color-teal-600); }
+html[data-theme-mode='light'] .text-cyan-400 { color: var(--color-cyan-600); }
+html[data-theme-mode='light'] .text-lime-400 { color: var(--color-lime-600); }
+html[data-theme-mode='light'] .text-zinc-200 { color: var(--color-zinc-600); }
+html[data-theme-mode='light'] .text-zinc-300 { color: var(--color-zinc-600); }
+html[data-theme-mode='light'] .text-zinc-400 { color: var(--color-zinc-600); }
+
+/* ── Shared panel utility ──────────────────────────────────── */
+
+@layer utilities {
+  /* Bordered card panel look */
+  .panel {
+    border: 1px solid var(--border);
+    background-color: var(--card);
+    border-radius: var(--radius);
+  }
+}
+
+/* TP2 — plan reader print layout: printing from read mode prints the plan
+   document only (title page content, contents, sections), not the app chrome. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .tp-reader-doc,
+  .tp-reader-doc * {
+    visibility: visible;
+  }
+  .tp-reader-doc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block !important;
+    width: 100%;
+  }
+  .tp-reader-doc nav {
+    display: none !important;
+  }
+}
+
+/* TP2 read mode — editorial serif for the trader's own answers: the plan
+   reads like a published document, the trader's voice set apart from the
+   template's sans-serif questions. */
+.tp-serif {
+  font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua',
+    'Times New Roman', serif;
+}
