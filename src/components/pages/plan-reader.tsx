@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { buildPlanDocument, type DocBlock, type DocPlanTree } from '@/lib/plan-document'
 import {
-  ArrowLeft, Pencil, Download, Printer, Eye, EyeOff, History, FileWarning, Boxes, X,
+  ArrowLeft, Pencil, Download, FileWarning, X,
 } from 'lucide-react'
 
 // ---------- document grouping (reader-side; the block model is untouched) ----------
@@ -183,100 +183,109 @@ export function PlanReader({
   })
 
   return (
-    <div className="space-y-5">
-      {/* ---------- hero ---------- */}
-      <Card className="p-6" data-testid="tp-reader-header">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <button
-              onClick={() => useAppStore.getState().navigate('/trading-plans/plans')}
-              className="group inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" /> All plans
-            </button>
-            <div className="mt-2.5 flex items-center gap-3">
-              <span
-                className="h-3 w-3 rounded-full shrink-0"
-                style={{ background: accent, boxShadow: `0 0 0 4px ${accent}26` }}
-                aria-hidden
-              />
-              <h1 className="text-2xl font-semibold tracking-tight leading-none">{tree.plan.name}</h1>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <History className="h-3.5 w-3.5" />
-                Reading v{version?.versionNo ?? '—'}
-                {!isCurrent && <span className="text-amber-400">· older version</span>}
-              </span>
-              <span className="h-3 w-px bg-border" aria-hidden />
-              <span className="tnum">{tree.systems.length} system{tree.systems.length === 1 ? '' : 's'}</span>
-              <span className="h-3 w-px bg-border" aria-hidden />
-              <span className="tnum">{setupCount} setup{setupCount === 1 ? '' : 's'}</span>
-              {version?.publishedAt && (
-                <>
-                  <span className="h-3 w-px bg-border" aria-hidden />
-                  <span>Published {new Date(version.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => setDownloadOpen(true)} data-testid="tp-download-btn">
-              <Download className="h-3.5 w-3.5 mr-1.5" /> Download
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => window.print()} data-testid="tp-print-btn">
-              <Printer className="h-3.5 w-3.5 mr-1.5" /> Print
-            </Button>
-            <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={onEdit} data-testid="tp-edit-btn">
-              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-            </Button>
-          </div>
-        </div>
-
-        {/* version picker — older versions open read-only */}
-        {published.length > 1 && (
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Version</span>
-            {published.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => useAppStore.getState().navigate(`/trading-plans/plan-editor?plan=${planId}&version=${v.id}`)}
-                className={cn(
-                  'rounded-full border px-2.5 py-1 text-[10.5px] font-semibold tnum cursor-pointer transition-colors',
-                  v.id === versionId
-                    ? 'border-teal-500/40 bg-teal-500/10 text-teal-300'
-                    : 'border-border text-muted-foreground hover:text-foreground hover:border-white/15',
-                )}
-                title={v.publishedAt ? `Published ${new Date(v.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — ${v.changeLevel ?? ''}` : undefined}
-              >
-                v{v.versionNo}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* unanswered toggle */}
-        <div className="mt-4 flex items-center justify-between gap-2">
+    <div className="space-y-7">
+      {/* ---------- hero — an unboxed title block, the document's own first page ---------- */}
+      <header data-testid="tp-reader-header">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <button
-            onClick={() => setShowUnanswered((s) => !s)}
-            className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/30 px-3.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer"
-            data-testid="tp-unanswered-toggle"
+            onClick={() => useAppStore.getState().navigate('/trading-plans/plans')}
+            className="group inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80 hover:text-foreground transition-colors cursor-pointer"
           >
-            {showUnanswered ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            {showUnanswered
-              ? `Unanswered questions shown (${doc.gaps.length})`
-              : `Show unanswered questions (${doc.gaps.length})`}
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" /> All plans
           </button>
-          {showUnanswered && doc.gaps.length > 0 && (
+          <div className="flex items-center gap-5">
             <button
-              onClick={() => useAppStore.getState().navigate(`/trading-plans/plan-editor?plan=${planId}&mode=edit`)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-400 hover:text-amber-300 cursor-pointer"
+              onClick={() => setDownloadOpen(true)}
+              data-testid="tp-download-btn"
+              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer"
             >
-              <FileWarning className="h-3.5 w-3.5" /> Fill the gaps in edit mode
+              Download
             </button>
-          )}
+            <button
+              onClick={() => window.print()}
+              data-testid="tp-print-btn"
+              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer"
+            >
+              Print
+            </button>
+            <button
+              onClick={onEdit}
+              data-testid="tp-edit-btn"
+              className="text-[10px] font-semibold uppercase tracking-[0.18em] transition-opacity hover:opacity-75 cursor-pointer"
+              style={{ color: accent }}
+            >
+              Edit
+            </button>
+          </div>
         </div>
-      </Card>
+
+        <div className="mt-6 flex items-center gap-4">
+          <span
+            className="h-2.5 w-2.5 rounded-full shrink-0"
+            style={{ background: accent, boxShadow: `0 0 0 5px ${accent}1f` }}
+            aria-hidden
+          />
+          <h1 className="text-[28px] font-semibold tracking-tight leading-[1.15]">{tree.plan.name}</h1>
+        </div>
+        <p className="mt-2.5 text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/80">
+          Version {version?.versionNo ?? '—'}
+          {version?.publishedAt && ` · Published ${new Date(version.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+          {' · '}{tree.systems.length} system{tree.systems.length === 1 ? '' : 's'}
+          {' · '}{setupCount} setup{setupCount === 1 ? '' : 's'}
+          {!isCurrent && <span className="ml-2 normal-case tracking-normal text-amber-400/90">reading an older version</span>}
+        </p>
+
+        <div className="mt-6 h-px w-full bg-gradient-to-r from-border via-border/50 to-transparent" />
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          {/* version switcher — inline typeset links, the active one in the plan's accent */}
+          {published.length > 1 ? (
+            <div className="flex items-baseline gap-3">
+              <span className="text-[9px] font-bold uppercase tracking-[0.24em] text-muted-foreground/60">Version</span>
+              <div className="flex items-baseline gap-2">
+                {published.map((v, i) => (
+                  <span key={v.id} className="flex items-baseline gap-2">
+                    {i > 0 && <span className="text-[10px] text-muted-foreground/40" aria-hidden>·</span>}
+                    <button
+                      onClick={() => useAppStore.getState().navigate(`/trading-plans/plan-editor?plan=${planId}&version=${v.id}`)}
+                      className={cn(
+                        'tnum cursor-pointer text-[11.5px] transition-colors hover:underline',
+                        v.id === versionId ? 'font-semibold' : 'font-medium text-muted-foreground/55 hover:text-foreground',
+                      )}
+                      style={v.id === versionId ? { color: accent } : undefined}
+                      title={v.publishedAt ? `Published ${new Date(v.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} — ${v.changeLevel ?? ''}` : undefined}
+                    >
+                      v{v.versionNo}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <span />
+          )}
+
+          <div className="flex items-center gap-4">
+            {showUnanswered && doc.gaps.length > 0 && (
+              <button
+                onClick={() => useAppStore.getState().navigate(`/trading-plans/plan-editor?plan=${planId}&mode=edit`)}
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-400/90 hover:text-amber-300 cursor-pointer"
+              >
+                <FileWarning className="h-3.5 w-3.5" /> Fill the gaps in edit mode
+              </button>
+            )}
+            <button
+              onClick={() => setShowUnanswered((s) => !s)}
+              className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+              data-testid="tp-unanswered-toggle"
+            >
+              {showUnanswered
+                ? `${doc.gaps.length} unanswered questions shown — hide`
+                : `Show the ${doc.gaps.length} unanswered questions`}
+            </button>
+          </div>
+        </div>
+      </header>
 
       {/* draft-differs notice */}
       {draftDiffers && (
@@ -315,42 +324,41 @@ export function PlanReader({
       )}
 
       {/* ---------- the document: contents rail + editorial body ---------- */}
-      <div className="grid lg:grid-cols-[240px_1fr] gap-6 tp-reader-doc">
-        {/* contents rail */}
+      <div className="grid lg:grid-cols-[220px_1fr] gap-10 tp-reader-doc">
+        {/* contents rail — unboxed, a quiet editorial TOC hung on a hairline guide;
+            setups sit as indented sub-entries, no file-tree chrome */}
         <nav aria-label="Plan contents" className="hidden lg:block">
-          <Card className="p-4 sticky top-4">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Contents</p>
-            <ul className="space-y-0.5 max-h-[calc(100vh-10rem)] overflow-y-auto pr-1">
+          <div className="sticky top-4">
+            <ul className="max-h-[calc(100vh-9rem)] space-y-1 overflow-y-auto border-l border-border/60 pr-2">
               {grouped.sections.map((s, i) => (
                 <li key={i}>
                   <button
                     onClick={() => scrollToId(`sec-${i}`)}
                     aria-current={activeSec === i ? 'true' : undefined}
                     className={cn(
-                      'flex w-full items-baseline gap-2.5 rounded-md border-l-2 px-2.5 py-1.5 text-left transition-colors cursor-pointer',
+                      '-ml-px flex w-full items-baseline gap-2.5 border-l-2 py-2 pl-3.5 pr-1 text-left transition-all cursor-pointer',
                       activeSec === i
-                        ? 'border-transparent bg-muted/60 text-foreground'
-                        : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+                        ? '-ml-[3px] pl-4 text-foreground'
+                        : 'border-transparent text-muted-foreground/80 hover:text-foreground',
                     )}
                     style={activeSec === i ? { borderLeftColor: accent } : undefined}
                   >
                     <span
-                      className="w-4 shrink-0 text-[10px] font-semibold tnum"
-                      style={{ color: activeSec === i ? accent : undefined }}
+                      className="tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em]"
+                      style={{ color: activeSec === i ? accent : undefined, opacity: activeSec === i ? 1 : 0.5 }}
                     >
                       {s.number ?? '·'}
                     </span>
                     <span className="text-[11.5px] leading-snug font-medium">{s.title}</span>
                   </button>
                   {s.subs.length > 0 && (
-                    <ul className="mt-0.5 mb-1 ml-[26px] space-y-0.5 border-l border-border/60 pl-2.5">
+                    <ul className="mb-1 ml-[15px] mt-0.5 space-y-0.5 pl-3">
                       {s.subs.map((sub, j) => (
                         <li key={j}>
                           <button
                             onClick={() => scrollToId(`sec-${i}-sub-${j}`)}
-                            className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[10.5px] leading-snug text-muted-foreground/90 hover:text-foreground hover:bg-muted/30 transition-colors cursor-pointer"
+                            className="block w-full py-1 pr-1 text-left text-[10.5px] italic leading-snug text-muted-foreground/55 transition-colors hover:text-foreground cursor-pointer"
                           >
-                            <Boxes className="h-3 w-3 shrink-0 opacity-60" />
                             {sub.setupName ?? sub.title}
                           </button>
                         </li>
@@ -360,11 +368,22 @@ export function PlanReader({
                 </li>
               ))}
             </ul>
-          </Card>
+          </div>
         </nav>
 
-        {/* the document body — editorial flow, no boxes */}
-        <div className="min-w-0">
+        {/* the document body — editorial flow, no boxes; measure capped for premium reading */}
+        <div className="min-w-0 max-w-[820px]">
+          {/* print-only title page (the screen hero sits outside .tp-reader-doc) */}
+          <div className="hidden print:mb-12 print:block">
+            <p className="text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: accent }}>
+              Trading Plan
+            </p>
+            <h1 className="tp-serif mt-2 text-[26px] font-bold tracking-tight">{tree.plan.name}</h1>
+            <p className="mt-2 text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">
+              Version {version?.versionNo ?? '—'}
+              {version?.publishedAt && ` · Published ${new Date(version.publishedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+            </p>
+          </div>
           {grouped.sections.length === 0 ? (
             <Card className="p-12 text-center">
               <p className="tp-serif text-[15px] italic text-muted-foreground">
@@ -378,25 +397,25 @@ export function PlanReader({
                 <section key={i} id={`sec-${i}`} data-sec-idx={i} className="scroll-mt-6">
                   {/* section header */}
                   <header>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: accent }}>
+                    <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: accent, opacity: 0.72 }}>
                       {s.number ? `Section ${s.number}` : 'Section'}
                     </p>
-                    <h2 className="text-[20px] font-semibold tracking-tight leading-tight">{s.title}</h2>
+                    <h2 className="text-[22px] font-semibold tracking-tight leading-tight">{s.title}</h2>
                     {s.preamble.length > 0 && (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2.5 space-y-1">
                         {s.preamble.map((b, j) =>
                           b.kind === 'para' ? (
-                            <p key={j} className="text-[11px] text-muted-foreground/90">{b.text}</p>
+                            <p key={j} className="text-[11.5px] italic text-muted-foreground/75">{b.text}</p>
                           ) : null,
                         )}
                       </div>
                     )}
-                    <div className="mt-5 mb-8 h-px w-full bg-gradient-to-r from-border via-border/60 to-transparent" />
+                    <div className="mt-6 mb-9 h-px w-full bg-gradient-to-r from-border via-border/50 to-transparent" />
                   </header>
 
                   {/* the section's own questions */}
                   {s.units.length > 0 && (
-                    <div className="space-y-8">
+                    <div className="space-y-9">
                       {s.units.map((u, j) => (
                         <QAUnit key={j} unit={u} accent={accent} />
                       ))}
@@ -408,18 +427,18 @@ export function PlanReader({
                     <div className={cn(s.units.length > 0 && 'mt-9', 'space-y-9')}>
                       {s.subs.map((sub, j) => (
                         <div key={j} id={`sec-${i}-sub-${j}`} className="scroll-mt-6">
-                          <div className="flex flex-wrap items-center gap-2.5">
-                            <span className="inline-flex h-6 items-center rounded-md border border-border/70 bg-muted/40 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                          <div className="flex flex-wrap items-baseline gap-2.5">
+                            <span className="text-[9px] font-bold uppercase tracking-[0.26em] text-muted-foreground/70">
                               Setup
                             </span>
-                            <h3 className="text-[15.5px] font-semibold tracking-tight">{sub.setupName ?? sub.title}</h3>
+                            <h3 className="text-[16.5px] font-semibold tracking-tight">{sub.setupName ?? sub.title}</h3>
                             {sub.setupVersion && (
-                              <span className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] font-semibold tnum text-muted-foreground">
+                              <span className="tnum text-[10.5px] font-medium text-muted-foreground/70">
                                 {sub.setupVersion}
                               </span>
                             )}
                           </div>
-                          <div className="mt-3 mb-6 h-px w-24 bg-border/70" />
+                          <div className="mt-3 mb-7 h-px w-24 bg-border/70" />
                           {sub.preamble.length > 0 && (
                             <div className="mb-5 space-y-1">
                               {sub.preamble.map((b, k) =>
@@ -429,7 +448,7 @@ export function PlanReader({
                               )}
                             </div>
                           )}
-                          <div className="space-y-8">
+                          <div className="space-y-9">
                             {sub.units.map((u, k) => (
                               <QAUnit key={k} unit={u} accent={accent} />
                             ))}
@@ -461,21 +480,19 @@ export function PlanReader({
 
 function QAUnit({ unit, accent }: { unit: QAUnit; accent: string }) {
   return (
-    <div className="grid gap-3">
-      {/* the question — quiet marginalia: the template's voice */}
-      <div className="flex items-baseline gap-2.5">
+    <div className="grid gap-3.5">
+      {/* the question — quiet italic marginalia: the template's voice */}
+      <div className="flex items-baseline gap-3.5">
         {unit.key && (
-          <span className="text-[10px] font-semibold tnum tracking-wide" style={{ color: accent }}>
+          <span className="text-[9.5px] font-medium tnum tracking-wide" style={{ color: accent, opacity: 0.78 }}>
             {unit.key}
           </span>
         )}
-        <span className="text-[11.5px] leading-snug text-muted-foreground/85">{unit.label}</span>
+        <span className="text-[11.5px] italic leading-snug text-muted-foreground/80">{unit.label}</span>
       </div>
-      {/* the answer — the trader's voice: serif prose in a soft accent panel */}
-      <div
-        className="rounded-r-xl border-l-2 bg-gradient-to-r from-muted/30 to-transparent py-4 pl-4 pr-4 sm:pl-5 sm:pr-6"
-        style={{ borderLeftColor: accent }}
-      >
+      {/* the answer — the trader's voice: serif prose floating on the page,
+          hung on a hairline accent rule (no box: the printed-page illusion) */}
+      <div className="border-l pl-5 sm:pl-6" style={{ borderLeftColor: `${accent}99` }}>
         <ScalarOrBlocks unit={unit} accent={accent} />
       </div>
     </div>
@@ -490,7 +507,7 @@ function ScalarOrBlocks({ unit, accent }: { unit: QAUnit; accent: string }) {
       ? unit.blocks[0] as { kind: 'para'; text: string; muted?: boolean }
       : null
   if (solo && !solo.muted && solo.text.trim().length > 0 && solo.text.trim().length <= 8 && !solo.text.trim().includes(' ')) {
-    return <p className="tp-serif text-[17px] font-semibold leading-none text-foreground">{solo.text.trim()}</p>
+    return <p className="tp-serif text-[18px] font-semibold leading-none text-foreground">{solo.text.trim()}</p>
   }
   return <AnswerBlocks blocks={unit.blocks} accent={accent} />
 }
@@ -519,10 +536,8 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
     case 'heading':
       return (
         <p
-          className={cn(
-            'font-semibold leading-snug',
-            block.size === 1 ? 'text-base' : block.size === 2 ? 'text-sm text-teal-300' : 'text-xs',
-          )}
+          className={cn('font-semibold leading-snug', block.size === 1 ? 'text-base' : 'text-[13px]')}
+          style={block.size === 2 ? { color: accent, opacity: 0.92 } : undefined}
         >
           {block.text}
         </p>
@@ -537,14 +552,14 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
           </p>
         )
       }
-      return <p className="tp-serif text-[14px] leading-[1.85] text-foreground/90">{block.text}</p>
+      return <p className="tp-serif max-w-[68ch] text-[14.5px] leading-[1.95] text-foreground/90">{block.text}</p>
     case 'list':
       return (
-        <ul className="space-y-2">
+        <ul className="max-w-[68ch] space-y-2">
           {block.items.map((item, i) => (
             <li key={i} className="flex gap-2.5">
-              <span className="mt-[10px] h-[3.5px] w-[3.5px] shrink-0 rounded-full" style={{ background: accent }} aria-hidden />
-              <span className="tp-serif text-[14px] leading-[1.8] text-foreground/90">{item}</span>
+              <span className="mt-[11px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: accent, opacity: 0.75 }} aria-hidden />
+              <span className="tp-serif text-[14.5px] leading-[1.9] text-foreground/90">{item}</span>
             </li>
           ))}
         </ul>
@@ -608,6 +623,7 @@ function DownloadDialog({
   const [version, setVersion] = useState<string>(currentVersionId ?? '')
   const [gaps, setGaps] = useState(false)
   const [unanswered, setUnanswered] = useState(false)
+  const accent = tree.plan.color ?? '#0b6e6a'
 
   const published = tree.versions.filter((v) => v.status === 'published').sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
   const url = useMemo(() => {
@@ -637,8 +653,9 @@ function DownloadDialog({
                 onClick={() => setFormat(f)}
                 className={cn(
                   'rounded-md border px-3 py-2 text-xs font-semibold cursor-pointer transition-colors',
-                  format === f ? 'border-teal-500/40 bg-teal-500/10 text-teal-300' : 'border-border text-muted-foreground hover:text-foreground',
+                  format === f ? '' : 'border-border text-muted-foreground hover:text-foreground',
                 )}
+                style={format === f ? { borderColor: `${accent}66`, background: `${accent}1a`, color: accent } : undefined}
               >
                 {f === 'pdf' ? 'PDF' : 'Word (.docx)'}
               </button>
@@ -700,7 +717,7 @@ function DownloadDialog({
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <a href={url} download data-testid="tp-download-go">
-            <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
+            <Button size="sm" className="text-white transition-opacity hover:opacity-90" style={{ background: accent }}>
               <Download className="h-3.5 w-3.5 mr-1.5" /> Download {format === 'pdf' ? 'PDF' : 'Word'}
             </Button>
           </a>

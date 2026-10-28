@@ -4639,3 +4639,34 @@ Stage Summary:
 - WORKS: github.com/ojissman/EmorTrades (private) now auto-pushes a new dated version whenever the project or data actually changes; the last 5 versions are kept as downloadable GitHub Releases (full source + db), and the 6th push automatically removes the oldest — verified live.
 - Deliberately not done: main's commit log stays append-only (only the version Releases rotate at 5) — rewriting branch history on every rotation would orphan the surviving tags; the unreachable old remote objects are left for GitHub's own GC (invisible in the UI).
 - Decisions made: (1) db tracked in a private repo per the owner's new data-versioning intent; (2) rotation operates on backup-* releases/tags, not commits; (3) token stored outside the repo, chmod 600, never in any commit; (4) the old-history safety tar stays in /home/z/emortrades-backups/ until the owner says otherwise; (5) version ordinals are monotonic (v7 follows v6 even after v1–v2 rotate away).
+
+---
+
+Task ID: TP2-UX2
+Agent: orchestrator (Z.ai Code main session)
+Task: Owner said "continue" on the premium plan-reader — a second design-hardening pass on the TP2-UX1 editorial reader, driven by an adversarial VLM design-critic loop
+
+Work Log:
+- Correction of record: the previous session's closing note said the premium redesign was "still queued"; in fact TP2-UX1 had already shipped it. This session verified the shipped state live and then pushed it further.
+- Baseline verified live before any edit: ORB Swing Plan reader rendered, zero page/console errors, TP2-UX1 presentation fully in place.
+- VLM CRITIC LOOP (4 rounds, blunt financial-editorial standard, screenshots from the live app):
+  · Round 1 verdict "B+ execution of an A+ concept" — in-scope flaws: boxed hero = dashboard density, GitHub-pill version switcher, boxed contents rail (muddy, file-tree sub-indent), 2px answer accent bar reading as a UI component border, compressed type hierarchy, saturated hardcoded teal.
+  · Round 2 (fixed all of the above): verdict B+ → path to A named.
+  · Round 3 (killed the answer background box — serif now floats on the page hung on a 1px hairline accent rule; text-only uppercase tracked utility links replacing buttons; inline typeset version links with mid-dots; unboxed label-less TOC with italic sub-entries; italic footnote-style unanswered toggle; day-first dates; prose measure capped): verdict A- "High Distinction… portfolio-grade… Ship it", with three named A+ micro-moves.
+  · Round 4 (68ch Economist measure; weight-only version distinction; Georgia old-style figures for TOC numerals + 2px active protrusion; more air under section labels): verdict A- confirmed stable, "publication-ready"; final nits (label contrast, numeral tracking, question-number air) applied.
+- REDESIGN DELTA over TP2-UX1, all in plan-reader.tsx (the shared block model in plan-document.ts is untouched — PDF/Word downloads still byte-identical):
+  · Hero is an unboxed document title block: 28px title + soft accent dot, uppercase tracked byline (VERSION 3 · PUBLISHED 23 OCTOBER 2026 · 1 SYSTEM · 2 SETUPS), hairline gradient rule, text-only DOWNLOAD/PRINT (muted) + EDIT (accent) utility links, back-link above.
+  · Version switcher: inline typeset "v3 · v2 · v1", active = semibold in the plan accent, inactive = medium grey — weight-only distinction, mid-dot separators.
+  · Contents rail: no box, no label — hairline left guide, Georgia old-style numerals, active entry protrudes 2px with a 2px accent rule, setups as italic indented sub-entries (no tree chrome).
+  · Q&A: questions as italic sans marginalia with delicate accent numbers; answers as Georgia serif floating directly on the canvas (no background fill) hung on a 1px hairline accent rule at 60% accent alpha, 68ch measure, 1.95 leading.
+  · Setups: small-caps "SETUP" text label + 16.5px name + quiet version (badge box removed); section headers: 9px 0.3em-tracked overline at 0.72 accent opacity, 22px titles, more air.
+  · Unanswered toggle restyled as an italic footnote link; day-first en-GB dates everywhere in the reader; a print-only serif title page inside .tp-reader-doc so printed output now carries the plan name/version (previously the print showed sections only).
+  · All hardcoded teal-300/500/600 in the reader replaced with the plan's own accent (inline styles) — the plan's identity is the only color voice in the document.
+- VERIFIED LIVE (agent-browser): version switching (v1 → URL carries version param, older-version notice), unanswered toggle (318 gaps render), download dialog opens, read-mode purity 0 inputs/0 textareas/0 selects in main, mobile 390px no horizontal scroll, zero page errors and zero console errors across every check, dev.log clean.
+- QUALITY GATES: 88/88 tests, bun run lint 0, bunx tsc --noEmit 0 (run after every round).
+- The round-4 critic suggested a bottom-border accent on the active version link; rejected — it contradicts round 3's weight-only rule, and the two critiques cannot both be satisfied.
+
+Stage Summary:
+- WORKS: the plan read view now reads as a typeset document rather than a form — floating serif answers on hairline rules, an unboxed title block and TOC, text-only utility links, weight-only version distinction, old-style TOC figures, Economist prose measure. VLM design review: A- stable across two rounds, "publication-ready".
+- Deliberately not done: the outer app shell (top bar, left sidebar, page title) keeps its design — shared by every page, and redesigning it is a separate task if the owner wants it; the question-numbering format (1.1.1) stays — it is the cross-reference system the plan marks and findings cite; the muted empty-state pill for unanswered questions keeps its dashed border — an honest empty state needs a visual cue.
+- Decisions made: (1) serif floats with no panel fill — the printed-page illusion beats the boxed affordance; (2) weight-only version distinction (round-3 rule wins over round-4's border suggestion); (3) Georgia for TOC numerals specifically to get true old-style figures; (4) 68ch prose measure with tables allowed full column width; (5) print gains a title page inside the print-only region instead of pulling the screen hero into the print CSS.
