@@ -17,12 +17,20 @@
  * treatment. The reader renders the SAME block model the PDF and Word
  * downloads are generated from (src/lib/plan-document.ts), so the three can
  * never disagree — only the presentation differs.
+ *
+ * CONTENTS — the rail is the document's instrument panel: a scroll-spy that
+ * tracks sections AND setups (one passive listener on #main-content, the
+ * app's only scrollport), an old-style folio ("3 of 9") over a hairline
+ * reading-progress rule, and the rail keeps its own active entry in view.
+ * Below lg the contents fold into a sheet opened from the hero's utility
+ * links — the same list, the same folio, sized for touch.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { buildPlanDocument, type DocBlock, type DocPlanTree } from '@/lib/plan-document'
 import {
@@ -108,7 +116,9 @@ export function PlanReader({
   const queryClient = useQueryClient()
   const [showUnanswered, setShowUnanswered] = useState(false)
   const [downloadOpen, setDownloadOpen] = useState(false)
-  const [activeSec, setActiveSec] = useState(0)
+  const [tocOpen, setTocOpen] = useState(false)
+  const [active, setActive] = useState<{ sec: number; sub: number | null }>({ sec: 0, sub: null })
+  const [progress, setProgress] = useState(0)
 
   const accent = tree.plan.color ?? '#0b6e6a'
 
@@ -142,32 +152,127 @@ export function PlanReader({
     [tree.systems],
   )
 
-  // scroll-spy: light up the contents entry of the section in view
+  // a jump from the contents pins the clicked entry until the animation
+  // settles — the fold logic must not flicker through the sections the
+  // smooth scroll passes on its way to the target
+  const spyPausedRef = useRef(false)
+  const pauseTimerRef = useRef(0)
+  const armSpyPause = () => {
+    spyPausedRef.current = true
+    window.clearTimeout(pauseTimerRef.current)
+    pauseTimerRef.current = window.setTimeout(() => {
+      spyPausedRef.current = false
+    }, 450)
+  }
+
+  const scrollToId = (id: string, target?: { sec: number; sub: number | null }) => {
+    const el = document.getElementById(id)
+    if (!el) return
+    if (target) {
+      setActive(target)
+      armSpyPause()
+    }
+    const m = document.getElementById('main-content')
+    if (!m) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    // start-align inside the scrollport, clamped: a section at the very end
+    // of the document cannot reach the top, so it settles as close as the
+    // scroll allows (native scrollIntoView clamps silently and, already
+    // there, moves nothing at all — not even a scroll event for the folio)
+    const mt = parseFloat(getComputedStyle(el).scrollMarginTop || '0') || 0
+    const top = el.getBoundingClientRect().top - m.getBoundingClientRect().top + m.scrollTop - mt
+    const max = m.scrollHeight - m.clientHeight
+    m.scrollTo({ top: Math.max(0, Math.min(max, top)), behavior: 'smooth' })
+  }
+
+  // scroll-spy + reading progress — one passive listener on the app's
+  // scrollport (#main-content; the window itself never scrolls). It tracks
+  // the last anchor (section OR setup) that has passed the fold, and how
+  // much of the document body has crossed the bottom edge of the viewport.
   useEffect(() => {
     if (grouped.sections.length === 0) return
-    const els = grouped.sections
-      .map((_, i) => document.getElementById(`sec-${i}`))
-      .filter((el): el is HTMLElement => !!el)
-    if (els.length === 0) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        if (visible[0]) {
-          const idx = Number((visible[0].target as HTMLElement).dataset.secIdx)
-          if (!Number.isNaN(idx)) setActiveSec(idx)
+    const scrollEl = document.getElementById('main-content')
+    if (!scrollEl) return
+    let raf = 0
+    const measure = () => {
+      raf = 0
+      type Anchor = { sec: number; sub: number | null; el: HTMLElement }
+      const anchors: Anchor[] = []
+      grouped.sections.forEach((s, i) => {
+        const el = document.getElementById(`sec-${i}`)
+        if (el) anchors.push({ sec: i, sub: null, el })
+        s.subs.forEach((_, j) => {
+          const sub = document.getElementById(`sec-${i}-sub-${j}`)
+          if (sub) anchors.push({ sec: i, sub: j, el: sub })
+        })
+      })
+      if (anchors.length === 0) return
+      // at the very bottom of the scrollport the last sections can sit below
+      // the fold line with nowhere left to scroll — the end of the document
+      // must light up the last entry, not the last one to pass the fold
+      const atEnd = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2
+      const fold = scrollEl.getBoundingClientRect().top + 140
+      let cur: Anchor | null = atEnd ? anchors[anchors.length - 1] : null
+      if (!atEnd) {
+        for (const a of anchors) {
+          if (a.el.getBoundingClientRect().top <= fold) cur = a
+          else break
         }
-      },
-      { rootMargin: '0px 0px -60% 0px' },
-    )
-    els.forEach((el) => obs.observe(el))
-    return () => obs.disconnect()
-  }, [grouped.sections])
+      }
+      const next = cur ? { sec: cur.sec, sub: cur.sub } : { sec: anchors[0].sec, sub: null }
+      if (!spyPausedRef.current) {
+        setActive((prev) => (prev.sec === next.sec && prev.sub === next.sub ? prev : next))
+      }
+      const body = document.getElementById('tp-reader-body')
+      if (body) {
+        const r = body.getBoundingClientRect()
+        const sp = scrollEl.getBoundingClientRect()
+        const p = r.height > 0 ? (sp.bottom - r.top) / r.height : 0
+        const clamped = Math.round(Math.min(1, Math.max(0, p)) * 200) / 200
+        setProgress((prev) => (Math.abs(prev - clamped) < 0.005 ? prev : clamped))
+      }
+    }
+    const onScroll = () => {
+      // the jump animation is running — extend the pin until it settles
+      if (spyPausedRef.current) armSpyPause()
+      if (!raf) raf = requestAnimationFrame(measure)
+    }
+    measure()
+    scrollEl.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    const ro = new ResizeObserver(onScroll)
+    const body = document.getElementById('tp-reader-body')
+    if (body) ro.observe(body)
+    return () => {
+      scrollEl.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      ro.disconnect()
+      window.clearTimeout(pauseTimerRef.current)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [grouped, showUnanswered])
 
-  const scrollToId = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  // the rail keeps its own active entry inside its scroll box
+  const railRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    const ul = railRef.current
+    if (!ul) return
+    if (ul.scrollHeight <= ul.clientHeight) return // the rail fits — nothing to scroll
+    const leaf = ul.querySelector<HTMLElement>('[data-toc-leaf="true"]')
+    if (!leaf) return
+    const r = leaf.getBoundingClientRect()
+    const ur = ul.getBoundingClientRect()
+    if (r.top < ur.top + 6 || r.bottom > ur.bottom - 6) {
+      // scroll ONLY the rail's own box: scrollIntoView would also issue a
+      // (zero-delta) smooth scroll on every ancestor scrollport — cancelling
+      // the document jump that is still animating in #main-content
+      const target = (r.top - ur.top) + ul.scrollTop - (ul.clientHeight - r.height) / 2
+      const max = ul.scrollHeight - ul.clientHeight
+      ul.scrollTo({ top: Math.max(0, Math.min(max, target)), behavior: 'smooth' })
+    }
+  }, [active, grouped])
 
   // Discard (called from the editor; kept here so the reader stays the source of truth)
   const discard = useMutation({
@@ -194,6 +299,13 @@ export function PlanReader({
             <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" /> All plans
           </button>
           <div className="flex items-center gap-5">
+            <button
+              onClick={() => setTocOpen(true)}
+              data-testid="tp-contents-btn"
+              className="lg:hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80 transition-colors hover:text-foreground cursor-pointer"
+            >
+              Contents
+            </button>
             <button
               onClick={() => setDownloadOpen(true)}
               data-testid="tp-download-btn"
@@ -325,54 +437,43 @@ export function PlanReader({
 
       {/* ---------- the document: contents rail + editorial body ---------- */}
       <div className="grid lg:grid-cols-[220px_1fr] gap-10 tp-reader-doc">
-        {/* contents rail — unboxed, a quiet editorial TOC hung on a hairline guide;
-            setups sit as indented sub-entries, no file-tree chrome */}
-        <nav aria-label="Plan contents" className="hidden lg:block">
-          <div className="sticky top-4">
-            <ul className="max-h-[calc(100vh-9rem)] space-y-1 overflow-y-auto border-l border-border/60 pr-2">
-              {grouped.sections.map((s, i) => (
-                <li key={i}>
-                  <button
-                    onClick={() => scrollToId(`sec-${i}`)}
-                    aria-current={activeSec === i ? 'true' : undefined}
-                    className={cn(
-                      '-ml-px flex w-full items-baseline gap-2.5 border-l-2 py-2 pl-3.5 pr-1 text-left transition-all cursor-pointer',
-                      activeSec === i
-                        ? '-ml-[3px] pl-4 text-foreground'
-                        : 'border-transparent text-muted-foreground/80 hover:text-foreground',
-                    )}
-                    style={activeSec === i ? { borderLeftColor: accent } : undefined}
-                  >
-                    <span
-                      className="tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em]"
-                      style={{ color: activeSec === i ? accent : undefined, opacity: activeSec === i ? 1 : 0.5 }}
-                    >
-                      {s.number ?? '·'}
-                    </span>
-                    <span className="text-[11.5px] leading-snug font-medium">{s.title}</span>
-                  </button>
-                  {s.subs.length > 0 && (
-                    <ul className="mb-1 ml-[15px] mt-0.5 space-y-0.5 pl-3">
-                      {s.subs.map((sub, j) => (
-                        <li key={j}>
-                          <button
-                            onClick={() => scrollToId(`sec-${i}-sub-${j}`)}
-                            className="block w-full py-1 pr-1 text-left text-[10.5px] italic leading-snug text-muted-foreground/55 transition-colors hover:text-foreground cursor-pointer"
-                          >
-                            {sub.setupName ?? sub.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </nav>
+        {/* contents rail — the document's instrument panel: hairline guide,
+            scroll-spy over sections AND setups, an old-style folio and a
+            hairline reading-progress rule; unboxed, no tree chrome */}
+        {grouped.sections.length > 0 && (
+          <nav aria-label="Plan contents" className="hidden lg:block" data-testid="tp-contents-rail">
+            <div className="sticky top-4 flex max-h-[calc(100vh-10rem)] flex-col">
+              <p
+                className="pl-4 text-[9px] font-bold uppercase tracking-[0.3em]"
+                style={{ color: accent, opacity: 0.72 }}
+              >
+                Contents
+              </p>
+              <ul
+                ref={railRef}
+                className="shell-scroll mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto border-l border-border/60 pr-1.5"
+              >
+                <TocEntries
+                  sections={grouped.sections}
+                  active={active}
+                  accent={accent}
+                  variant="rail"
+                  onJump={scrollToId}
+                />
+              </ul>
+              <TocFolio
+                className="mt-4 border-t border-border/60 pl-4 pr-1.5 pt-3"
+                position={active.sec + 1}
+                total={grouped.sections.length}
+                progress={progress}
+                accent={accent}
+              />
+            </div>
+          </nav>
+        )}
 
         {/* the document body — editorial flow, no boxes; measure capped for premium reading */}
-        <div className="min-w-0 max-w-[820px]">
+        <div id="tp-reader-body" className="min-w-0 max-w-[820px]">
           {/* print-only title page (the screen hero sits outside .tp-reader-doc) */}
           <div className="hidden print:mb-12 print:block">
             <p className="text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: accent }}>
@@ -464,6 +565,50 @@ export function PlanReader({
         </div>
       </div>
 
+      {/* the contents sheet — the same instrument panel, folded for small screens */}
+      {grouped.sections.length > 0 && (
+        <Sheet open={tocOpen} onOpenChange={setTocOpen}>
+          <SheetContent
+            side="right"
+            className="w-[85vw] max-w-[340px] gap-0 sm:max-w-[340px]"
+            data-testid="tp-contents-sheet"
+          >
+            <SheetTitle className="sr-only">Plan contents</SheetTitle>
+            <SheetDescription className="sr-only">Jump to a section or setup of this plan.</SheetDescription>
+            <div className="border-b border-border/60 px-5 pb-4 pr-12 pt-5">
+              <p
+                className="text-[9px] font-bold uppercase tracking-[0.3em]"
+                style={{ color: accent, opacity: 0.72 }}
+              >
+                Contents
+              </p>
+              <p className="tp-serif mt-1.5 truncate text-[13px] italic text-muted-foreground/80">{tree.plan.name}</p>
+            </div>
+            <div className="shell-scroll min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <ul className="space-y-1 border-l border-border/60">
+                <TocEntries
+                  sections={grouped.sections}
+                  active={active}
+                  accent={accent}
+                  variant="sheet"
+                  onJump={(id, target) => {
+                    scrollToId(id, target)
+                    setTocOpen(false)
+                  }}
+                />
+              </ul>
+            </div>
+            <TocFolio
+              className="border-t border-border/60 px-5 py-4"
+              position={active.sec + 1}
+              total={grouped.sections.length}
+              progress={progress}
+              accent={accent}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
+
       {downloadOpen && (
         <DownloadDialog
           tree={tree}
@@ -472,6 +617,127 @@ export function PlanReader({
           onClose={() => setDownloadOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+// ---------- contents: the shared TOC entries + the folio ----------
+
+/**
+ * Section and setup entries — the desktop rail and the contents sheet render
+ * the same list; only the type scale differs (the sheet is sized for touch).
+ * The active leaf carries data-toc-leaf so the rail can keep it in view.
+ */
+function TocEntries({
+  sections,
+  active,
+  accent,
+  onJump,
+  variant,
+}: {
+  sections: DocSection[]
+  active: { sec: number; sub: number | null }
+  accent: string
+  onJump: (id: string, target: { sec: number; sub: number | null }) => void
+  variant: 'rail' | 'sheet'
+}) {
+  const sheet = variant === 'sheet'
+  return (
+    <>
+      {sections.map((s, i) => {
+        const secActive = active.sec === i
+        return (
+          <li key={i}>
+            <button
+              onClick={() => onJump(`sec-${i}`, { sec: i, sub: null })}
+              aria-current={secActive ? 'true' : undefined}
+              data-toc-leaf={secActive && active.sub === null ? 'true' : undefined}
+              data-testid={`tp-toc-sec-${i}`}
+              className={cn(
+                'group -ml-px flex w-full items-baseline gap-2.5 border-l-2 py-2 pl-3.5 pr-1 text-left transition-all cursor-pointer',
+                sheet && 'py-2.5',
+                secActive
+                  ? '-ml-[3px] pl-4 text-foreground'
+                  : 'border-transparent text-muted-foreground/80 hover:text-foreground',
+              )}
+              style={secActive ? { borderLeftColor: accent } : undefined}
+            >
+              <span
+                className={cn(
+                  'tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em] transition-opacity',
+                  secActive ? 'opacity-100' : 'opacity-50 group-hover:opacity-80',
+                )}
+                style={{ color: secActive ? accent : undefined }}
+              >
+                {s.number ?? '·'}
+              </span>
+              <span className={cn('text-[11.5px] leading-snug font-medium', sheet && 'text-[13px]')}>{s.title}</span>
+            </button>
+            {s.subs.length > 0 && (
+              <ul className="mb-1 ml-[15px] mt-0.5 space-y-0.5 pl-[27px]">
+                {s.subs.map((sub, j) => {
+                  const subActive = secActive && active.sub === j
+                  return (
+                    <li key={j}>
+                      <button
+                        onClick={() => onJump(`sec-${i}-sub-${j}`, { sec: i, sub: j })}
+                        aria-current={subActive ? 'true' : undefined}
+                        data-toc-leaf={subActive ? 'true' : undefined}
+                        data-testid={`tp-toc-sub-${i}-${j}`}
+                        className={cn(
+                          '-ml-[2px] block w-full border-l-2 border-transparent py-1 pr-1 text-left text-[10.5px] italic leading-snug transition-colors cursor-pointer',
+                          sheet && 'py-1.5 text-[12px]',
+                          subActive ? 'font-semibold' : 'font-normal text-muted-foreground/65 hover:text-foreground',
+                        )}
+                        style={subActive ? { color: accent, borderLeftColor: accent } : undefined}
+                      >
+                        {sub.setupName ?? sub.title}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </li>
+        )
+      })}
+    </>
+  )
+}
+
+/** The folio — an old-style "3 of 9" over a hairline reading-progress rule. */
+function TocFolio({
+  className,
+  position,
+  total,
+  progress,
+  accent,
+}: {
+  className?: string
+  position: number
+  total: number
+  progress: number
+  accent: string
+}) {
+  const pct = Math.round(progress * 100)
+  return (
+    <div className={className} data-testid="tp-contents-folio">
+      <p className="tp-serif text-[11px] leading-none text-muted-foreground/75">
+        {position} <span className="italic">of</span> {total}
+      </p>
+      <div
+        className="mt-2.5 h-px w-full bg-border"
+        role="progressbar"
+        aria-label="Reading progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+      >
+        <div
+          className="h-px transition-[width] duration-200 ease-out"
+          style={{ width: `${pct}%`, background: accent }}
+        />
+      </div>
     </div>
   )
 }
