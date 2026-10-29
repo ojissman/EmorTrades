@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ResponsiveContainer, Treemap } from 'recharts'
 import { formatCurrencyIn, formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import { useFilterStore } from '@/store/filter-store'
 // Task 15-W2 — treemap drills through the shared helper (filter + breadcrumb
 // + navigate), with honest per-mode filters instead of a bare unfiltered jump.
@@ -230,23 +231,23 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
     <div className="space-y-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Net P&L (all scope)</p>
             {netPnl >= 0 ? <TrendingUp className="h-3 w-3 text-emerald-400" /> : <TrendingDown className="h-3 w-3 text-red-400" />}
           </div>
-          <p className={cn('text-xl font-bold tnum', netPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+          <FitValue className={cn('text-xl font-bold tnum', netPnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
             {netPnl >= 0 ? '+' : '−'}
             {formatCurrencyIn('table', Math.abs(netPnl))}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">across {groups.length} {MODE_LABEL[mode].toLowerCase()} groups</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Groups</p>
             <Layers className="h-3 w-3 text-muted-foreground" />
           </div>
-          <p className="text-xl font-bold tnum">{groups.length}</p>
+          <FitValue className="text-xl font-bold tnum">{groups.length}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">{MODE_LABEL[mode].toLowerCase()} dimensions with closed trades</p>
         </Card>
         <Card className="p-4">
@@ -257,7 +258,7 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
           {best && best.pnl > 0 ? (
             <>
               <p className="text-sm font-bold truncate" title={best.name}>{best.name}</p>
-              <p className="text-[11px] text-emerald-400 tnum">+{formatCurrencyIn('table', best.pnl)}</p>
+              <p className="text-[11px] text-emerald-400 tnum truncate" title={`+${formatCurrencyIn('table', best.pnl)}`}>+{formatCurrencyIn('table', best.pnl)}</p>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
@@ -271,7 +272,7 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
           {worst && worst.pnl < 0 ? (
             <>
               <p className="text-sm font-bold truncate" title={worst.name}>{worst.name}</p>
-              <p className="text-[11px] text-red-400 tnum">−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
+              <p className="text-[11px] text-red-400 tnum truncate" title={`−${formatCurrencyIn('table', Math.abs(worst.pnl))}`}>−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">—</p>

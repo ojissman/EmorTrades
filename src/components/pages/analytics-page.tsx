@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { QueryErrorCard, EmptyRange } from '@/components/metrics/metrics-kit'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
+import { FitValue } from '@/components/fit-value'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { axisMoney, formatCurrencyIn, formatNumber, formatPercent, formatRMultiple, pnlColor } from '@/lib/format'
@@ -615,12 +616,12 @@ function MetricTile({
     <Card
       onClick={onClick}
       aria-label={ariaLabel}
-      className={cn('p-3', onClick && 'cursor-pointer transition-colors hover:border-ring/50 hover:bg-muted/30')}
+      className={cn('p-3 overflow-hidden', onClick && 'cursor-pointer transition-colors hover:border-ring/50 hover:bg-muted/30')}
     >
       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </p>
-      <p
+      <FitValue
         className={cn(
           'text-base lg:text-lg font-bold mt-1 tnum',
           positive && 'text-emerald-400',
@@ -628,8 +629,8 @@ function MetricTile({
         )}
       >
         {value}
-      </p>
-      {sub && <p className="text-[10px] text-muted-foreground mt-0.5 tnum">{sub}</p>}
+      </FitValue>
+      {sub && <p className="text-[10px] text-muted-foreground mt-0.5 tnum truncate" title={sub}>{sub}</p>}
     </Card>
   )
 }

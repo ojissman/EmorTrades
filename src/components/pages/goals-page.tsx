@@ -1432,7 +1432,10 @@ export function GoalsPage() {
                       <div className="flex items-center justify-between text-xs">
                         <div>
                           <p className="text-muted-foreground">Current</p>
-                          <p className={cn('font-semibold tnum', achieved && 'text-emerald-400')}>
+                          <p
+                            className={cn('font-semibold tnum whitespace-nowrap', achieved && 'text-emerald-400')}
+                            title={noData ? 'No data yet' : METRIC_FORMATS[goal.metric](current)}
+                          >
                             {/* TP-7-h — honesty: a window with nothing to
                                 measure yet says so instead of a fake 0. */}
                             {noData ? 'No data yet' : METRIC_FORMATS[goal.metric](current)}
@@ -1440,7 +1443,12 @@ export function GoalsPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-muted-foreground">Target</p>
-                          <p className="font-semibold tnum">{METRIC_FORMATS[goal.metric](target)}</p>
+                          <p
+                            className="font-semibold tnum whitespace-nowrap"
+                            title={METRIC_FORMATS[goal.metric](target)}
+                          >
+                            {METRIC_FORMATS[goal.metric](target)}
+                          </p>
                         </div>
                       </div>
 

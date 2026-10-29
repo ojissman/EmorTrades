@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatNumber, formatPercent, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import { limitToAmount, limitLabel } from '@/lib/plan-limits'
 import { useAppStore } from '@/store/app-store'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
@@ -332,7 +333,7 @@ export function RiskPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {/* 1. Daily loss limit */}
           <Card className={cn(
-            'p-4',
+            'p-4 overflow-hidden',
             guardrails.dllColor === 'rose' ? 'border-red-500/30' : guardrails.dllColor === 'amber' ? 'border-amber-500/30' : ''
           )}>
             <div className="flex items-center justify-between mb-2">
@@ -344,12 +345,12 @@ export function RiskPage() {
                 guardrails.dllColor === 'rose' ? 'bg-red-500' : guardrails.dllColor === 'amber' ? 'bg-amber-500' : 'bg-emerald-500'
               )} />
             </div>
-            <p className={cn(
+            <FitValue className={cn(
               'text-xl font-bold tnum',
               guardrails.todayPnl < 0 ? 'text-red-400' : guardrails.todayPnl > 0 ? 'text-emerald-400' : ''
             )}>
               {guardrails.todayPnl > 0 ? '+' : ''}{formatCurrencyIn('table', guardrails.todayPnl)}
-            </p>
+            </FitValue>
             <div className="h-2 w-full rounded-full bg-muted/60 overflow-hidden mt-2.5">
               <div
                 className={cn(
@@ -385,19 +386,19 @@ export function RiskPage() {
                   ? 'No consecutive losers at the latest exit.'
                   : 'Consecutive closed losers counted from the latest exit.'
             return (
-              <Card className={cn('p-4', tone === 'rose' ? 'border-red-500/30' : tone === 'amber' ? 'border-amber-500/30' : '')}>
+              <Card className={cn('p-4 overflow-hidden', tone === 'rose' ? 'border-red-500/30' : tone === 'amber' ? 'border-amber-500/30' : '')}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                     <Repeat className="h-3 w-3" /> Loss streak guard
                   </p>
                   <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-red-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-emerald-500')} />
                 </div>
-                <p className={cn(
+                <FitValue className={cn(
                   'text-xl font-bold tnum',
                   tone === 'rose' ? 'text-red-400' : tone === 'amber' ? 'text-amber-400' : 'text-emerald-400'
                 )}>
                   {guardrails.streakType === 'none' ? '—' : `${guardrails.streak}${guardrails.streakType === 'win' ? 'W' : 'L'}`}
-                </p>
+                </FitValue>
                 <p className={cn(
                   'text-xs font-medium mt-1',
                   tone === 'rose' ? 'text-red-400' : tone === 'amber' ? 'text-amber-400' : 'text-emerald-400'
@@ -410,7 +411,7 @@ export function RiskPage() {
           })()}
 
           {/* 3. Risk-per-trade check */}
-          <Card className={cn('p-4', guardrails.breach ? 'border-amber-500/30' : '')}>
+          <Card className={cn('p-4 overflow-hidden', guardrails.breach ? 'border-amber-500/30' : '')}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                 <Percent className="h-3 w-3" /> Risk per trade
@@ -420,10 +421,12 @@ export function RiskPage() {
             <p className="text-[10px] text-muted-foreground uppercase">
               Target: {guardrails.riskPct}% · Account: {formatCurrencyIn('table', guardrails.equity)}
             </p>
-            <p className="text-xl font-bold tnum mt-1">
-              {formatCurrencyIn('table', guardrails.targetRiskAmount)}
-              <span className="text-xs font-normal text-muted-foreground"> /trade</span>
-            </p>
+            <div className="flex items-baseline gap-1 min-w-0 mt-1">
+              <FitValue className="text-xl font-bold tnum">
+                {formatCurrencyIn('table', guardrails.targetRiskAmount)}
+              </FitValue>
+              <span className="text-xs font-normal text-muted-foreground whitespace-nowrap shrink-0"> /trade</span>
+            </div>
             <p className={cn(
               'text-xs font-medium mt-1',
               guardrails.breach ? 'text-amber-400' : 'text-emerald-400'
@@ -440,19 +443,19 @@ export function RiskPage() {
           </Card>
 
           {/* 4. Open exposure */}
-          <Card className={cn('p-4', guardrails.openPct > 50 ? 'border-amber-500/30' : '')}>
+          <Card className={cn('p-4 overflow-hidden', guardrails.openPct > 50 ? 'border-amber-500/30' : '')}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                 <Layers className="h-3 w-3" /> Open exposure
               </p>
               <span className={cn('h-2 w-2 rounded-full', guardrails.openPct > 50 ? 'bg-amber-500' : 'bg-emerald-500')} />
             </div>
-            <p className={cn(
+            <FitValue className={cn(
               'text-xl font-bold tnum',
               guardrails.openPct > 50 ? 'text-amber-400' : ''
             )}>
               {guardrails.openCount} open
-            </p>
+            </FitValue>
             <p className="text-xs text-muted-foreground mt-1 tnum">
               {formatCurrencyIn('table', guardrails.openNotional)} notional · {guardrails.openPct.toFixed(1)}% of equity
             </p>
@@ -495,21 +498,21 @@ export function RiskPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">Win Rate</p>
-              <p className="text-lg font-bold tnum">{kellyData.winRate.toFixed(1)}%</p>
+              <FitValue className="text-lg font-bold tnum">{kellyData.winRate.toFixed(1)}%</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">Avg Win / Loss</p>
-              <p className="text-lg font-bold tnum">{kellyData.winLossRatio.toFixed(2)}</p>
+              <FitValue className="text-lg font-bold tnum">{kellyData.winLossRatio.toFixed(2)}</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)]">
+            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)] min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">Full Kelly</p>
-              <p className="text-lg font-bold tnum text-emerald-400">{kellyData.kellyPercent.toFixed(2)}%</p>
+              <FitValue className="text-lg font-bold tnum text-emerald-400">{kellyData.kellyPercent.toFixed(2)}%</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+            <div className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20 min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">Half Kelly (recommended)</p>
-              <p className="text-lg font-bold tnum text-yellow-400">{kellyData.halfKelly.toFixed(2)}%</p>
+              <FitValue className="text-lg font-bold tnum text-yellow-400">{kellyData.halfKelly.toFixed(2)}%</FitValue>
             </div>
           </div>
 
@@ -542,43 +545,43 @@ export function RiskPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">P5 (Worst)</p>
-              <p className="text-base font-bold tnum text-red-400">{formatCurrencyIn('table', monteCarlo.p5)}</p>
+              <FitValue className="text-base font-bold tnum text-red-400">{formatCurrencyIn('table', monteCarlo.p5)}</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">P25</p>
-              <p className="text-base font-bold tnum">{formatCurrencyIn('table', monteCarlo.p25)}</p>
+              <FitValue className="text-base font-bold tnum">{formatCurrencyIn('table', monteCarlo.p25)}</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)]">
+            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)] min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">P50 (Median)</p>
-              <p className="text-base font-bold tnum text-emerald-400">{formatCurrencyIn('table', monteCarlo.p50)}</p>
+              <FitValue className="text-base font-bold tnum text-emerald-400">{formatCurrencyIn('table', monteCarlo.p50)}</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">P75</p>
-              <p className="text-base font-bold tnum">{formatCurrencyIn('table', monteCarlo.p75)}</p>
+              <FitValue className="text-base font-bold tnum">{formatCurrencyIn('table', monteCarlo.p75)}</FitValue>
             </div>
-            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)]">
+            <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)] min-w-0 overflow-hidden">
               <p className="text-[10px] text-muted-foreground uppercase">P95 (Best)</p>
-              <p className="text-base font-bold tnum text-emerald-400">{formatCurrencyIn('table', monteCarlo.p95)}</p>
+              <FitValue className="text-base font-bold tnum text-emerald-400">{formatCurrencyIn('table', monteCarlo.p95)}</FitValue>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20">
+            <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 min-w-0 overflow-hidden">
               <p className="text-xs text-muted-foreground mb-1">Risk of Ruin</p>
-              <p className={cn('text-2xl font-bold tnum', monteCarlo.riskOfRuin > 5 ? 'text-red-400' : 'text-emerald-400')}>
+              <FitValue className={cn('text-2xl font-bold tnum', monteCarlo.riskOfRuin > 5 ? 'text-red-400' : 'text-emerald-400')}>
                 {monteCarlo.riskOfRuin.toFixed(1)}%
-              </p>
+              </FitValue>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Probability of blowing up the account in next 100 trades
               </p>
             </div>
-            <div className="p-3 rounded-md bg-muted/40 border border-border">
+            <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
               <p className="text-xs text-muted-foreground mb-1">Expected Max Drawdown</p>
-              <p className="text-2xl font-bold tnum text-yellow-400">
+              <FitValue className="text-2xl font-bold tnum text-yellow-400">
                 {formatCurrencyIn('table', monteCarlo.ddP50)}
-              </p>
+              </FitValue>
               <p className="text-[10px] text-muted-foreground mt-1">
                 Median drawdown · 90th percentile: {formatCurrencyIn('table', monteCarlo.ddP90)}
               </p>

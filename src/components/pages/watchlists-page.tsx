@@ -1011,7 +1011,10 @@ export function WatchlistsPage() {
                         </span>{' '}
                         win rate
                       </span>
-                      <span className={cn('text-[11px] font-bold tnum', pnlColor(listPnl))}>
+                      <span
+                        className={cn('text-[11px] font-bold tnum whitespace-nowrap', pnlColor(listPnl))}
+                        title={`net ${listPnl >= 0 ? '+' : ''}${formatCurrencyIn('table', listPnl)}`}
+                      >
                         net {listPnl >= 0 ? '+' : ''}
                         {formatCurrencyIn('table', listPnl)}
                       </span>
@@ -1208,7 +1211,12 @@ export function WatchlistsPage() {
                         <div className="shrink-0 text-right">
                           {price !== null ? (
                             <div title={`LIVE · ${quote?.exchangeName || 'market'}`}>
-                              <p className="text-sm font-semibold tnum leading-tight">{fmtLivePrice(price)}</p>
+                              <p
+                                className="text-sm font-semibold tnum leading-tight whitespace-nowrap"
+                                title={fmtLivePrice(price)}
+                              >
+                                {fmtLivePrice(price)}
+                              </p>
                               {change !== null && (
                                 <Badge
                                   variant="outline"

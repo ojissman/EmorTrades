@@ -31,6 +31,7 @@ import {
 import { computeOverviewStats, type OverviewStats, type OverviewTradeRow } from '@/lib/overview-stats'
 import { currencyCompactFor, formatCurrency, formatCurrencyIn, pnlColor } from '@/lib/format'
 import { AnimatedNumber } from '@/components/animated-number'
+import { FitValue } from '@/components/fit-value'
 import { useQuery as useAccountsQuery } from '@tanstack/react-query'
 import {
   LayoutGrid, LayoutDashboard, DollarSign, Target, Scale, Sigma, TrendingUp, TrendingDown,
@@ -75,11 +76,11 @@ function ViewBanner({ type, dashboardName }: { type: string; dashboardName: stri
 /** Inline label:value stat used inside hero bands. */
 function HeroStat({ label, value, color, icon: Icon }: { label: string; value: string; color?: string; icon?: IconType }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 min-w-0">
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: color ?? 'var(--text-secondary)' }} />}
-      <div className="leading-tight">
-        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{label}</p>
-        <p className="text-sm font-bold tnum" style={{ color: color ?? 'var(--text-primary)' }}>{value}</p>
+      <div className="leading-tight min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-wider truncate" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+        <FitValue className="text-sm font-bold tnum" style={{ color: color ?? 'var(--text-primary)' }}>{value}</FitValue>
       </div>
     </div>
   )
@@ -94,11 +95,12 @@ function EquityBadge({ curve, tone }: { curve: { date: string; equity: number }[
   const colorBase = tone ?? end
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tnum"
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold tnum min-w-0 max-w-full"
       style={{ borderColor: 'var(--border-strong)', background: 'var(--bg-card)', color: pnlColor(colorBase) }}
+      title={formatCurrencyIn('kpi', end)}
     >
-      <Wallet className="h-3 w-3" />
-      {formatCurrencyIn('kpi', end)}
+      <Wallet className="h-3 w-3 shrink-0" />
+      <span className="truncate">{formatCurrencyIn('kpi', end)}</span>
     </span>
   )
 }
@@ -123,7 +125,7 @@ function DailyFooter({ stats }: { stats: OverviewStats }) {
   const best = stats.daily.reduce((m, d) => (d.pnl > m.pnl ? d : m))
   const worst = stats.daily.reduce((m, d) => (d.pnl < m.pnl ? d : m))
   const green = stats.daily.filter((d) => d.pnl > 0).length
-  const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 cursor-pointer transition-transform hover:scale-[1.03]'
+  const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 cursor-pointer transition-transform hover:scale-[1.03] whitespace-nowrap'
   return (
     <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
       <button
@@ -212,9 +214,9 @@ function SimpleView({ stats, banner, onboarding, equityCurve }: ViewProps) {
                   {stats.total} closed trades
                 </span>
               </div>
-              <p className="mt-2 text-5xl font-bold tracking-tight tnum md:text-6xl" style={{ color: pnlColor(stats.net) }}>
+              <FitValue className="mt-2 text-5xl font-bold tracking-tight tnum md:text-6xl" style={{ color: pnlColor(stats.net) }}>
                 <AnimatedNumber value={stats.net} format={(n) => formatCurrencyIn('kpi', n)} />
-              </p>
+              </FitValue>
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2.5">
                 <HeroStat label="Win rate" value={`${stats.winRate.toFixed(1)}%`} icon={Target} />
                 <HeroStat label="Profit factor" value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} icon={Scale} />
@@ -357,9 +359,9 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart }: V
             <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--text-secondary)' }}>
               Net P&L · {stats.total} trades
             </p>
-            <p className="mt-1.5 text-4xl font-bold tracking-tight tnum leading-none" style={{ color: pnlColor(stats.net) }}>
+            <FitValue className="mt-1.5 text-4xl font-bold tracking-tight tnum leading-none" style={{ color: pnlColor(stats.net) }}>
               <AnimatedNumber value={stats.net} format={(n) => formatCurrencyIn('kpi', n)} />
-            </p>
+            </FitValue>
           </div>
           <div className="h-16 md:h-14 min-w-0">
             <EquityChart curve={equityCurve} height={64} showAxes={false} />

@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import { axisMoney, formatCurrencyIn, formatDate } from '@/lib/format'
 import { drillToTrades } from '@/lib/drill'
 import {
@@ -553,56 +554,56 @@ export function EquitiesCurvePage() {
     <div className="space-y-4">
       {/* KPI strip — L1 verbatim metrics (`Start Equity` · `End Equity` · `Change %` · `Max Drawdown %`) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Start Equity</p>
             <Wallet className="h-3 w-3 text-muted-foreground" />
           </div>
-          <p className="text-xl font-bold tnum">{formatCurrencyIn('kpi', startEquity)}</p>
+          <FitValue className="text-xl font-bold tnum">{formatCurrencyIn('kpi', startEquity)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">combined starting balances</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">End Equity</p>
             <TrendingUp className="h-3 w-3 text-muted-foreground" />
           </div>
-          <p className="text-xl font-bold tnum">{formatCurrencyIn('kpi', endEquity)}</p>
+          <FitValue className="text-xl font-bold tnum">{formatCurrencyIn('kpi', endEquity)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">
             from {formatCurrencyIn('table', startEquity)}
             {(includeDeposits || includeWithdrawals) ? ' · incl. cash flows' : ''}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change %</p>
             <Percent className="h-3 w-3 text-muted-foreground" />
           </div>
-          <p
+          <FitValue
             className={cn(
               'text-xl font-bold tnum',
               totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400'
             )}
           >
             {changePct === null ? 'N/A' : `${totalReturn >= 0 ? '+' : '−'}${Math.abs(changePct).toFixed(2)}%`}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">
             {totalReturn >= 0 ? '+' : '−'}
             {formatCurrencyIn('table', Math.abs(totalReturn))} all time
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Max Drawdown %</p>
             <TrendingDown className="h-3 w-3 text-amber-400" />
           </div>
-          <p className="text-xl font-bold tnum text-amber-400">
+          <FitValue className="text-xl font-bold tnum text-amber-400">
             {maxDdPct === null ? 'N/A' : `${maxDdPct.toFixed(2)}%`}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">
             {formatCurrencyIn('table', maxDd)} peak-to-trough
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Performer</p>
             <Trophy className="h-3 w-3 text-emerald-400" />
@@ -610,7 +611,10 @@ export function EquitiesCurvePage() {
           {best ? (
             <>
               <p className="text-sm font-bold truncate" title={best.label}>{best.label}</p>
-              <p className="text-[11px] text-emerald-400 tnum">
+              <p
+                className="text-[11px] text-emerald-400 tnum truncate"
+                title={`+${formatCurrencyIn('table', best.ret)}${best.retPct !== null ? ` (+${best.retPct.toFixed(1)}%)` : ''}`}
+              >
                 +{formatCurrencyIn('table', best.ret)}
                 {best.retPct !== null && ` (+${best.retPct.toFixed(1)}%)`}
               </p>

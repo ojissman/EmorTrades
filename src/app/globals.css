@@ -235,6 +235,17 @@ html[data-theme='mist'] {
   color: inherit;
 }
 
+/* Horizontal overflow containment — the app is a fixed shell (h-screen flex)
+ * that never needs page-level horizontal scrolling. Clipped chrome (the sticky
+ * top-bar cluster on narrow screens, wide tables inside their own
+ * overflow-x-auto) must not create a phantom horizontal scroll region on
+ * mobile. `clip` (not `hidden`) so html stays a non-scroll container and
+ * position:sticky keeps working as before. */
+html,
+body {
+  overflow-x: clip;
+}
+
 /* Charts: kill focus outlines on svg wrappers */
 .recharts-wrapper:focus,
 .recharts-surface:focus {

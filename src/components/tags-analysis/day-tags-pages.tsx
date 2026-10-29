@@ -18,6 +18,7 @@
 import { useMemo, useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Panel, MetricStat } from '@/components/metrics/metrics-kit'
+import { FitValue } from '@/components/fit-value'
 import { CalendarDays, Layers, GitMerge, Info, ChevronDown, ChevronRight } from 'lucide-react'
 // Task 15-W4 — the day-tags family was the only tags subfamily with ZERO
 // drills. A tag's trade set is not expressible as one trades filter, but each
@@ -196,11 +197,14 @@ export function DayTagsIndividualPage() {
 
       <Panel title="Baseline comparison" hint="Tagged days vs days you left untagged">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg p-3" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
+          <div className="rounded-lg p-3 min-w-0 overflow-hidden" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Tagged days</p>
-            <p className="text-lg font-bold tabular-nums" style={{ color: signTone(rows.reduce((s, r) => s + r.stats.net, 0) / Math.max(rows.reduce((s, r) => s + r.stats.n, 0), 1)) }}>
+            <FitValue
+              className="text-lg font-bold tabular-nums"
+              style={{ color: signTone(rows.reduce((s, r) => s + r.stats.net, 0) / Math.max(rows.reduce((s, r) => s + r.stats.n, 0), 1)) }}
+            >
               —
-            </p>
+            </FitValue>
             <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
               {rows.reduce((s, r) => s + r.stats.n, 0)} trades · net{' '}
               <span className="font-semibold" style={{ color: signTone(rows.reduce((s, r) => s + r.stats.net, 0)) }}>
@@ -208,9 +212,11 @@ export function DayTagsIndividualPage() {
               </span>
             </p>
           </div>
-          <div className="rounded-lg p-3" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
+          <div className="rounded-lg p-3 min-w-0 overflow-hidden" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Untagged days</p>
-            <p className="text-lg font-bold tabular-nums" style={{ color: signTone(baseline.stats.net) }}>{toneMoney(baseline.stats.net)}</p>
+            <FitValue className="text-lg font-bold tabular-nums" style={{ color: signTone(baseline.stats.net) }}>
+              {toneMoney(baseline.stats.net)}
+            </FitValue>
             <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{baseline.stats.n} trades · win {baseline.stats.winRate}% · avg R {baseline.stats.avgR != null ? baseline.stats.avgR.toFixed(2) : '—'}</p>
           </div>
         </div>

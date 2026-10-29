@@ -72,6 +72,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { signTone } from '@/lib/screener'
 import { formatCurrencyIn, formatDate, formatDuration, formatNumber, formatRMultiple, type CurrencyArea } from '@/lib/format'
+import { FitValue } from '@/components/fit-value'
 import { STRATEGY_LABELS } from '@/lib/legs'
 // Task 12 — records the drill origin so Day Explore offers the breadcrumb.
 import { markDrillOrigin, drillToTrades } from '@/lib/drill'
@@ -231,7 +232,12 @@ function Row({ label, value, tone, title }: { label: string; value: ReactNode; t
       <span className="text-[11px] shrink-0" style={{ color: 'var(--text-secondary)' }}>
         {label}
       </span>
-      <span className={cn('text-xs font-semibold tnum text-right', tone)}>{value}</span>
+      <span
+        className={cn('text-xs font-semibold tnum text-right whitespace-nowrap', tone)}
+        title={typeof value === 'string' ? value : undefined}
+      >
+        {value}
+      </span>
     </div>
   )
 }
@@ -279,9 +285,9 @@ function CardShell({
 /** Metric-band tile (hero numbers under the header). */
 function MetricTile({ label, value, tone, title }: { label: string; value: ReactNode; tone?: string; title?: string }) {
   return (
-    <div className="rounded-md p-2.5" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }} title={title}>
-      <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-      <div className="text-base font-bold tnum" style={{ color: tone ?? 'var(--text-primary)' }}>{value}</div>
+    <div className="rounded-md p-2.5 min-w-0 overflow-hidden" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }} title={title}>
+      <div className="text-[10px] uppercase tracking-wider truncate" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+      <FitValue className="text-base font-bold tnum" style={{ color: tone ?? 'var(--text-primary)' }}>{value}</FitValue>
     </div>
   )
 }

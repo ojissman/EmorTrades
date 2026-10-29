@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { FitValue } from '@/components/fit-value'
 import {
   Dialog,
   DialogContent,
@@ -765,7 +766,7 @@ export function SetupsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {ungroupedCards.map((s) => (
-              <Card key={s.id} className="p-4 relative group" data-testid="setup-ungrouped-card">
+              <Card key={s.id} className="p-4 relative group overflow-hidden" data-testid="setup-ungrouped-card">
                 <div
                   className="absolute top-0 left-0 h-full w-1 rounded-l-md"
                   style={{ background: s.color }}
@@ -824,16 +825,16 @@ export function SetupsPage() {
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-border flex items-end justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] text-muted-foreground uppercase">Net P&L</p>
-                    <p className={cn('text-lg font-bold tnum', pnlColor(s.pnl))}>
+                    <FitValue className={cn('text-lg font-bold tnum', pnlColor(s.pnl))}>
                       {s.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', s.pnl)}
-                    </p>
+                    </FitValue>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                    className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground shrink-0"
                     onClick={() => s.trades > 0 && drillToTrades({ setupId: s.id })}
                     title={`Show the ${s.trades} ${s.name} trades in the Trades table`}
                   >
@@ -846,7 +847,7 @@ export function SetupsPage() {
             {/* Uncategorized — journal trades with no setup at all (kept from
                 the pre-TP page; still account-scoped from /api/trades). */}
             {uncategorizedCard && (
-              <Card className="p-4 relative" data-testid="setup-ungrouped-card">
+              <Card className="p-4 relative overflow-hidden" data-testid="setup-ungrouped-card">
                 <div
                   className="absolute top-0 left-0 h-full w-1 rounded-l-md"
                   style={{ background: uncategorizedCard.color }}
@@ -881,16 +882,16 @@ export function SetupsPage() {
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-border flex items-end justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] text-muted-foreground uppercase">Net P&L</p>
-                    <p className={cn('text-lg font-bold tnum', pnlColor(uncategorizedCard.pnl))}>
+                    <FitValue className={cn('text-lg font-bold tnum', pnlColor(uncategorizedCard.pnl))}>
                       {uncategorizedCard.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', uncategorizedCard.pnl)}
-                    </p>
+                    </FitValue>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                    className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground shrink-0"
                     onClick={() => drillToTrades({ setupId: 'none' })}
                     title="Show the uncategorized trades in the Trades table"
                   >

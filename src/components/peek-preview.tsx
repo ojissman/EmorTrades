@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { formatCurrencyIn, formatDate, formatDateTime, formatDuration, formatNumber, formatRMultiple, pnlColor } from '@/lib/format'
 import { evidenceTagTone } from '@/lib/evidence-tags'
+import { FitValue } from '@/components/fit-value'
 import { cn } from '@/lib/utils'
 // Task 12 — records the drill origin so the Navigate/day-drill targets below
 // can offer a "From: <page>" breadcrumb back to the page the peek hovered over.
@@ -1506,15 +1507,17 @@ function FilterChips({ filters, exact }: { filters: { label: string; filter: Rec
 
 function MiniStat({ label, value, positive, negative }: { label: string; value: string; positive?: boolean; negative?: boolean }) {
   return (
-    <div className="p-2 rounded-md bg-muted/40">
-      <p className="text-[10px] text-muted-foreground uppercase">{label}</p>
-      <p className={cn(
-        'text-sm font-bold tnum',
-        positive && 'text-emerald-400',
-        negative && 'text-red-400'
-      )}>
+    <div className="p-2 rounded-md bg-muted/40 min-w-0 overflow-hidden">
+      <p className="text-[10px] text-muted-foreground uppercase truncate">{label}</p>
+      <FitValue
+        className={cn(
+          'text-sm font-bold tnum mt-0.5',
+          positive && 'text-emerald-400',
+          negative && 'text-red-400'
+        )}
+      >
         {value}
-      </p>
+      </FitValue>
     </div>
   )
 }

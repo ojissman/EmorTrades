@@ -47,6 +47,7 @@ import {
   Cell,
 } from 'recharts'
 import { axisMoney, formatCurrency, formatCurrencyIn, formatDate, formatNumber, formatRMultiple, pnlColor } from '@/lib/format'
+import { FitValue } from '@/components/fit-value'
 import { cn } from '@/lib/utils'
 
 /** Density of the hosting widget instance — maps to heights/row counts here. */
@@ -295,9 +296,9 @@ function SummaryCard({
   negative?: boolean
 }) {
   return (
-    <Card className="p-4">
+    <Card className="p-4 overflow-hidden">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p
+      <FitValue
         className={cn(
           'text-lg font-bold mt-1.5 tnum',
           positive && 'text-emerald-400',
@@ -305,8 +306,8 @@ function SummaryCard({
         )}
       >
         {value}
-      </p>
-      <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+      </FitValue>
+      <p className="text-xs text-muted-foreground mt-0.5 truncate" title={sub}>{sub}</p>
     </Card>
   )
 }
@@ -396,8 +397,8 @@ export function DeskEquityCurve({
           <h3 className="font-semibold tracking-tight">Equity Curve</h3>
           <p className="text-xs text-muted-foreground">Account balance progression ({fmtRange})</p>
         </div>
-        <Badge variant="outline" className="text-xs">
-          {formatCurrencyIn('kpi', a.finalEquity)}
+        <Badge variant="outline" className="text-xs min-w-0 max-w-[55%]" title={formatCurrencyIn('kpi', a.finalEquity)}>
+          <span className="truncate">{formatCurrencyIn('kpi', a.finalEquity)}</span>
         </Badge>
       </div>
       {curve.length === 0 ? (
@@ -685,12 +686,12 @@ export function DeskRecentTrades({ size = 'standard', count = 10, heightPx }: { 
                 {formatNumber(t.entryPrice)}
               </p>
             </div>
-            <div className="text-right">
-              <p className={cn('text-sm font-semibold tnum', pnlColor(t.pnl))}>
+            <div className="text-right shrink-0">
+              <p className={cn('text-sm font-semibold tnum whitespace-nowrap', pnlColor(t.pnl))} title={`${t.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', t.pnl)}`}>
                 {t.pnl > 0 ? '+' : ''}
                 {formatCurrencyIn('table', t.pnl)}
               </p>
-              <p className="text-xs text-muted-foreground tnum">{formatRMultiple(t.rMultiple)}</p>
+              <p className="text-xs text-muted-foreground tnum whitespace-nowrap">{formatRMultiple(t.rMultiple)}</p>
             </div>
           </div>
         ))}
@@ -734,15 +735,15 @@ function CenterOutBars({
                 )}
                 style={{ width: `${widthPercent / 2}%` }}
               />
-              <div className="absolute inset-0 flex items-center justify-between px-2">
-                <span className="text-[10px] text-muted-foreground">{r.sub}</span>
-                <span className={cn('text-xs font-medium tnum', pnlColor(r.pnl))}>
+              <div className="absolute inset-0 flex items-center justify-between gap-2 px-2">
+                <span className="text-[10px] text-muted-foreground truncate">{r.sub}</span>
+                <span className={cn('text-xs font-medium tnum whitespace-nowrap', pnlColor(r.pnl))} title={`${r.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', r.pnl)}`}>
                   {r.pnl > 0 ? '+' : ''}
                   {formatCurrencyIn('table', r.pnl)}
                 </span>
               </div>
             </div>
-            <div className="w-10 lg:w-12 text-right text-xs text-muted-foreground tnum">
+            <div className="w-10 lg:w-12 text-right text-xs text-muted-foreground tnum shrink-0">
               {r.winRate.toFixed(0)}%
             </div>
           </div>

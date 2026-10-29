@@ -163,7 +163,12 @@ export function DailyBriefing() {
                       )}
                     >
                       <span className="text-muted-foreground">{c.label}</span>
-                      <span className="font-semibold tnum">{c.value}</span>
+                      <span
+                        className="font-semibold tnum truncate min-w-0 max-w-[220px]"
+                        title={c.value}
+                      >
+                        {c.value}
+                      </span>
                     </span>
                   ))}
                 </div>

@@ -33,6 +33,7 @@ import {
 import { Clock, AlertTriangle, TrendingUp, Wallet, Activity, RefreshCw, MoreVertical } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatDateTime, formatNumber, formatPercent, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 // ---- Live market quotes (via /api/market/quotes → Yahoo Finance mini-service) ----
 
@@ -196,38 +197,38 @@ export function OpenTradesPage() {
     <div className="space-y-4">
       {/* Hero stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Open Positions</p>
             <Activity className="h-3 w-3 text-emerald-400" />
           </div>
-          <p className="text-xl font-bold tnum">{openTrades.length}</p>
+          <FitValue className="text-xl font-bold tnum">{openTrades.length}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">across {Object.keys(accounts).length} accounts</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Exposure</p>
             <Wallet className="h-3 w-3 text-blue-400" />
           </div>
-          <p className="text-xl font-bold tnum">{formatCurrencyIn('table', totalExposure)}</p>
+          <FitValue className="text-xl font-bold tnum">{formatCurrencyIn('table', totalExposure)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">notional value</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Worst-Case Risk</p>
             <AlertTriangle className="h-3 w-3 text-red-400" />
           </div>
-          <p className="text-xl font-bold tnum text-red-400">{formatCurrencyIn('table', worstCaseRisk)}</p>
+          <FitValue className="text-xl font-bold tnum text-red-400">{formatCurrencyIn('table', worstCaseRisk)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">if all stops hit</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Long/Short Split</p>
             <TrendingUp className="h-3 w-3 text-emerald-400" />
           </div>
-          <p className="text-xl font-bold tnum">
+          <FitValue className="text-xl font-bold tnum">
             {openTrades.filter((t: any) => t.side === 'long').length}L / {openTrades.filter((t: any) => t.side === 'short').length}S
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">
             {formatCurrencyIn('table', longExposure)} / {formatCurrencyIn('table', shortExposure)}
           </p>
@@ -244,12 +245,12 @@ export function OpenTradesPage() {
           {/* Live quote summary strip */}
           <Card className="p-3 md:p-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   Total Unrealized P&L
                   {hasLiveQuotes && <LiveDot />}
                 </p>
-                <p
+                <FitValue
                   className={cn(
                     'text-lg font-bold tnum leading-tight',
                     hasLiveQuotes ? (totalUnrealized >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-muted-foreground'
@@ -258,19 +259,19 @@ export function OpenTradesPage() {
                   {hasLiveQuotes
                     ? `${totalUnrealized >= 0 ? '+' : '−'}${formatCurrencyIn('kpi', Math.abs(totalUnrealized))}`
                     : '—'}
-                </p>
+                </FitValue>
               </div>
               <div className="min-w-20">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Open Positions</p>
-                <p className="text-sm font-semibold tnum leading-tight">{openTrades.length}</p>
+                <p className="text-sm font-semibold tnum leading-tight whitespace-nowrap" title={String(openTrades.length)}>{openTrades.length}</p>
               </div>
               <div className="min-w-20">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Cost Basis</p>
-                <p className="text-sm font-semibold tnum leading-tight">{formatCurrencyIn('table', totalCostBasis)}</p>
+                <p className="text-sm font-semibold tnum leading-tight whitespace-nowrap" title={formatCurrencyIn('table', totalCostBasis)}>{formatCurrencyIn('table', totalCostBasis)}</p>
               </div>
               <div className="min-w-20">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Live Quotes</p>
-                <p className="text-sm font-semibold tnum leading-tight">
+                <p className="text-sm font-semibold tnum leading-tight whitespace-nowrap" title={`${liveCount}/${openTrades.length}`}>
                   {liveCount}/{openTrades.length}
                 </p>
               </div>

@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
+import { FitValue } from '@/components/fit-value'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
@@ -700,14 +701,14 @@ function MiniStat({
   tone?: 'good' | 'warn' | 'bad' | 'neutral'
 }) {
   return (
-    <div className="rounded-md border border-border/60 bg-white/[0.02] py-1.5">
+    <div className="rounded-md border border-border/60 bg-white/[0.02] py-1.5 min-w-0 overflow-hidden">
       <Icon className="h-3 w-3 mx-auto text-muted-foreground" aria-hidden />
-      <p className={cn(
+      <FitValue className={cn(
         'text-xs font-bold tnum leading-tight mt-0.5',
         tone === 'good' && 'text-emerald-400',
         tone === 'warn' && 'text-amber-400',
         tone === 'bad' && 'text-rose-400',
-      )}>{value}</p>
+      )}>{value}</FitValue>
       <p className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</p>
     </div>
   )

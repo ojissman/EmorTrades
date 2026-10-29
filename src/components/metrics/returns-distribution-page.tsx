@@ -120,7 +120,13 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-3 py-0.5 border-t" style={{ borderColor: 'var(--border-strong)' }}>
       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-      <span className="text-right tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</span>
+      <span
+        className="text-right tabular-nums whitespace-nowrap"
+        style={{ color: 'var(--text-primary)' }}
+        title={value}
+      >
+        {value}
+      </span>
     </div>
   )
 }

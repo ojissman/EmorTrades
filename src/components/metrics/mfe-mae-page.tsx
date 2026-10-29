@@ -15,6 +15,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { formatCurrencyIn, formatNumber } from '@/lib/format'
 import { peekTrade } from '@/lib/drill'
+import { FitValue } from '@/components/fit-value'
 
 export function MfeMaePage() {
   const navigate = useAppStore((s) => s.navigate)
@@ -92,9 +93,9 @@ export function MfeMaePage() {
             >
               <div className="grid place-items-center h-40">
                 <div className="text-center">
-                  <p className="text-3xl font-bold tabular-nums" style={{ color: 'var(--shell-warning)' }}>
+                  <FitValue className="text-3xl font-bold tabular-nums" style={{ color: 'var(--shell-warning)' }} origin="center">
                     {formatCurrencyIn('kpi', m.totalLeft, 'USD')}
-                  </p>
+                  </FitValue>
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
                     vs {formatCurrencyIn('table', data.summary.grossWin, 'USD')} actually banked
                   </p>

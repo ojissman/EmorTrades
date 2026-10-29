@@ -21,6 +21,7 @@ import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FitValue } from '@/components/fit-value'
 import { cn } from '@/lib/utils'
 import { axisMoney, formatCurrencyIn, formatDate } from '@/lib/format'
 import { drillToDay } from '@/lib/drill'
@@ -641,9 +642,11 @@ export function PropFirmCompliancePage() {
             </Button>
           )}
         </div>
-        <div className="ml-auto text-right shrink-0">
+        <div className="ml-auto text-right min-w-0">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Current Equity</p>
-          <p className="text-lg font-bold tnum">{formatCurrencyIn('kpi', eval_.equity)}</p>
+          <FitValue className="text-lg font-bold tnum" origin="right">
+            {formatCurrencyIn('kpi', eval_.equity)}
+          </FitValue>
           <p className={cn('text-[11px] tnum', eval_.profit >= 0 ? 'text-emerald-400' : 'text-red-400')}>
             {eval_.profit >= 0 ? '+' : '−'}
             {formatCurrencyIn('table', Math.abs(eval_.profit))} realized
@@ -657,7 +660,7 @@ export function PropFirmCompliancePage() {
           const meta = statusMeta(r.status)
           const breachDay = r.breachDayKey
           return (
-            <Card key={r.id} className="p-4">
+            <Card key={r.id} className="p-4 overflow-hidden min-w-0">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="grid place-items-center h-6 w-6 rounded-md bg-muted shrink-0">{r.icon}</span>
@@ -671,8 +674,8 @@ export function PropFirmCompliancePage() {
                 </span>
               </div>
               <div className="flex items-baseline gap-1.5 mb-2">
-                <span className="text-base font-bold tnum">{r.current}</span>
-                <span className="text-[11px] text-muted-foreground">/ {r.limit}</span>
+                <FitValue className="text-base font-bold tnum w-auto">{r.current}</FitValue>
+                <span className="text-[11px] text-muted-foreground shrink-0">/ {r.limit}</span>
               </div>
               <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                 <div

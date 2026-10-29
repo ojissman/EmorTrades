@@ -1655,9 +1655,10 @@ export function TradesDataGrid({
           </span>
           <span
             className={cn(
-              'tnum ml-auto text-sm font-semibold',
+              'tnum ml-auto text-sm font-semibold whitespace-nowrap',
               (t.pnl ?? 0) > 0 ? 'text-emerald-400' : (t.pnl ?? 0) < 0 ? 'text-red-400' : 'text-foreground'
             )}
+            title={`${(t.pnl ?? 0) > 0 ? '+' : ''}${formatCurrencyIn('table', t.pnl)}`}
           >
             {(t.pnl ?? 0) > 0 ? '+' : ''}
             {formatCurrencyIn('table', t.pnl)}
@@ -1924,9 +1925,10 @@ export function TradesDataGrid({
           <span className="text-red-400/90">{stats.shown - stats.wins}L</span>
           <span
             className={cn(
-              'tnum font-semibold',
+              'tnum font-semibold whitespace-nowrap',
               stats.net > 0 ? 'text-emerald-400' : stats.net < 0 ? 'text-red-400' : 'text-muted-foreground'
             )}
+            title={`${stats.net > 0 ? '+' : ''}${formatCurrencyIn('table', stats.net)} net`}
           >
             {stats.net > 0 ? '+' : ''}
             {formatCurrencyIn('table', stats.net)} net

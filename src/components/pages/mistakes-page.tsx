@@ -43,6 +43,7 @@ import { useFilterStore } from '@/store/filter-store'
 import { drillToTrades } from '@/lib/drill'
 import { axisMoney, formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 const COLOR_OPTIONS = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#f59e0b']
 
@@ -206,9 +207,9 @@ export function MistakesPage() {
                 <p className="text-xs text-muted-foreground">P&L impact from mistake-tagged trades</p>
               </div>
             </div>
-            <p className="text-3xl font-bold tnum text-red-400">
+            <FitValue className="text-3xl font-bold tnum text-red-400">
               -{formatCurrencyIn('table', totalMistakeCost)}
-            </p>
+            </FitValue>
             <p className="text-xs text-muted-foreground mt-1">
               across {mistakeStats.filter((m: any) => m.totalPnl < 0).length} mistake types
             </p>
@@ -404,11 +405,11 @@ export function MistakesPage() {
                 </div>
                 <div className="mt-3 pt-3 border-t border-border">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[10px] text-muted-foreground uppercase">Total P&L Impact</p>
-                      <p className={cn('text-lg font-bold tnum', pnlColor(m.totalPnl))}>
+                      <FitValue className={cn('text-lg font-bold tnum', pnlColor(m.totalPnl))}>
                         {m.totalPnl > 0 ? '+' : ''}{formatCurrencyIn('table', m.totalPnl)}
-                      </p>
+                      </FitValue>
                       <p className="text-[10px] text-muted-foreground">
                         {formatCurrencyIn('table', m.avgPnl)} avg/trade
                       </p>

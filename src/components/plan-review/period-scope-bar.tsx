@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight, CalendarRange, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 export interface PlanOption {
   id: string
@@ -96,7 +97,7 @@ export function KpiTile(props: {
   return (
     <div className="rounded-lg border bg-card/60 px-3 py-2.5 min-w-0" title={props.title}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{props.label}</p>
-      <p className={cn('text-lg font-bold tnum leading-tight truncate', toneCls)}>{props.value}</p>
+      <FitValue className={cn('text-lg font-bold tnum leading-tight', toneCls)}>{props.value}</FitValue>
       {props.sub ? <p className="text-[11px] text-muted-foreground truncate">{props.sub}</p> : null}
     </div>
   )

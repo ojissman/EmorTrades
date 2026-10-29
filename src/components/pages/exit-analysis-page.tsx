@@ -36,6 +36,7 @@ import {
 import { axisMoney, formatCurrencyIn, formatPercent, pnlColor } from '@/lib/format'
 import { peekTrade, drillToTrades } from '@/lib/drill'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 // Task 15-W4 — hero cross-link to the efficiency detail charts.
 import { markDrillOrigin } from '@/lib/drill'
 // Task 22-b — Hide Chart Points (Settings ▸ Display).
@@ -90,9 +91,9 @@ export function ExitAnalysisPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Actual P&L</p>
             <TrendingUp className="h-3 w-3 text-muted-foreground" />
           </div>
-          <p className={cn('text-xl font-bold tnum', pnlColor(s.totalActualPnl))}>
+          <FitValue className={cn('text-xl font-bold tnum', pnlColor(s.totalActualPnl))}>
             {s.totalActualPnl > 0 ? '+' : ''}{formatCurrencyIn('table', s.totalActualPnl)}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">across {s.totalTrades} trades</p>
         </Card>
         <Card className="p-4 relative overflow-hidden">
@@ -100,9 +101,9 @@ export function ExitAnalysisPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Exit Potential</p>
             <Target className="h-3 w-3 text-emerald-400" />
           </div>
-          <p className="text-xl font-bold tnum text-emerald-400">
+          <FitValue className="text-xl font-bold tnum text-emerald-400">
             {formatCurrencyIn('table', s.totalBestExitPnl)}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">if you nailed every exit</p>
         </Card>
         <Card className="p-4 relative overflow-hidden">
@@ -110,12 +111,12 @@ export function ExitAnalysisPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Capture Rate</p>
             <Zap className="h-3 w-3 text-yellow-400" />
           </div>
-          <p className={cn(
+          <FitValue className={cn(
             'text-xl font-bold tnum',
             s.avgCaptureRate >= 70 ? 'text-emerald-400' : s.avgCaptureRate >= 40 ? 'text-yellow-400' : 'text-red-400'
           )}>
             {s.avgCaptureRate.toFixed(1)}%
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">of MFE captured</p>
         </Card>
         <Card className="p-4 relative overflow-hidden">
@@ -123,9 +124,9 @@ export function ExitAnalysisPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Hold-to-Close</p>
             <Clock className="h-3 w-3 text-blue-400" />
           </div>
-          <p className={cn('text-xl font-bold tnum', pnlColor(s.totalEodExitPnl))}>
+          <FitValue className={cn('text-xl font-bold tnum', pnlColor(s.totalEodExitPnl))}>
             {s.totalEodExitPnl > 0 ? '+' : ''}{formatCurrencyIn('table', s.totalEodExitPnl)}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">if held to EOD</p>
         </Card>
         <Card className="p-4 relative overflow-hidden">
@@ -133,9 +134,9 @@ export function ExitAnalysisPage() {
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Left on Table</p>
             <AlertTriangle className="h-3 w-3 text-red-400" />
           </div>
-          <p className="text-xl font-bold tnum text-red-400">
+          <FitValue className="text-xl font-bold tnum text-red-400">
             {formatCurrencyIn('table', s.totalLeftOnTable)}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">vs best exit</p>
           {/* Task 15-W4 — MFE/MAE ↔ Exit-analysis integration: the per-setup
               efficiency cut of this same number lives in the detail charts. */}
@@ -226,7 +227,7 @@ export function ExitAnalysisPage() {
               <ArrowDownRight className="h-4 w-4 text-red-400" />
               <p className="text-sm font-semibold text-red-400">Gave Back (Discipline Problem)</p>
             </div>
-            <p className="text-3xl font-bold tnum text-red-400">{s.gaveBackCount}</p>
+            <FitValue className="text-3xl font-bold tnum text-red-400">{s.gaveBackCount}</FitValue>
             <p className="text-xs text-muted-foreground mt-1">
               winners where you captured &lt;60% of MFE
             </p>
@@ -242,7 +243,7 @@ export function ExitAnalysisPage() {
               <ArrowUpRight className="h-4 w-4 text-yellow-400" />
               <p className="text-sm font-semibold text-yellow-400">Never Had It (Let Winners Run Problem)</p>
             </div>
-            <p className="text-3xl font-bold tnum text-yellow-400">{s.neverHadItCount}</p>
+            <FitValue className="text-3xl font-bold tnum text-yellow-400">{s.neverHadItCount}</FitValue>
             <p className="text-xs text-muted-foreground mt-1">
               losers that never went positive before stop-out
             </p>

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
+import { FitValue } from '@/components/fit-value'
 import { X, Plus, TriangleAlert, Zap } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -1439,9 +1440,12 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
           {previewPnL !== null && (
             <div className="col-span-2 p-3 rounded-md bg-muted/40 border border-border flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Calculated P&L</span>
-              <span className={`text-lg font-bold ${previewPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <FitValue
+                className={`text-lg font-bold tnum text-right ${previewPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                origin="right"
+              >
                 {previewPnL >= 0 ? '+' : ''}{formatCurrency(previewPnL)}
-              </span>
+              </FitValue>
             </div>
           )}
         </div>

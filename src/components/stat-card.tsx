@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { AnimatedNumber } from '@/components/animated-number'
+import { FitValue } from '@/components/fit-value'
 
 interface StatCardProps {
   label: string
@@ -40,11 +41,13 @@ export function StatCard({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {label}
           </p>
-          <p className="text-xl md:text-2xl font-bold tracking-tight mt-1.5 tnum">
+          <FitValue className="text-xl md:text-2xl font-bold tracking-tight mt-1.5 tnum">
             {anim ? <AnimatedNumber value={anim.value} format={anim.format} /> : value}
-          </p>
+          </FitValue>
           {subvalue && (
-            <p className="text-xs text-muted-foreground mt-1 tnum">{subvalue}</p>
+            <p className="text-xs text-muted-foreground mt-1 tnum truncate" title={subvalue}>
+              {subvalue}
+            </p>
           )}
           {hasChange && (
             <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-2 flex-wrap">

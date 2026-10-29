@@ -45,6 +45,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { AnimatedNumber } from '@/components/animated-number'
+import { FitValue } from '@/components/fit-value'
 import {
   CHALLENGE_TEMPLATES,
   PATTERN_TO_CHALLENGE,
@@ -628,11 +629,9 @@ function HeroStat({
           {label}
         </span>
       </div>
-      <AnimatedNumber
-        value={value}
-        format={(n) => String(Math.round(n))}
-        className="mt-1 block text-lg font-semibold tabular-nums"
-      />
+      <FitValue className="mt-1 text-lg font-semibold tabular-nums">
+        <AnimatedNumber value={value} format={(n) => String(Math.round(n))} />
+      </FitValue>
     </div>
   )
 }
@@ -725,8 +724,11 @@ function ActiveChallengeCard({
 
       {/* Progress */}
       <div className="mt-4">
-        <div className="flex items-baseline justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">
+        <div className="flex items-baseline justify-between gap-2 text-xs min-w-0">
+          <span
+            className="text-muted-foreground truncate"
+            title={`${Math.round(c.progress)} / ${row.target} ${row.target === 1 ? t.unitLabel : t.unitLabelPlural}`}
+          >
             <AnimatedNumber
               value={c.progress}
               format={(n) => String(Math.round(n))}
@@ -734,7 +736,7 @@ function ActiveChallengeCard({
             />
             <span className="text-muted-foreground"> / {row.target} {row.target === 1 ? t.unitLabel : t.unitLabelPlural}</span>
           </span>
-          <span className={cn('font-medium tabular-nums', a.text)}>{pct}%</span>
+          <span className={cn('font-medium tabular-nums whitespace-nowrap shrink-0', a.text)}>{pct}%</span>
         </div>
         <div className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div

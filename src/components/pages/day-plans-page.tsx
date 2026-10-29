@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { FitValue } from '@/components/fit-value'
 import {
   Select,
   SelectContent,
@@ -1022,14 +1023,14 @@ export function DayPlansPage() {
             {moodStats.map((m) => (
               <div
                 key={m.mood}
-                className="p-3 rounded-md border border-border text-center"
+                className="p-3 rounded-md border border-border text-center overflow-hidden min-w-0"
                 style={{ background: `${m.color}15` }}
               >
                 <div className="text-2xl mb-1">{m.emoji}</div>
                 <p className="text-xs font-medium" style={{ color: m.color }}>{m.label}</p>
-                <p className={cn('text-lg font-bold tnum mt-1', pnlColor(m.avgPnl))}>
+                <FitValue className={cn('text-lg font-bold tnum mt-1', pnlColor(m.avgPnl))} origin="center">
                   {formatCurrencyIn('table', m.avgPnl)}
-                </p>
+                </FitValue>
                 <p className="text-[10px] text-muted-foreground">{m.count} days</p>
               </div>
             ))}

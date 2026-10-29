@@ -9,6 +9,7 @@ import { useMetrics, Panel, MetricStat, EmptyRange, QueryErrorCard, AXIS_TICK, T
 import { BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Cell } from 'recharts'
 import { formatCurrencyIn, formatNumber, pnlColor } from '@/lib/format'
 import { drillToTrades, monthPatch, dayOfWeekIndex } from '@/lib/drill'
+import { FitValue } from '@/components/fit-value'
 
 export function ProfitLossPage() {
   const { data, isLoading, isError, error, refetch } = useMetrics()
@@ -137,7 +138,11 @@ export function ProfitLossPage() {
                       {r.trades} trades · {formatNumber(r.winRate, 0)}% win · PF {r.profitFactor === null ? '∞' : formatNumber(r.profitFactor)}
                     </p>
                   </div>
-                  <p className="text-lg font-bold tabular-nums" style={{ color: pnlColor(r.net) }}>{formatCurrencyIn('kpi', r.net, 'USD')}</p>
+                  <div className="min-w-0">
+                    <FitValue className="text-lg font-bold tabular-nums" style={{ color: pnlColor(r.net) }} origin="right">
+                      {formatCurrencyIn('kpi', r.net, 'USD')}
+                    </FitValue>
+                  </div>
                 </div>
               )
             })}

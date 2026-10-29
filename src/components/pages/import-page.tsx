@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { FitValue } from '@/components/fit-value'
 import {
   Select,
   SelectContent,
@@ -1530,16 +1531,22 @@ export function ImportPage() {
             </p>
 
             <div className="grid grid-cols-3 gap-3 max-w-md mx-auto mb-5">
-              <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)]">
-                <p className="text-2xl font-bold tnum text-emerald-400">{importResult.inserted}</p>
+              <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)] overflow-hidden">
+                <FitValue className="text-2xl font-bold tnum text-emerald-400" origin="center">
+                  {importResult.inserted}
+                </FitValue>
                 <p className="text-[10px] text-muted-foreground">Imported</p>
               </div>
-              <div className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20">
-                <p className="text-2xl font-bold tnum text-yellow-400">{importResult.skipped}</p>
+              <div className="p-3 rounded-md bg-yellow-500/10 border border-yellow-500/20 overflow-hidden">
+                <FitValue className="text-2xl font-bold tnum text-yellow-400" origin="center">
+                  {importResult.skipped}
+                </FitValue>
                 <p className="text-[10px] text-muted-foreground">Duplicates</p>
               </div>
-              <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20">
-                <p className="text-2xl font-bold tnum text-red-400">{importResult.errors}</p>
+              <div className="p-3 rounded-md bg-red-500/10 border border-red-500/20 overflow-hidden">
+                <FitValue className="text-2xl font-bold tnum text-red-400" origin="center">
+                  {importResult.errors}
+                </FitValue>
                 <p className="text-[10px] text-muted-foreground">Errors</p>
               </div>
             </div>

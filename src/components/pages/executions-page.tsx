@@ -21,6 +21,7 @@ import { GitBranch, Search, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { formatCurrencyIn, formatDateTime, formatNumber } from '@/lib/format'
 import { peekTrade } from '@/lib/drill'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 // Task 9-c — smart quantity formatting: fractional fills (0.0235 BTC) need
 // up to 4 decimals, whole lots read "3", not "3.0000". Trailing zeros are
@@ -91,21 +92,21 @@ export function ExecutionsPage() {
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Executions</p>
-          <p className="text-xl font-bold tnum mt-1">{total}</p>
+          <FitValue className="text-xl font-bold tnum mt-1">{total}</FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Buys</p>
-          <p className="text-xl font-bold tnum mt-1 text-emerald-400">{buyCount}</p>
+          <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">{buyCount}</FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sells</p>
-          <p className="text-xl font-bold tnum mt-1 text-red-400">{sellCount}</p>
+          <FitValue className="text-xl font-bold tnum mt-1 text-red-400">{sellCount}</FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Fees</p>
-          <p className="text-xl font-bold tnum mt-1 text-red-400">{formatCurrencyIn('table', totalFees)}</p>
+          <FitValue className="text-xl font-bold tnum mt-1 text-red-400">{formatCurrencyIn('table', totalFees)}</FitValue>
         </Card>
       </div>
 

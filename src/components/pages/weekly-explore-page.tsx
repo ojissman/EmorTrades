@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
+import { FitValue } from '@/components/fit-value'
 import ReactMarkdown from 'react-markdown'
 import {
   ResponsiveContainer,
@@ -125,21 +126,27 @@ export function WeeklyExplorePage() {
             </Button>
           </div>
           <div className="flex items-center gap-6">
-            <div className="text-right">
+            <div className="text-right min-w-0">
               <p className="text-[10px] text-muted-foreground uppercase">This Week P&L</p>
-              <p className={cn('text-xl font-bold tnum', pnlColor(tw.pnl))}>
+              <FitValue className={cn('text-xl font-bold tnum', pnlColor(tw.pnl))} origin="right">
                 {tw.pnl > 0 ? '+' : ''}{formatCurrencyIn('ai', tw.pnl)}
-              </p>
+              </FitValue>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-muted-foreground uppercase">Last Week P&L</p>
-              <p className={cn('text-sm font-semibold tnum', pnlColor(lw.pnl))}>
+              <p
+                className={cn('text-sm font-semibold tnum whitespace-nowrap', pnlColor(lw.pnl))}
+                title={formatCurrencyIn('ai', lw.pnl)}
+              >
                 {formatCurrencyIn('ai', lw.pnl)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-muted-foreground uppercase">Δ P&L</p>
-              <p className={cn('text-sm font-semibold tnum', pnlColor(deltas.pnl))}>
+              <p
+                className={cn('text-sm font-semibold tnum whitespace-nowrap', pnlColor(deltas.pnl))}
+                title={`${deltas.pnl > 0 ? '+' : ''}${formatCurrencyIn('ai', deltas.pnl)}`}
+              >
                 {deltas.pnl > 0 ? '+' : ''}{formatCurrencyIn('ai', deltas.pnl)}
               </p>
             </div>
@@ -839,13 +846,16 @@ function WeekContextStrip({ context }: { context?: WeekContext }) {
                   {g.actual !== null ? (
                     <span
                       className={cn('font-semibold tnum whitespace-nowrap', g.hit ? 'text-emerald-400' : 'text-red-400')}
-                      title={`Target ${fmtGoalValue(g.target, g.unit)}`}
+                      title={`${fmtGoalValue(g.actual, g.unit)} / ${fmtGoalValue(g.target, g.unit)}${g.hit ? ' ✓' : ' ✗'}`}
                     >
                       {fmtGoalValue(g.actual, g.unit)} / {fmtGoalValue(g.target, g.unit)}
                       {g.hit ? ' ✓' : ' ✗'}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground tnum whitespace-nowrap" title={`${g.type} cadence — evaluated on the Goals page`}>
+                    <span
+                      className="text-muted-foreground tnum whitespace-nowrap"
+                      title={`target ${fmtGoalValue(g.target, g.unit)} · ${g.type} — evaluated on the Goals page`}
+                    >
                       target {fmtGoalValue(g.target, g.unit)} · {g.type}
                     </span>
                   )}
@@ -876,9 +886,12 @@ function WeekContextStrip({ context }: { context?: WeekContext }) {
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />
                     <span className="truncate">{m.name}</span>
-                    <span className="text-muted-foreground whitespace-nowrap">×{m.count}</span>
+                    <span className="text-muted-foreground whitespace-nowrap" title={`×${m.count}`}>×{m.count}</span>
                   </span>
-                  <span className={cn('font-semibold tnum whitespace-nowrap', pnlColor(m.cost))}>
+                  <span
+                    className={cn('font-semibold tnum whitespace-nowrap', pnlColor(m.cost))}
+                    title={formatCurrencyIn('ai', m.cost)}
+                  >
                     {formatCurrencyIn('ai', m.cost)}
                   </span>
                 </div>

@@ -29,6 +29,7 @@ import { AIWidget } from '@/components/ai/ai-page-layer'
 import { DailyBriefing } from '@/components/dashboard-briefing'
 import { BehaviorRadar } from '@/components/behavior-radar'
 import { AnimatedNumber } from '@/components/animated-number'
+import { FitValue } from '@/components/fit-value'
 import {
   DeskHeroStats, DeskPeriodSummary, DeskOpenPositions, DeskRecentTrades,
   DeskTopSymbols, DeskSetupPerf, DeskEquityCurve, DeskDailyPnl, DeskAiPinned,
@@ -185,15 +186,15 @@ export function Kpi({
       className={`stat-card relative overflow-hidden rounded-xl ${compact ? 'p-3' : 'p-4 md:p-4.5'} ${onClick ? 'cursor-pointer' : ''}`}
       style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{label}</p>
-          <p
+          <FitValue
             className={`mt-1.5 ${compact ? 'text-base' : 'text-xl md:text-2xl'} font-bold tracking-tight leading-none tnum`}
             style={{ color: color ?? 'var(--text-primary)' }}
           >
             {anim ? <AnimatedNumber value={anim.value} format={anim.format} /> : value}
-          </p>
+          </FitValue>
           {sub && <p className="mt-1.5 text-[11px] leading-tight tnum truncate" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
         </div>
         {Icon && (
@@ -411,11 +412,11 @@ function PnlBars({
                 }}
               />
             </div>
-            <span className="text-right leading-tight">
-              <span className="block tabular-nums font-semibold" style={{ color: pnlColor(r.pnl) }}>
+            <span className="text-right leading-tight min-w-0">
+              <span className="block tabular-nums font-semibold whitespace-nowrap" style={{ color: pnlColor(r.pnl) }} title={formatCurrencyIn('table', r.pnl)}>
                 {formatCurrencyIn('table', r.pnl)}
               </span>
-              <span className="block text-[10px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+              <span className="block text-[10px] tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
                 {Math.round((Math.abs(r.pnl) / shareBase) * 100)}%
               </span>
             </span>
@@ -596,14 +597,14 @@ export function WinRateMeter({ stats, target = 0 }: { stats: OverviewStats; targ
           />
         </div>
       )}
-      <div className="mt-1.5 flex justify-between text-[10px] tnum" style={{ color: 'var(--text-secondary)' }}>
-        <span>{stats.wins} wins</span>
+      <div className="mt-1.5 flex justify-between gap-2 min-w-0 text-[10px] tnum" style={{ color: 'var(--text-secondary)' }}>
+        <span className="shrink-0">{stats.wins} wins</span>
         {hasTarget ? (
-          <span style={{ color: delta >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)' }} data-testid="meter-target-delta">
+          <span className="truncate" style={{ color: delta >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)' }} data-testid="meter-target-delta">
             {delta >= 0 ? '+' : ''}{delta.toFixed(1)} vs {target}% target
           </span>
         ) : (
-          <span>{stats.losses} losses</span>
+          <span className="shrink-0">{stats.losses} losses</span>
         )}
       </div>
     </div>
@@ -613,14 +614,14 @@ export function WinRateMeter({ stats, target = 0 }: { stats: OverviewStats; targ
 /** Best / Worst trade as two accent cards (All-in-one). */
 export function BestWorstCards({ stats }: { stats: OverviewStats }) {
   const card = (label: string, t: OverviewTradeRow | null, color: string, Icon: IconType) => (
-    <div className="rounded-xl p-3.5" style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}>
+    <div className="rounded-xl p-3.5 min-w-0 overflow-hidden" style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}>
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{label}</p>
-        <Icon className="h-3.5 w-3.5" style={{ color }} />
+        <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
       </div>
-      <p className="mt-1.5 text-lg font-bold tnum leading-none" style={{ color: t ? color : 'var(--text-secondary)' }}>
+      <FitValue className="mt-1.5 text-lg font-bold tnum leading-none" style={{ color: t ? color : 'var(--text-secondary)' }}>
         {t ? formatCurrencyIn('kpi', t.pnl) : '—'}
-      </p>
+      </FitValue>
       <p className="mt-1.5 text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>
         {t ? `${t.symbol} · ${t.side} · ${(t.exitTime ?? t.entryTime)?.slice(5, 10) ?? ''}` : 'no closed trades'}
       </p>
@@ -647,7 +648,7 @@ export function BestWorstRows({ stats }: { stats: OverviewStats }) {
         </p>
         <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>{label}{t ? ` · ${(t.exitTime ?? t.entryTime)?.slice(5, 10) ?? ''}` : ''}</p>
       </div>
-      <span className="text-xs font-bold tnum" style={{ color: t ? color : 'var(--text-secondary)' }}>
+      <span className="text-xs font-bold tnum whitespace-nowrap shrink-0" style={{ color: t ? color : 'var(--text-secondary)' }} title={t ? formatCurrencyIn('kpi', t.pnl) : undefined}>
         {t ? formatCurrencyIn('kpi', t.pnl) : '—'}
       </span>
     </div>
@@ -809,7 +810,7 @@ export function RecentTradesList({ recent }: { recent: OverviewTradeRow[] }) {
               {t.rMultiple != null ? ` · ${t.rMultiple.toFixed(2)}R` : ''}
             </p>
           </div>
-          <span className="text-xs font-bold tnum" style={{ color: pnlColor(t.pnl) }}>
+          <span className="text-xs font-bold tnum whitespace-nowrap shrink-0" style={{ color: pnlColor(t.pnl) }} title={formatCurrencyIn('table', t.pnl)}>
             {formatCurrencyIn('table', t.pnl)}
           </span>
         </div>
@@ -1137,7 +1138,7 @@ export const WIDGET_DEFS: WidgetDef[] = [
                 {symbol}
                 <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />
               </span>
-              <span className="tabular-nums" style={{ color: pnlColor(pnl) }}>{formatCurrencyIn('table', pnl)}</span>
+              <span className="tabular-nums whitespace-nowrap shrink-0" style={{ color: pnlColor(pnl) }} title={formatCurrencyIn('table', pnl)}>{formatCurrencyIn('table', pnl)}</span>
             </div>
           ))}
         </div>

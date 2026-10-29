@@ -29,6 +29,7 @@ import {
 import { Trophy, TrendingUp, Target, Activity, Zap, Shield, ExternalLink } from 'lucide-react'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import { AnimatedNumber } from '@/components/animated-number'
 import { ChallengeStrip } from '@/components/challenge-status'
 
@@ -180,35 +181,35 @@ export function ScorePage() {
               {data.summary}
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Total Trades</p>
-                <p className="text-lg font-bold tnum">{data.totalTrades}</p>
+                <FitValue className="text-lg font-bold tnum">{data.totalTrades}</FitValue>
               </div>
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Net Profit</p>
-                <p className={cn('text-lg font-bold tnum', pnlColor(data.netProfit))}>
+                <FitValue className={cn('text-lg font-bold tnum', pnlColor(data.netProfit))}>
                   {formatCurrencyIn('table', data.netProfit)}
-                </p>
+                </FitValue>
               </div>
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Win Rate</p>
-                <p className="text-lg font-bold tnum">{data.winRate.toFixed(1)}%</p>
+                <FitValue className="text-lg font-bold tnum">{data.winRate.toFixed(1)}%</FitValue>
               </div>
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Profit Factor</p>
-                <p className="text-lg font-bold tnum">{isFinite(data.profitFactor) ? data.profitFactor.toFixed(2) : '∞'}</p>
+                <FitValue className="text-lg font-bold tnum">{isFinite(data.profitFactor) ? data.profitFactor.toFixed(2) : '∞'}</FitValue>
               </div>
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Max Drawdown</p>
-                <p className={cn('text-lg font-bold tnum', data.maxDrawdown > 0 ? 'text-red-400' : '')}>
+                <FitValue className={cn('text-lg font-bold tnum', data.maxDrawdown > 0 ? 'text-red-400' : '')}>
                   {data.maxDrawdownPercent.toFixed(1)}%
-                </p>
+                </FitValue>
               </div>
-              <div className="p-3 rounded-md bg-muted/40 border border-border">
+              <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
                 <p className="text-[10px] text-muted-foreground uppercase">Expectancy</p>
-                <p className={cn('text-lg font-bold tnum', pnlColor(data.expectancy))}>
+                <FitValue className={cn('text-lg font-bold tnum', pnlColor(data.expectancy))}>
                   {formatCurrencyIn('table', data.expectancy)}
-                </p>
+                </FitValue>
               </div>
             </div>
           </div>
@@ -297,10 +298,10 @@ export function ScorePage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold tnum" style={{ color }}>
+                  <p className="text-lg font-bold tnum whitespace-nowrap" style={{ color }}>
                     {c.value.toFixed(0)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground tnum">{c.raw}</p>
+                  <p className="text-[10px] text-muted-foreground tnum whitespace-nowrap" title={String(c.raw)}>{c.raw}</p>
                 </div>
               </div>
               <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">

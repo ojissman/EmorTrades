@@ -31,6 +31,7 @@ import {
 import { axisMoney, formatCurrencyIn, formatNumber, formatPercent, pnlColor } from '@/lib/format'
 import { drillToTrades } from '@/lib/drill'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 export function SymbolsPage() {
   const { selectedAccountId } = useAppStore()
@@ -206,27 +207,27 @@ export function SymbolsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Symbols Traded</p>
-          <p className="text-xl font-bold tnum mt-1">{symbolStats.length}</p>
+          <FitValue className="text-xl font-bold tnum mt-1">{symbolStats.length}</FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Total P&L</p>
-          <p className={cn('text-xl font-bold tnum mt-1', pnlColor(totalPnL))}>
+          <FitValue className={cn('text-xl font-bold tnum mt-1', pnlColor(totalPnL))}>
             {formatCurrencyIn('table', totalPnL)}
-          </p>
+          </FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Winning Symbols</p>
-          <p className="text-xl font-bold tnum mt-1 text-emerald-400">
+          <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
             {symbolStats.filter((s) => s.pnl > 0).length}
-          </p>
+          </FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Losing Symbols</p>
-          <p className="text-xl font-bold tnum mt-1 text-red-400">
+          <FitValue className="text-xl font-bold tnum mt-1 text-red-400">
             {symbolStats.filter((s) => s.pnl < 0).length}
-          </p>
+          </FitValue>
         </Card>
       </div>
 

@@ -14,6 +14,7 @@
  *   PerformanceMatrix  — goals × their last 8 periods hit/miss grid
  */
 import { Card } from '@/components/ui/card'
+import { FitValue } from '@/components/fit-value'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
@@ -87,8 +88,8 @@ export function KpiStrip({ items }: { items: Kpi[] }) {
               </span>
               <k.icon className={cn('h-3.5 w-3.5', TONE_TEXT[k.tone])} aria-hidden />
             </div>
-            <p className={cn('text-xl font-semibold tnum leading-none', TONE_TEXT[k.tone])}>{k.value}</p>
-            <p className="mt-1.5 text-[10px] text-muted-foreground leading-snug">{k.sub}</p>
+            <FitValue className={cn('text-xl font-semibold tnum leading-none', TONE_TEXT[k.tone])}>{k.value}</FitValue>
+            <p className="mt-1.5 text-[10px] text-muted-foreground leading-snug truncate" title={k.sub}>{k.sub}</p>
           </Card>
         </motion.div>
       ))}

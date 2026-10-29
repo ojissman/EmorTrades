@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast'
 import { axisMoney, formatCurrencyIn, pnlColor } from '@/lib/format'
 import { drillToTrades } from '@/lib/drill'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import { useFilterStore } from '@/store/filter-store'
 
 const PSYCHOLOGY_TAGS = ['FOMO', 'revenge', 'patient', 'disciplined', 'anxious', 'confident']
@@ -434,9 +435,9 @@ export function PsychologyPage() {
                 </p>
               </div>
             </div>
-            <p className="text-3xl font-bold tnum text-red-400">
+            <FitValue className="text-3xl font-bold tnum text-red-400">
               -{formatCurrencyIn('table', totalPsychCost)}
-            </p>
+            </FitValue>
             <p className="text-xs text-muted-foreground mt-1">
               Across {psychStats.filter((s) => s.pnl < 0).reduce((sum, s) => sum + s.count, 0)} trades tagged with negative emotions
             </p>
@@ -453,9 +454,9 @@ export function PsychologyPage() {
                 </p>
               </div>
             </div>
-            <p className="text-3xl font-bold tnum text-emerald-400">
+            <FitValue className="text-3xl font-bold tnum text-emerald-400">
               +{formatCurrencyIn('table', totalDisciplineBenefit)}
-            </p>
+            </FitValue>
             <p className="text-xs text-muted-foreground mt-1">
               Across {psychStats.filter((s) => s.pnl > 0 && ['patient', 'disciplined', 'confident'].includes(s.name.toLowerCase())).reduce((sum, s) => sum + s.count, 0)} disciplined trades
             </p>
@@ -482,15 +483,15 @@ export function PsychologyPage() {
             type="button"
             onClick={() => drillToTrades({ planFollowed: true })}
             title="Show every plan-followed trade in the Trades table"
-            className="p-4 rounded-md bg-white/[0.04] border border-[var(--border-strong)] text-left transition-colors hover:bg-white/[0.07]"
+            className="p-4 rounded-md bg-white/[0.04] border border-[var(--border-strong)] text-left transition-colors hover:bg-white/[0.07] min-w-0 overflow-hidden"
           >
             <p className="text-xs text-muted-foreground uppercase mb-1">Plan Followed</p>
-            <p className="text-2xl font-bold tnum text-emerald-400">{planStats.followed.count}</p>
+            <FitValue className="text-2xl font-bold tnum text-emerald-400">{planStats.followed.count}</FitValue>
             <p className="text-xs text-muted-foreground">trades</p>
             <div className="mt-2 pt-2 border-t border-emerald-500/20">
-              <p className={cn('text-lg font-semibold tnum', pnlColor(planStats.followed.pnl))}>
+              <FitValue className={cn('text-lg font-semibold tnum', pnlColor(planStats.followed.pnl))}>
                 {formatCurrencyIn('table', planStats.followed.pnl)}
-              </p>
+              </FitValue>
               <p className="text-xs text-muted-foreground">
                 {planStats.followed.count > 0 ? ((planStats.followed.wins / planStats.followed.count) * 100).toFixed(0) : 0}% win rate
               </p>
@@ -500,15 +501,15 @@ export function PsychologyPage() {
             type="button"
             onClick={() => drillToTrades({ planFollowed: false })}
             title="Show every plan-broken trade in the Trades table"
-            className="p-4 rounded-md bg-red-500/10 border border-red-500/20 text-left transition-colors hover:bg-red-500/15"
+            className="p-4 rounded-md bg-red-500/10 border border-red-500/20 text-left transition-colors hover:bg-red-500/15 min-w-0 overflow-hidden"
           >
             <p className="text-xs text-muted-foreground uppercase mb-1">Plan Not Followed</p>
-            <p className="text-2xl font-bold tnum text-red-400">{planStats.notFollowed.count}</p>
+            <FitValue className="text-2xl font-bold tnum text-red-400">{planStats.notFollowed.count}</FitValue>
             <p className="text-xs text-muted-foreground">trades</p>
             <div className="mt-2 pt-2 border-t border-red-500/20">
-              <p className={cn('text-lg font-semibold tnum', pnlColor(planStats.notFollowed.pnl))}>
+              <FitValue className={cn('text-lg font-semibold tnum', pnlColor(planStats.notFollowed.pnl))}>
                 {formatCurrencyIn('table', planStats.notFollowed.pnl)}
-              </p>
+              </FitValue>
               <p className="text-xs text-muted-foreground">
                 {planStats.notFollowed.count > 0 ? ((planStats.notFollowed.wins / planStats.notFollowed.count) * 100).toFixed(0) : 0}% win rate
               </p>

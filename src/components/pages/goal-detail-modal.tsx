@@ -19,6 +19,7 @@ import ReactMarkdown from 'react-markdown'
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowUpRight, CalendarClock, RefreshCw, Sparkles, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 export type ModalDot = { label: string; value: number; hit: boolean; today: boolean; traded: boolean }
 
@@ -147,16 +148,16 @@ export function GoalDetailModal({ goal, onClose }: { goal: ModalGoal | null; onC
             {/* current standing */}
             <div className="rounded-lg border border-border/60 bg-muted/10 p-3.5">
               <div className="flex items-end justify-between gap-4 mb-2.5">
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Current</p>
-                  <p className={cn('text-2xl font-semibold tnum leading-tight', goal.hit && goal.hasData ? 'text-emerald-400' : 'text-foreground')}>
+                  <FitValue className={cn('text-2xl font-semibold tnum leading-tight', goal.hit && goal.hasData ? 'text-emerald-400' : 'text-foreground')}>
                     {goal.hasData ? goal.fmt(goal.current) : 'No data yet'}
-                  </p>
+                  </FitValue>
                   {goal.detail ? <p className="mt-0.5 text-[10px] text-muted-foreground">{goal.detail}</p> : null}
                 </div>
-                <div className="text-right">
+                <div className="text-right min-w-0">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Target</p>
-                  <p className="text-2xl font-semibold tnum leading-tight">{goal.fmt(goal.target)}</p>
+                  <FitValue className="text-2xl font-semibold tnum leading-tight" origin="right">{goal.fmt(goal.target)}</FitValue>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">
                     {goal.isLossLimit ? 'loss limit — stay above' : goal.isCap ? 'cap — stay at or under' : 'reach or exceed'}
                   </p>

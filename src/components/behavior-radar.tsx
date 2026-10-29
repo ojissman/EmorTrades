@@ -241,8 +241,9 @@ export function BehaviorRadar() {
                             <Badge
                               variant="outline"
                               className="border-rose-500/25 bg-rose-500/10 text-rose-300 text-[10px] font-semibold tnum h-4.5 px-1.5"
+                              title={`${formatCurrencyIn('table', p.costPnl)} impact`}
                             >
-                              {formatCurrencyIn('table', p.costPnl)} impact
+                              <span className="truncate max-w-[160px]">{formatCurrencyIn('table', p.costPnl)} impact</span>
                             </Badge>
                           )}
                         </div>

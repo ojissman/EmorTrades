@@ -29,6 +29,7 @@ import {
 import { Activity, TrendingDown, Clock, AlertTriangle, Zap, BookOpenCheck } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatDate, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 export function DrawdownPage() {
   const { selectedAccountId, dateRange } = useAppStore()
@@ -215,42 +216,42 @@ export function DrawdownPage() {
     <div className="space-y-4">
       {/* Hero stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Max Drawdown</p>
             <TrendingDown className="h-3 w-3 text-red-400" />
           </div>
-          <p className="text-xl font-bold tnum text-red-400">
+          <FitValue className="text-xl font-bold tnum text-red-400">
             {formatCurrencyIn('kpi', maxDrawdown)}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">{maxDrawdownPercent.toFixed(1)}% from peak</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current Drawdown</p>
             <Activity className="h-3 w-3 text-yellow-400" />
           </div>
-          <p className={cn('text-xl font-bold tnum', currentDrawdown > 0 ? 'text-yellow-400' : 'text-emerald-400')}>
+          <FitValue className={cn('text-xl font-bold tnum', currentDrawdown > 0 ? 'text-yellow-400' : 'text-emerald-400')}>
             {currentDrawdown > 0 ? formatCurrencyIn('kpi', currentDrawdown) : 'None'}
-          </p>
+          </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">at current equity</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Recovery</p>
             <Clock className="h-3 w-3 text-blue-400" />
           </div>
-          <p className="text-xl font-bold tnum">{avgRecoveryDays === null ? '—' : `${avgRecoveryDays.toFixed(1)} days`}</p>
+          <FitValue className="text-xl font-bold tnum">{avgRecoveryDays === null ? '—' : `${avgRecoveryDays.toFixed(1)} days`}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">
             {avgRecoveryDays === null ? 'no recovered drawdowns yet' : 'to recover from drawdowns'}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Drawdown Periods</p>
             <AlertTriangle className="h-3 w-3 text-purple-400" />
           </div>
-          <p className="text-xl font-bold tnum">{drawdownData.periods.length}</p>
+          <FitValue className="text-xl font-bold tnum">{drawdownData.periods.length}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">total periods</p>
         </Card>
       </div>
@@ -507,7 +508,10 @@ function MonthlyLimitCard({
                     <p className="text-xs font-semibold truncate">{p.name}</p>
                     <span className="text-[10px] text-muted-foreground shrink-0">v{p.versionNo} · limit {label}</span>
                   </div>
-                  <p className={cn('text-sm font-bold tnum shrink-0', mtd.pnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                  <p
+                    className={cn('text-sm font-bold tnum shrink-0', mtd.pnl >= 0 ? 'text-emerald-400' : 'text-red-400')}
+                    title={`${mtd.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', mtd.pnl)} MTD`}
+                  >
                     {mtd.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', mtd.pnl)} MTD
                   </p>
                 </div>

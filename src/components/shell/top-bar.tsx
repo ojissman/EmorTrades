@@ -405,18 +405,28 @@ export function TopBar() {
         </span>
       </button>
 
-      {/* History arrows */}
-      <IconBtn label="Go backward" onClick={goBack} className={backCount > 0 ? '' : 'opacity-40 pointer-events-none'}>
+      {/* History arrows — desktop convenience; hidden on mobile so the
+          essential right cluster (apps · alerts · theme · account) fits. */}
+      <IconBtn
+        label="Go backward"
+        onClick={goBack}
+        className={`hidden sm:grid ${backCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
+      >
         <ArrowLeft className="h-4 w-4" />
       </IconBtn>
-      <IconBtn label="Go forward" onClick={goForward} className={forwardCount > 0 ? '' : 'opacity-40 pointer-events-none'}>
+      <IconBtn
+        label="Go forward"
+        onClick={goForward}
+        className={`hidden sm:grid ${forwardCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
+      >
         <ArrowRight className="h-4 w-4" />
       </IconBtn>
 
-      {/* Fix 5.2 — Functions grid icon → Functions popup (3 sections, verbatim) */}
+      {/* Fix 5.2 — Functions grid icon → Functions popup (3 sections, verbatim).
+          Hidden on mobile (duplicated by the sidebar + Ctrl+K palette). */}
       <PeakPopup>
         <PeakPopupTrigger asChild>
-          <IconBtn label="Functions">
+          <IconBtn label="Functions" className="hidden sm:grid">
             <Grid3x3 className="h-4 w-4" />
           </IconBtn>
         </PeakPopupTrigger>
@@ -451,10 +461,11 @@ export function TopBar() {
         </PeakPopupContent>
       </PeakPopup>
 
-      {/* Fix 5.3 — ⊕ Add/Import icon → Add/Import popup (4×2 grid, verbatim) */}
+      {/* Fix 5.3 — ⊕ Add/Import icon → Add/Import popup (4×2 grid, verbatim).
+          Hidden on mobile (the sidebar + Ctrl+K palette carry the same actions). */}
       <PeakPopup>
         <PeakPopupTrigger asChild>
-          <IconBtn label="Add / Import">
+          <IconBtn label="Add / Import" className="hidden sm:grid">
             <CirclePlus className="h-4 w-4" />
           </IconBtn>
         </PeakPopupTrigger>
@@ -479,8 +490,9 @@ export function TopBar() {
       </PeakPopup>
 
       {/* Fix 6.1 — AI icon is a plain LINK to the AI Suite (Task 74: the
-          former AI Q&A hub is now the QA tab inside it). Nothing pops out. */}
-      <IconBtn label="AI Suite" onClick={() => navigate('/ai-suite')}>
+          former AI Q&A hub is now the QA tab inside it). Nothing pops out.
+          Hidden on mobile (the sidebar's AI group links there). */}
+      <IconBtn label="AI Suite" onClick={() => navigate('/ai-suite')} className="hidden sm:grid">
         <Sparkles className="h-4 w-4" />
       </IconBtn>
 

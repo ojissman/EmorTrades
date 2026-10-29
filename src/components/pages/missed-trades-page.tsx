@@ -40,6 +40,7 @@ import { Plus, Trash2, Eye, Pencil, Download, ArrowUp, ArrowDown, ArrowUpDown, C
 import { useToast } from '@/hooks/use-toast'
 import { formatCurrencyIn, formatDateTime, formatNumber, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 
 // Task 153-b — the card list became an L1-style TABLE (sortable + paginated,
 // edit/delete per row, CSV export, symbol deep-link to the symbol-analysis
@@ -333,27 +334,27 @@ export function MissedTradesPage() {
     <div className="space-y-4" data-testid="missed-trades-root">
       {/* Hero stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Missed Opportunities</p>
-          <p className="text-xl font-bold tnum mt-1">{missedTrades.length}</p>
+          <FitValue className="text-xl font-bold tnum mt-1">{missedTrades.length}</FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Expected P&L</p>
-          <p className={cn('text-xl font-bold tnum mt-1', pnlColor(totalExpectedPnl))}>
+          <FitValue className={cn('text-xl font-bold tnum mt-1', pnlColor(totalExpectedPnl))}>
             {formatCurrencyIn('kpi', totalExpectedPnl)}
-          </p>
+          </FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Opportunities Lost (+)</p>
-          <p className="text-xl font-bold tnum mt-1 text-emerald-400">
+          <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
             +{formatCurrencyIn('kpi', totalPositivePnl)}
-          </p>
+          </FitValue>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 overflow-hidden">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Bullets Dodged (-)</p>
-          <p className="text-xl font-bold tnum mt-1 text-red-400">
+          <FitValue className="text-xl font-bold tnum mt-1 text-red-400">
             {formatCurrencyIn('kpi', totalNegativePnl)}
-          </p>
+          </FitValue>
         </Card>
       </div>
 

@@ -14,6 +14,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
 import { formatCurrency, currencyCompactFor } from '@/lib/format'
+import { FitValue } from '@/components/fit-value'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 
 // ---- data hook --------------------------------------------------------------
@@ -190,7 +191,7 @@ export function MetricStat({
   const interactive = typeof onClick === 'function'
   return (
     <div
-      className={`rounded-lg px-3 py-2.5 ${interactive ? 'cursor-pointer transition-colors hover:border-[var(--shell-accent)]' : ''}`}
+      className={`rounded-lg px-3 py-2.5 min-w-0 overflow-hidden ${interactive ? 'cursor-pointer transition-colors hover:border-[var(--shell-accent)]' : ''}`}
       style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
       {...(interactive
         ? {
@@ -210,11 +211,14 @@ export function MetricStat({
       <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
         {label}
       </p>
-      <p className={`${big ? 'text-2xl' : 'text-lg'} font-bold tabular-nums mt-0.5 leading-tight`} style={{ color }}>
+      <FitValue
+        className={`${big ? 'text-2xl' : 'text-lg'} font-bold tabular-nums mt-0.5 leading-tight`}
+        style={{ color }}
+      >
         {value}
-      </p>
+      </FitValue>
       {sub && (
-        <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-[11px] mt-0.5 leading-snug truncate" style={{ color: 'var(--text-secondary)' }} title={sub}>
           {sub}
         </p>
       )}

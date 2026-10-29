@@ -35,6 +35,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 // shared client-safe econ helpers (countdown formatter, impact ranks/dots)
 import { fmtEconCountdown, ECON_IMPACT_RANK, ECON_DOT_CLS, ECON_IMPACT_BG } from '@/lib/econ-shared'
 // honest fetch-failure state (same card the metrics pages use)
@@ -1078,19 +1079,19 @@ export function CalendarPage() {
             )}
           </div>
           {/* period stats */}
-          <div className="flex items-center gap-3 text-right">
-            <div>
+          <div className="flex items-center gap-3 text-right min-w-0">
+            <div className="min-w-0">
               <p className="text-xs text-muted-foreground">{pnlLabel}</p>
-              <p className={cn('text-xl font-bold tnum', pnlColor(periodStats.pnl))}>
+              <FitValue className={cn('text-xl font-bold tnum', pnlColor(periodStats.pnl))}>
                 {periodStats.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', periodStats.pnl)}
-              </p>
+              </FitValue>
             </div>
             <div className="h-10 w-px bg-border" />
             <div>
               <p className="text-xs text-muted-foreground">Win Rate</p>
-              <p className="text-xl font-bold tnum">
+              <FitValue className="text-xl font-bold tnum">
                 {periodStats.trades > 0 ? winRate.toFixed(0) : 0}%
-              </p>
+              </FitValue>
             </div>
             {delta && delta.show && (
               <>
@@ -1099,7 +1100,7 @@ export function CalendarPage() {
                   <p className="text-xs text-muted-foreground">{delta.label}</p>
                   <p
                     className={cn(
-                      'flex items-center gap-0.5 text-base font-bold tnum leading-6',
+                      'flex items-center gap-0.5 text-base font-bold tnum leading-6 whitespace-nowrap',
                       delta.delta >= 0 ? 'text-emerald-400' : 'text-red-400',
                     )}
                     title={`${delta.delta >= 0 ? 'Up' : 'Down'} ${formatCurrencyIn('table', Math.abs(delta.delta))}${delta.pct !== null ? ` (${Math.abs(delta.pct).toFixed(0)}%)` : ''} against the previous period`}
