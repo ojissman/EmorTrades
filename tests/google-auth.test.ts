@@ -228,6 +228,9 @@ describe('google auth — account linking matrix', () => {
   /* ── CSRF guard ─────────────────────────────────────────────────────── */
 
   it('csrf · sameOrigin accepts matching and absent Origins, rejects mismatches', () => {
+    // header-derived mode — no PUBLIC_ORIGIN pin
+    const savedPin = process.env.PUBLIC_ORIGIN
+    delete process.env.PUBLIC_ORIGIN
     const mk = (origin: string | null, host: string): Request =>
       new Request('http://x/api', {
         headers: {
@@ -238,5 +241,22 @@ describe('google auth — account linking matrix', () => {
     expect(gl.sameOrigin(mk('https://app.example.com', 'app.example.com'))).toBe(true)
     expect(gl.sameOrigin(mk(null, 'app.example.com'))).toBe(true) // non-browser clients
     expect(gl.sameOrigin(mk('https://evil.example.net', 'app.example.com'))).toBe(false)
+
+    // pinned mode — PUBLIC_ORIGIN is authoritative regardless of proxy headers
+    process.env.PUBLIC_ORIGIN = 'https://pin.example.org'
+    const pinned = (origin: string | null): Request =>
+      new Request('http://internal.ws-fcapp.run/api', {
+        headers: {
+          ...(origin ? { origin } : {}),
+          host: 'internal.ws-fcapp.run',
+          'x-forwarded-host': 'internal.ws-fcapp.run', // double-proxy rewrite must not win
+        },
+      })
+    expect(gl.sameOrigin(pinned('https://pin.example.org'))).toBe(true)
+    expect(gl.sameOrigin(pinned(null))).toBe(true) // non-browser clients
+    expect(gl.sameOrigin(pinned('https://internal.ws-fcapp.run'))).toBe(false) // proxy name ≠ public origin
+    expect(gl.sameOrigin(pinned('https://evil.example.net'))).toBe(false)
+    if (savedPin === undefined) delete process.env.PUBLIC_ORIGIN
+    else process.env.PUBLIC_ORIGIN = savedPin
   })
 })
