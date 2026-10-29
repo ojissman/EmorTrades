@@ -18,6 +18,14 @@
  * downloads are generated from (src/lib/plan-document.ts), so the three can
  * never disagree — only the presentation differs.
  *
+ * COLOR — the document's score: each of the nine sections carries its own
+ * muted editorial hue (SECTION_COLORS below) applied to every instrument of
+ * that section — the overline, the rules, the answer borders, the rail
+ * numeral, the gliding marker, the folio. The plan's own accent stays on
+ * the hero and the identity links. Color is position: the reader always
+ * knows which territory of the document they are in, and the contents rail
+ * doubles as the document's color index.
+ *
  * CONTENTS — the rail is the document's instrument panel: a scroll-spy that
  * tracks sections AND setups (one passive listener on #main-content, the
  * app's only scrollport), a gliding accent marker that slides along the
@@ -27,7 +35,7 @@
  * Below lg the contents fold into a sheet opened from the hero's utility
  * links — the same list, the same folio, sized for touch.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
@@ -101,6 +109,29 @@ function groupDocument(blocks: DocBlock[]): { preamble: DocBlock[]; sections: Do
   }
   return out
 }
+
+// ---------- the section palette: the document's color score ----------
+
+/**
+ * One muted editorial hue per section, cycled — the plan's own accent stays
+ * on the hero and the identity links; the body reads as color territories.
+ * Every instrument of a section carries its hue (the overline, the rules,
+ * the answer borders, the rail numeral, the gliding marker, the folio), so
+ * color itself tells the reader where they are: nine hues, one weight,
+ * none of them loud enough to out-shout the prose.
+ */
+const SECTION_COLORS = [
+  '#c15b49', // 1 rust
+  '#bd7f3c', // 2 ochre
+  '#a5993c', // 3 olive gold
+  '#74a03f', // 4 moss
+  '#33a184', // 5 jade
+  '#3f9fae', // 6 petrol
+  '#9a6fb8', // 7 iris
+  '#bd6a97', // 8 mauve
+  '#c75d68', // 9 rose
+] as const
+const sectionColor = (i: number) => SECTION_COLORS[i % SECTION_COLORS.length]!
 
 // ---------- the reader ----------
 
@@ -440,7 +471,6 @@ export function PlanReader({
                 className="shell-scroll mt-3 min-h-0 flex-1 overflow-y-auto pr-1.5"
                 sections={grouped.sections}
                 active={active}
-                accent={accent}
                 variant="rail"
                 onJump={scrollToId}
               />
@@ -449,7 +479,7 @@ export function PlanReader({
                 position={active.sec + 1}
                 total={grouped.sections.length}
                 progress={progress}
-                accent={accent}
+                color={sectionColor(active.sec)}
               />
             </div>
           </nav>
@@ -477,11 +507,13 @@ export function PlanReader({
             </Card>
           ) : (
             <div className="space-y-11">
-              {grouped.sections.map((s, i) => (
+              {grouped.sections.map((s, i) => {
+                const c = sectionColor(i)
+                return (
                 <section key={i} id={`sec-${i}`} data-sec-idx={i} className="scroll-mt-6">
                   {/* section header */}
                   <header>
-                    <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: accent, opacity: 0.72 }}>
+                    <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: c, opacity: 0.85 }}>
                       {s.number ? `Section ${s.number}` : 'Section'}
                     </p>
                     <h2 className="text-[22px] font-semibold tracking-tight leading-tight">{s.title}</h2>
@@ -494,14 +526,14 @@ export function PlanReader({
                         )}
                       </div>
                     )}
-                    <div className="mt-6 mb-9 h-px w-full bg-gradient-to-r from-border via-border/50 to-transparent" />
+                    <div className="mt-6 mb-9 h-px w-full" style={{ background: `linear-gradient(to right, ${c}b3, ${c}3d 55%, transparent)` }} />
                   </header>
 
                   {/* the section's own questions */}
                   {s.units.length > 0 && (
                     <div className="space-y-9">
                       {s.units.map((u, j) => (
-                        <QAUnit key={j} unit={u} accent={accent} />
+                        <QAUnit key={j} unit={u} color={c} />
                       ))}
                     </div>
                   )}
@@ -522,7 +554,7 @@ export function PlanReader({
                               </span>
                             )}
                           </div>
-                          <div className="mt-3 mb-7 h-px w-24 bg-border/70" />
+                          <div className="mt-3 mb-7 h-px w-24" style={{ background: `${c}59` }} />
                           {sub.preamble.length > 0 && (
                             <div className="mb-5 space-y-1">
                               {sub.preamble.map((b, k) =>
@@ -534,7 +566,7 @@ export function PlanReader({
                           )}
                           <div className="space-y-9">
                             {sub.units.map((u, k) => (
-                              <QAUnit key={k} unit={u} accent={accent} />
+                              <QAUnit key={k} unit={u} color={c} />
                             ))}
                           </div>
                         </div>
@@ -542,7 +574,8 @@ export function PlanReader({
                     </div>
                   )}
                 </section>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -571,7 +604,6 @@ export function PlanReader({
               <TocList
                 sections={grouped.sections}
                 active={active}
-                accent={accent}
                 variant="sheet"
                 onJump={(id, target) => {
                   scrollToId(id, target)
@@ -584,7 +616,7 @@ export function PlanReader({
               position={active.sec + 1}
               total={grouped.sections.length}
               progress={progress}
-              accent={accent}
+              color={sectionColor(active.sec)}
             />
           </SheetContent>
         </Sheet>
@@ -608,22 +640,21 @@ export function PlanReader({
  * The contents list — one component for the desktop rail and the mobile
  * sheet. The accent bar is the signature: a single gliding marker (2px,
  * softly lit) that slides along the hairline guide to whatever entry the
- * scroll-spy favors, instead of every entry carrying its own border. It is
- * positioned imperatively (no re-render churn) and a ResizeObserver keeps it
- * glued to the active entry while the setup lists expand and collapse
- * around it.
+ * scroll-spy favors, wearing the ACTIVE section's hue — the marker changes
+ * color as the reader moves through the document, so the rail's light is
+ * the document's own color score. It is positioned imperatively (no
+ * re-render churn) and a ResizeObserver keeps it glued to the active entry
+ * while the setup lists expand and collapse around it.
  */
 function TocList({
   sections,
   active,
-  accent,
   onJump,
   variant,
   className,
 }: {
   sections: DocSection[]
   active: { sec: number; sub: number | null }
-  accent: string
   onJump: (id: string, target: { sec: number; sub: number | null }) => void
   variant: 'rail' | 'sheet'
   className?: string
@@ -631,6 +662,7 @@ function TocList({
   const ulRef = useRef<HTMLUListElement>(null)
   const barRef = useRef<HTMLLIElement>(null)
   const placedRef = useRef(false)
+  const markerColor = sectionColor(active.sec)
 
   useEffect(() => {
     const ul = ulRef.current
@@ -695,16 +727,16 @@ function TocList({
     <ul
       ref={ulRef}
       className={cn('relative space-y-1 border-l border-border/60', className)}
-      style={{ '--toc-accent': accent } as CSSProperties}
     >
-      {/* the gliding marker — sits on the guide line, slides between entries */}
+      {/* the gliding marker — sits on the guide line, slides between entries
+          and takes the hue of the section being read */}
       <li
         ref={barRef}
         aria-hidden
-        className="pointer-events-none absolute left-[-1.5px] top-0 h-0 w-[2px] rounded-full opacity-0 transition-[top,height,opacity] duration-300 ease-out motion-reduce:transition-none"
-        style={{ background: accent, boxShadow: `0 0 8px ${accent}59` }}
+        className="pointer-events-none absolute left-[-1.5px] top-0 h-0 w-[2px] rounded-full opacity-0 transition-[top,height,opacity,background-color,box-shadow] duration-300 ease-out motion-reduce:transition-none"
+        style={{ background: markerColor, boxShadow: `0 0 8px ${markerColor}59` }}
       />
-      <TocEntries sections={sections} active={active} accent={accent} variant={variant} onJump={onJump} />
+      <TocEntries sections={sections} active={active} variant={variant} onJump={onJump} />
     </ul>
   )
 }
@@ -712,20 +744,19 @@ function TocList({
 /**
  * Section and setup entries — the desktop rail and the contents sheet render
  * the same list; only the type scale differs (the sheet is sized for touch).
- * The active entry carries data-toc-leaf so the gliding marker can find it.
- * A section's setups stay folded into a quiet count unless that section is
- * the one in view — the rail keeps its focus on where the reader is.
+ * Each numeral wears its section's hue (the rail doubles as the document's
+ * color index), the active entry carries data-toc-leaf so the gliding marker
+ * can find it, and a section's setups stay folded into a quiet count unless
+ * that section is the one in view.
  */
 function TocEntries({
   sections,
   active,
-  accent,
   onJump,
   variant,
 }: {
   sections: DocSection[]
   active: { sec: number; sub: number | null }
-  accent: string
   onJump: (id: string, target: { sec: number; sub: number | null }) => void
   variant: 'rail' | 'sheet'
 }) {
@@ -734,6 +765,7 @@ function TocEntries({
     <>
       {sections.map((s, i) => {
         const secActive = active.sec === i
+        const c = sectionColor(i)
         return (
           <li key={i}>
             <button
@@ -749,10 +781,10 @@ function TocEntries({
             >
               <span
                 className={cn(
-                  'tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em] transition-opacity group-hover:text-[var(--toc-accent)]',
+                  'tp-serif w-4 shrink-0 text-[11px] font-medium tnum tracking-[0.08em] transition-opacity',
                   secActive ? 'opacity-100' : 'opacity-50 group-hover:opacity-90',
                 )}
-                style={secActive ? { color: accent } : undefined}
+                style={{ color: c }}
               >
                 {s.number ?? '·'}
               </span>
@@ -790,7 +822,7 @@ function TocEntries({
                               sheet && 'py-1.5 text-[12px]',
                               subActive ? 'font-semibold' : 'font-normal text-muted-foreground/65 hover:text-foreground',
                             )}
-                            style={subActive ? { color: accent } : undefined}
+                            style={subActive ? { color: sectionColor(i) } : undefined}
                           >
                             {sub.setupName ?? sub.title}
                           </button>
@@ -808,26 +840,28 @@ function TocEntries({
   )
 }
 
-/** The folio — an old-style "3 of 9 · 44%" over a hairline reading-progress rule. */
+/** The folio — an old-style "3 of 9 · 44%" over a hairline reading-progress
+ *  rule; the position figure and the rule wear the active section's hue, so
+ *  even the folio's light follows the reader through the document. */
 function TocFolio({
   className,
   position,
   total,
   progress,
-  accent,
+  color,
 }: {
   className?: string
   position: number
   total: number
   progress: number
-  accent: string
+  color: string
 }) {
   const pct = Math.round(progress * 100)
   return (
     <div className={className} data-testid="tp-contents-folio">
       <div className="flex items-baseline justify-between gap-2">
         <p className="tp-serif text-[11px] leading-none text-muted-foreground/75">
-          {position} <span className="italic">of</span> {total}
+          <span style={{ color }}>{position}</span> <span className="italic">of</span> {total}
         </p>
         <p className="tnum text-[9.5px] leading-none tracking-[0.08em] text-muted-foreground/55">{pct}%</p>
       </div>
@@ -840,8 +874,8 @@ function TocFolio({
         aria-valuenow={pct}
       >
         <div
-          className="h-px transition-[width] duration-200 ease-out"
-          style={{ width: `${pct}%`, background: accent }}
+          className="h-px transition-[width,background-color] duration-200 ease-out"
+          style={{ width: `${pct}%`, background: color }}
         />
       </div>
     </div>
@@ -850,53 +884,55 @@ function TocFolio({
 
 // ---------- one question + its answer (the editorial Q&A unit) ----------
 
-function QAUnit({ unit, accent }: { unit: QAUnit; accent: string }) {
+function QAUnit({ unit, color }: { unit: QAUnit; color: string }) {
   return (
     <div className="grid gap-3.5">
       {/* the question — quiet italic marginalia: the template's voice */}
       <div className="flex items-baseline gap-3.5">
         {unit.key && (
-          <span className="text-[9.5px] font-medium tnum tracking-wide" style={{ color: accent, opacity: 0.78 }}>
+          <span className="text-[9.5px] font-medium tnum tracking-wide" style={{ color, opacity: 0.85 }}>
             {unit.key}
           </span>
         )}
         <span className="text-[11.5px] italic leading-snug text-muted-foreground/80">{unit.label}</span>
       </div>
       {/* the answer — the trader's voice: serif prose floating on the page,
-          hung on a hairline accent rule (no box: the printed-page illusion) */}
-      <div className="border-l pl-5 sm:pl-6" style={{ borderLeftColor: `${accent}99` }}>
-        <ScalarOrBlocks unit={unit} accent={accent} />
+          hung on a hairline rule in the section's hue (no box: the
+          printed-page illusion) */}
+      <div className="border-l pl-5 sm:pl-6" style={{ borderLeftColor: `${color}99` }}>
+        <ScalarOrBlocks unit={unit} color={color} />
       </div>
     </div>
   )
 }
 
 // A lone short scalar ("1", "3", "yes") is the whole answer — set it as a
-// display value so the panel reads as intentional, not sparse.
-function ScalarOrBlocks({ unit, accent }: { unit: QAUnit; accent: string }) {
+// display value in the section's hue so the panel reads as intentional, not
+// sparse.
+function ScalarOrBlocks({ unit, color }: { unit: QAUnit; color: string }) {
   const solo =
     unit.blocks.length === 1 && unit.blocks[0].kind === 'para'
       ? unit.blocks[0] as { kind: 'para'; text: string; muted?: boolean }
       : null
   if (solo && !solo.muted && solo.text.trim().length > 0 && solo.text.trim().length <= 8 && !solo.text.trim().includes(' ')) {
-    return <p className="tp-serif text-[18px] font-semibold leading-none text-foreground">{solo.text.trim()}</p>
+    return <p className="tp-serif text-[18px] font-semibold leading-none" style={{ color }}>{solo.text.trim()}</p>
   }
-  return <AnswerBlocks blocks={unit.blocks} accent={accent} />
+  return <AnswerBlocks blocks={unit.blocks} color={color} />
 }
 
 // ---------- answer rendering (the reader half of the shared model) ----------
 
-function AnswerBlocks({ blocks, accent }: { blocks: DocBlock[]; accent: string }) {
+function AnswerBlocks({ blocks, color }: { blocks: DocBlock[]; color: string }) {
   return (
     <div className="space-y-3">
       {blocks.map((b, i) => (
-        <AnswerBlock key={i} block={b} accent={accent} />
+        <AnswerBlock key={i} block={b} color={color} />
       ))}
     </div>
   )
 }
 
-function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
+function AnswerBlock({ block, color }: { block: DocBlock; color: string }) {
   switch (block.kind) {
     case 'title':
       return (
@@ -909,7 +945,7 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
       return (
         <p
           className={cn('font-semibold leading-snug', block.size === 1 ? 'text-base' : 'text-[13px]')}
-          style={block.size === 2 ? { color: accent, opacity: 0.92 } : undefined}
+          style={block.size === 2 ? { color, opacity: 0.92 } : undefined}
         >
           {block.text}
         </p>
@@ -930,7 +966,7 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
         <ul className="max-w-[68ch] space-y-2">
           {block.items.map((item, i) => (
             <li key={i} className="flex gap-2.5">
-              <span className="mt-[11px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: accent, opacity: 0.75 }} aria-hidden />
+              <span className="mt-[11px] h-[3px] w-[3px] shrink-0 rounded-full" style={{ background: color, opacity: 0.75 }} aria-hidden />
               <span className="tp-serif text-[14.5px] leading-[1.9] text-foreground/90">{item}</span>
             </li>
           ))}
@@ -938,7 +974,8 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
       )
     case 'table':
       // editorial data table: hairline rules only, no spreadsheet box — the
-      // label column quiet, the values in tabular numerals
+      // label column quiet, the values in tabular numerals, the header rule
+      // in the section's hue
       return (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[12px]">
@@ -947,7 +984,8 @@ function AnswerBlock({ block, accent }: { block: DocBlock; accent: string }) {
                 {block.headers.map((h, i) => (
                   <th
                     key={i}
-                    className="whitespace-nowrap border-b border-border/80 px-3 pb-2 pt-1 text-left text-[9.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 first:pl-0 last:pr-0"
+                    className="whitespace-nowrap border-b px-3 pb-2 pt-1 text-left text-[9.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 first:pl-0 last:pr-0"
+                    style={{ borderBottomColor: `${color}80` }}
                   >
                     {h}
                   </th>
