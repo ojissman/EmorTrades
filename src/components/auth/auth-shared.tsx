@@ -104,7 +104,10 @@ export function GoogleButton({
               <ShieldQuestion className="h-5 w-5 text-emerald-400" aria-hidden />
               Google sign-in needs 2-minute setup
             </DialogTitle>
-            <DialogDescription className="text-slate-400 text-left space-y-3 pt-2">
+            {/* asChild div: DialogDescription renders a <p> by default, which
+                cannot legally contain the <p>/<ol> below (hydration error). */}
+            <DialogDescription asChild>
+              <div className="text-slate-400 text-left space-y-3 pt-2">
               <p>
                 Google requires every app to register for sign-in — this keeps your Gmail safe.
                 Once the keys below are added, the <strong className="text-slate-200">Continue with
@@ -137,6 +140,7 @@ export function GoogleButton({
                   <code className="text-emerald-300">.env</code> file and restart the server
                 </li>
               </ol>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

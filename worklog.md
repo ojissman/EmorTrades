@@ -4945,3 +4945,16 @@ Work Log:
 Verification: bun run lint 0 (fixed 2 react-hooks/set-state-in-effect: rAF-deferred setPhase in intro; framer useReducedMotion hook replaces matchMedia setState in band) · bunx tsc --noEmit 0 · 94/94 vitest · agent-browser E2E: fresh session intro plays (video t=3.05s, autoplay OK, scroll locked, flag set) → auto-dismiss at 11.2s + scroll unlocked → reload does NOT replay (flag honored) → sessionStorage cleared → replays → Skip button click dismisses + unlocks · band autoplays at t≈3s when scrolled into view, pauses off-screen, poster while loading · video serves 206 partial-content · mobile 390px: intro + hero + band all PASS, scrollWidth exactly 390 (no overflow) · login page shows the 1024px badge · zero console errors, zero page errors, dev.log clean · VLM design review 4/4 PASS (mobile intro / mobile hero / mobile band / desktop nav with real institute badge + wordmark). Screenshots: download/auth4-verification/.
 
 Notes / follow-ups: (1) the intro plays once per browser session per tab (sessionStorage) — owner can clear the flag or open a fresh tab to demo it; (2) video is a single 5.3MB file shared by intro + band (one cache entry); (3) upload/logo-extracted/ holds the owner's original files, untouched; (4) the sandbox OOM'd twice during encoding — dev server was restored via the keepalive watchdog both times, and the final encode ran with the dev server stopped.
+
+---
+Task ID: AUTH-5 (hydration fix: nested <p> in Google setup dialog)
+Agent: orchestrator (Z.ai Code main session)
+Task: User reported console hydration errors — "In HTML, <p> cannot be a descendant of <p>" / "<p> cannot contain a nested <ol>" — fired when the Google sign-in setup dialog opened (GoogleButton in auth-shared.tsx, surfaced from the landing page's final CTA).
+
+Root cause: shadcn's DialogDescription renders Radix's DialogPrimitive.Description, a <p> by default. The Google-setup dialog put a block-level <p> and a 4-step <ol> directly inside it — invalid HTML that React flags as a hydration error.
+
+Fix (src/components/auth/auth-shared.tsx, ~5 lines): DialogDescription now uses asChild with a <div> wrapper (className moved to the div — Radix Slot merges classes, keeps id/aria-describedby linkage intact), so the nested <p>/<ol> are legal children. Audited all 27 files using DialogDescription for the same pattern — every other usage holds only inline content (text/span/code/strong), no other offenders.
+
+Verification: bun run lint 0 · dev.log clean (GET / 200) · agent-browser E2E: fresh load of / with zero console/page errors → clicked "Continue with Google" → setup dialog opens, description confirmed rendering as DIV with merged classes, 1 <p> + 1 <ol> + 4 <li> present, aria wiring intact → zero hydration/console errors (grep for error|hydrat|cannot = empty) → "Got it" closes dialog cleanly → fresh reload still zero errors. Screenshot: /tmp/google-dialog.png.
+
+Notes: none — pure markup fix, no behavior change.
