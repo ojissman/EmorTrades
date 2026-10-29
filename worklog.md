@@ -4743,3 +4743,21 @@ Stage Summary:
 - WORKS: the document now has a color score — nine muted editorial hues that follow the reader through the sections, the rail, the marker and the folio, with the hero keeping the plan's identity teal and section 1 (jade) making the handoff harmonious.
 - Deliberately not done: (1) no colored backgrounds/tints on answer panels — the hues live on hairlines and type only; (2) the folio gauge stays a 1px analog rule (critic's optional polish rejected — twice-A-graded design); (3) setup "Setup" overlines stay muted — the section overline already owns the color, hierarchy beats saturation; (4) hero keeps the plan accent rather than the critic's "deep petrol" — the accent is the plan's identity across hub/editor/downloads, not the reader's to change.
 - Decisions made: (1) color = position (per-section hues) over color = content-type — position is what a reader navigates by; (2) palette order starts adjacent to the plan accent family and walks the full wheel once — distinctness without a jarring seam; (3) inline per-entry colors replace the --toc-accent CSS var — each entry owns its hue outright; (4) fixed mid-tone hexes (no theme detection) — same pattern as the existing plan accents, works on all five themes.
+
+---
+
+Task ID: TP2-UX6
+Agent: orchestrator (Z.ai Code main session)
+Task: Owner request — "bold the questions lets see how it will look and feel" + restore the GitHub auto-backup with a fresh token (manual trigger only, no cron/watchdog)
+
+Work Log:
+- BOLD QUESTIONS (plan-reader.tsx, one line): the QA label span went from regular italic to bold. First attempt kept the italic (font-bold italic 11.5px) — VLM design check: REVERT ("bold italic at this size is cramped/blobby, fights the answers"). Root cause was the bold+italic combo, not the bold. Second attempt: BOLD UPRIGHT (font-bold, italic dropped, size/color unchanged) — VLM verdict KEEP ("clean run-in labels, questions as signposts, answers still the hero, more structured and editorial than the old quiet-italic marginalia").
+- BACKUP RESTORED (owner pasted a new token after the sandbox reset wiped /home/z/emortrades-backups): recreated the dir (700), .github-token (600), db-sql.ts (bun:sqlite helper — no sqlite3 CLI on this box), autopush.sh (flock → WAL checkpoint → change detection vs origin/main → commit "Auto-backup <Lagos>" → push main → tag backup-YYYYMMDD-HHMMSS → Release vN with Trade/Journal/PlanMark/Plan/PlanVersion stats → rotation keep newest 5).
+- TRIGGER POLICY CHANGED per owner: NO watchdog, NO hourly cron — the agent runs autopush.sh manually once a task is completed. Hourly cron job 482071 DELETED. Token verified against the API (push perms OK); GitHub held v1–v4, latest v4 = the pre-reset 00:01 Lagos backup — local main was ahead (color-score work), so the post-task push fast-forwarded cleanly and cut v5.
+- VERIFIED LIVE: bold weight 700 confirmed via computed styles (italic round: weight 700/style italic; final: 700/normal); zero page/console errors; mobile not re-shot (the label is width-agnostic).
+- QUALITY GATES: 88/88 tests green, bun run lint 0, bunx tsc --noEmit 0.
+
+Stage Summary:
+- WORKS: every question in the reader now stands as a bold upright label above its serif answer — clearer signposting through the Q&A flow; the backup pipeline is whole again with versioned releases + 5-deep rotation, triggered by hand at task completion.
+- Deliberately not done: (1) no size/color bump on the bold labels — one experiment at a time, the owner is judging bold alone; (2) the unanswered pills stay regular italic — they are answers (the honest empty state), not questions; (3) the editor's own question labels were not bolded — the owner's "look and feel" test is about the reader.
+- Decisions made: (1) bold upright over bold italic — the combo was the defect, bold alone is the keeper; (2) manual-trigger backup over cron/watchdog — the owner's explicit preference after the reset; token lives 600 outside the repo as before.
