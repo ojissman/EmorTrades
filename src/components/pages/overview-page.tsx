@@ -20,12 +20,18 @@
  * Suite tabs: Coach Review / Summary / Insight), and the grid branches carry
  * show/hide toggles for the Daily Briefing and Behavior Radar in the banner
  * row (the plan-reader "unanswered questions" pattern, persisted locally).
+ *
+ * TP2-P8 — on grid layouts that render the Behavior Radar, the AI Insight
+ * report moves out of the bottom suite into its own desk card placed directly
+ * BELOW the radar (auto-inserted after it; hand-placeable from the builder),
+ * with its own banner show/hide toggle. Views without a radar keep the
+ * Insight tab in the bottom suite — the report always has exactly one home.
  */
 
 import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
-import { useAppStore } from '@/store/app-store'
+import { useAppStore, type DashboardWidgetInstance } from '@/store/app-store'
 import { applyFilterSnapshot, describeSnapshot, filtersMatchSnapshot } from '@/lib/dashboard-filters'
 import { CustomDashboardGrid } from '@/components/dashboard/custom-dashboard-grid'
 import {
@@ -572,10 +578,12 @@ function OnboardingHero({ hasAccounts }: { hasAccounts: boolean }) {
   )
 }
 
-// ---- section show/hide prefs (TP2-P7) -------------------------------------------
+// ---- section show/hide prefs (TP2-P7 + TP2-P8) ----------------------------------
 // The plan-reader “Show the N unanswered questions” pattern, applied to the
-// two AI desk sections: a quiet italic toggle in the banner row flips a local
+// AI desk sections: a quiet italic toggle in the banner row flips a local
 // + persisted pref that filters the widget arrays the grid branches render.
+// TP2-P8 adds the AI Insight card (placed below the Behavior Radar) to the
+// same mechanism.
 
 /** The four bespoke preset views render their own JSX — no briefing/radar grid. */
 const BESPOKE_OVERVIEW_TYPES = ['Simple Overview', 'Charts + Table overview', 'All-in-one Overview', 'Multi All-in-one Overview']
@@ -585,6 +593,7 @@ const OVERVIEW_SECTIONS_KEY = 'tradesviz.overviewSections.v1'
 interface OverviewSectionPrefs {
   briefingHidden: boolean
   radarHidden: boolean
+  insightHidden: boolean
 }
 
 function loadSectionPrefs(): OverviewSectionPrefs {
@@ -592,12 +601,16 @@ function loadSectionPrefs(): OverviewSectionPrefs {
     const raw = localStorage.getItem(OVERVIEW_SECTIONS_KEY)
     if (raw) {
       const v = JSON.parse(raw) as Partial<OverviewSectionPrefs>
-      return { briefingHidden: Boolean(v.briefingHidden), radarHidden: Boolean(v.radarHidden) }
+      return {
+        briefingHidden: Boolean(v.briefingHidden),
+        radarHidden: Boolean(v.radarHidden),
+        insightHidden: Boolean(v.insightHidden),
+      }
     }
   } catch {
     /* corrupt or unavailable — defaults */
   }
-  return { briefingHidden: false, radarHidden: false }
+  return { briefingHidden: false, radarHidden: false, insightHidden: false }
 }
 
 function saveSectionPrefs(p: OverviewSectionPrefs) {
@@ -698,7 +711,7 @@ export function OverviewPage() {
   // exactly when its section is part of the active layout (never on the four
   // bespoke preset views, which never render briefing/radar).
   const [sectionPrefs, setSectionPrefs] = useState<OverviewSectionPrefs>(loadSectionPrefs)
-  const toggleSection = (key: 'briefingHidden' | 'radarHidden') => {
+  const toggleSection = (key: 'briefingHidden' | 'radarHidden' | 'insightHidden') => {
     setSectionPrefs((prev) => {
       const next = { ...prev, [key]: !prev[key] }
       saveSectionPrefs(next)
@@ -712,10 +725,35 @@ export function OverviewPage() {
   const hasBriefing = baseWidgets.some((w) => w.widgetId === 'daily-briefing' && !w.hidden)
   const hasRadar = baseWidgets.some((w) => w.widgetId === 'behavior-radar' && !w.hidden)
   const layoutHasPinned = baseWidgets.some((w) => w.widgetId === 'ai-pinned' && !w.hidden)
-  const gridWidgets = baseWidgets.filter(
+  // TP2-P8 — the AI Insight card renders directly below the Behavior Radar on
+  // grid layouts. Layouts saved before the card existed (or hand-built without
+  // it) get it auto-inserted right after their radar; a layout that carries its
+  // own ai-insight instance — placed OR builder-hidden — owns the placement
+  // itself (no auto-insert, no double render; builder-hidden is an explicit
+  // opt-out, so the report falls back to the bottom suite's Insight tab).
+  const layoutHasInsight = baseWidgets.some((w) => w.widgetId === 'ai-insight')
+  const hasInsight = baseWidgets.some((w) => w.widgetId === 'ai-insight' && !w.hidden)
+  const insightPlaced = isGridView && (hasInsight || (hasRadar && !layoutHasInsight))
+  let placedWidgets: DashboardWidgetInstance[] = baseWidgets
+  if (isGridView && hasRadar && !layoutHasInsight) {
+    let afterRadar = baseWidgets.length - 1
+    for (let i = baseWidgets.length - 1; i >= 0; i--) {
+      if (baseWidgets[i].widgetId === 'behavior-radar') {
+        afterRadar = i
+        break
+      }
+    }
+    placedWidgets = [
+      ...baseWidgets.slice(0, afterRadar + 1),
+      { widgetId: 'ai-insight', span: 3, size: 'standard', hidden: false },
+      ...baseWidgets.slice(afterRadar + 1),
+    ]
+  }
+  const gridWidgets = placedWidgets.filter(
     (w) =>
       !((w.widgetId === 'daily-briefing' && sectionPrefs.briefingHidden) ||
-        (w.widgetId === 'behavior-radar' && sectionPrefs.radarHidden))
+        (w.widgetId === 'behavior-radar' && sectionPrefs.radarHidden) ||
+        (w.widgetId === 'ai-insight' && sectionPrefs.insightHidden))
   )
 
   const banner = (
@@ -743,12 +781,24 @@ export function OverviewPage() {
           {sectionPrefs.radarHidden ? 'Show the Behavior Radar' : 'Behavior Radar shown — hide'}
         </button>
       )}
+      {isGridView && insightPlaced && (
+        <button
+          type="button"
+          onClick={() => toggleSection('insightHidden')}
+          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          data-testid="overview-insight-toggle"
+          title={sectionPrefs.insightHidden ? 'Show the AI Insight card (below the Behavior Radar)' : 'Hide the AI Insight card (below the Behavior Radar)'}
+        >
+          {sectionPrefs.insightHidden ? 'Show the AI Insight' : 'AI Insight shown — hide'}
+        </button>
+      )}
     </div>
   )
 
   // TP2-P7 — the bottom AI zone on EVERY overview branch: the pinned AI card
   // (skipped when the active layout already places it in the grid) above the
-  // AI Suite tabs (Coach Review · Summary · Insight).
+  // AI Suite tabs. TP2-P8 — while the AI Insight renders as the desk card
+  // below the radar, its tab is lifted out of the suite (one report, one home).
   const bottomAiZone = (
     <div className="space-y-4" data-testid="overview-ai-zone">
       {!layoutHasPinned && (
@@ -758,7 +808,7 @@ export function OverviewPage() {
           </div>
         </div>
       )}
-      <OverviewAiSuite />
+      <OverviewAiSuite hideInsightTab={insightPlaced} />
     </div>
   )
 

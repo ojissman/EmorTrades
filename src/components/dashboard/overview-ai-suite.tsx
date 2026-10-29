@@ -4,15 +4,20 @@
  * ============================================================================
  * OVERVIEW AI SUITE — the bottom AI zone of the Overview home.
  * ============================================================================
- * Three tabs over POST /api/ai/suite:
+ * Tabs over POST /api/ai/suite:
  *   Coach Review (kind=review) · Summary (kind=summary) · Insight (kind=insights)
  * Shares the EXACT localStorage stores and cache keys with the AI Suite pages,
  * so anything generated here hydrates on the suite pages and vice versa — one
  * report, two homes. Generation is always explicit (LLM calls cost); saved
  * payloads restore instantly on load. No auto-generation on page mount,
  * matching the AI Goal Intelligence convention.
+ *
+ * TP2-P8 — when the active Overview layout renders the Behavior Radar, the
+ * Insight moves OUT of these tabs into its own desk card (OverviewAiInsightCard
+ * below) placed directly below the radar; `hideInsightTab` drops the tab here
+ * so the report never renders twice. Views without a radar keep all three tabs.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -130,6 +135,30 @@ function latestInsight(store: InsightsStore): InsightsPayload | null {
   return store[keys[keys.length - 1]] ?? null
 }
 
+/** TP2-P8 — same-tab broadcast fired whenever a daily insight is saved (the
+ * suite tab or the desk card below the Behavior Radar), so both mounted
+ * surfaces re-read the store instantly — the WIDGET_CONFIG_EVENT convention. */
+const INSIGHTS_CHANGED_EVENT = 'ai-suite:insights-changed'
+
+/** Merge one insight payload into the store (keyed by its date, capped at the
+ * most recent INSIGHTS_CAP days). PURE — no persistence, no events, safe to
+ * call anywhere (state updaters included). */
+function mergeInsight(prev: InsightsStore, payload: InsightsPayload): InsightsStore {
+  const merged: InsightsStore = { ...prev, [payload.date]: payload }
+  const keys = Object.keys(merged).sort().slice(-INSIGHTS_CAP)
+  const pruned: InsightsStore = {}
+  for (const k of keys) pruned[k] = merged[k]
+  return pruned
+}
+
+/** Persist the insight store and broadcast the change. Event-handler only —
+ * the listeners setState OTHER components, so this must never run inside a
+ * state updater (React: "Cannot update a component while rendering another"). */
+function persistInsightStore(store: InsightsStore) {
+  saveJson(INSIGHTS_STORE_KEY, store)
+  window.dispatchEvent(new Event(INSIGHTS_CHANGED_EVENT))
+}
+
 // ---- tab metadata -----------------------------------------------------------------
 
 type TabId = 'review' | 'summary' | 'insights'
@@ -142,7 +171,7 @@ const TABS: { id: TabId; label: string; icon: typeof FileText; blurb: string }[]
 
 // ---- component ----------------------------------------------------------------------
 
-export function OverviewAiSuite() {
+export function OverviewAiSuite({ hideInsightTab = false }: { hideInsightTab?: boolean }) {
   const [tab, setTab] = useState<TabId>('review')
   const [reviewPeriod, setReviewPeriod] = useState<SuitePeriod>('30d')
   const [summaryPeriod, setSummaryPeriod] = useState<SuitePeriod>('all')
@@ -159,8 +188,22 @@ export function OverviewAiSuite() {
   const review = reviewStore.latest[reviewKey] ?? null
   const summary = summaryStore.latest[summaryKey] ?? null
   const insight = latestInsight(insightStore)
-  const current = tab === 'review' ? review : tab === 'summary' ? summary : insight
-  const active = TABS.find((t) => t.id === tab)!
+  // TP2-P8 — the Insight tab can be lifted out of this panel (the report then
+  // renders as the desk card below the Behavior Radar); the derived active id
+  // falls back to Coach Review for the one render where the stored tab was
+  // 'insights' and the tab just disappeared — no flash, no state juggling.
+  const tabs = hideInsightTab ? TABS.filter((t) => t.id !== 'insights') : TABS
+  const activeTabId: TabId = tab === 'insights' && hideInsightTab ? 'review' : tab
+  const current = activeTabId === 'review' ? review : activeTabId === 'summary' ? summary : insight
+  const active = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+
+  // TP2-P8 — a desk-card generation (or a suite-page write) refreshes this
+  // panel's store while it stays mounted.
+  useEffect(() => {
+    const handler = () => setInsightStore(loadInsightsStore())
+    window.addEventListener(INSIGHTS_CHANGED_EVENT, handler)
+    return () => window.removeEventListener(INSIGHTS_CHANGED_EVENT, handler)
+  }, [])
 
   function switchTab(id: string) {
     setTab(id as TabId)
@@ -171,7 +214,7 @@ export function OverviewAiSuite() {
     if (busy) return
     setBusy(true)
     setError(null)
-    if (tab === 'review') {
+    if (activeTabId === 'review') {
       const { ok, data } = await postSuite({
         kind: 'review',
         period: reviewPeriod,
@@ -191,7 +234,7 @@ export function OverviewAiSuite() {
         saveJson(REVIEW_STORE_KEY, next)
         return next
       })
-    } else if (tab === 'summary') {
+    } else if (activeTabId === 'summary') {
       const { ok, data } = await postSuite({ kind: 'summary', period: summaryPeriod })
       setBusy(false)
       if (!ok || data.error || data.kind !== 'summary') {
@@ -216,14 +259,9 @@ export function OverviewAiSuite() {
         return
       }
       const payload = data as unknown as InsightsPayload
-      setInsightStore((prev) => {
-        const merged: InsightsStore = { ...prev, [payload.date]: payload }
-        const keys = Object.keys(merged).sort().slice(-INSIGHTS_CAP)
-        const pruned: InsightsStore = {}
-        for (const k of keys) pruned[k] = merged[k]
-        saveJson(INSIGHTS_STORE_KEY, pruned)
-        return pruned
-      })
+      const next = mergeInsight(insightStore, payload)
+      setInsightStore(next)
+      persistInsightStore(next)
     }
   }
 
@@ -245,7 +283,9 @@ export function OverviewAiSuite() {
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground truncate">
-                Coach review · summary · daily insight — written from your real closed trades · shared with the AI Suite pages
+                {hideInsightTab
+                  ? 'Coach review · summary — written from your real closed trades · shared with the AI Suite pages'
+                  : 'Coach review · summary · daily insight — written from your real closed trades · shared with the AI Suite pages'}
               </p>
             </div>
           </div>
@@ -278,9 +318,9 @@ export function OverviewAiSuite() {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={switchTab}>
+        <Tabs value={activeTabId} onValueChange={switchTab}>
           <TabsList className="mb-3 h-8">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <TabsTrigger key={t.id} value={t.id} className="text-xs gap-1.5 px-3" data-testid={`overview-ai-tab-${t.id}`}>
                 <t.icon className="h-3.5 w-3.5" aria-hidden />
                 {t.label}
@@ -396,7 +436,9 @@ export function OverviewAiSuite() {
             )}
           </TabsContent>
 
-          {/* ---- Insight ---- */}
+          {/* ---- Insight (hidden while the report renders as the desk card
+              below the Behavior Radar — TP2-P8) ---- */}
+          {!hideInsightTab && (
           <TabsContent value="insights" className="mt-0">
             {error ? <ErrorRow message={error} /> : null}
             {!error && busy && !insight ? (
@@ -438,9 +480,155 @@ export function OverviewAiSuite() {
               <EmptyState icon={Sunrise} label="No daily insight saved yet" blurb={active.blurb} />
             )}
           </TabsContent>
+          )}
         </Tabs>
       </div>
     </Card>
+  )
+}
+
+// ---- the standalone AI Insight desk card (TP2-P8) ----------------------------------
+
+/**
+ * The suite's Insight report as a desk card — the Daily-Briefing card's shell
+ * (emerald chip, corner sheen, own Generate button) with the insight body
+ * (tone · date · headline · Day P&L/Trades chips · bullets · focus-tomorrow).
+ * The Overview places it directly below the Behavior Radar; it can also be
+ * hand-placed from the builder. One store, three surfaces: generating here
+ * hydrates the suite tabs and the AI Suite ▸ Daily Insights page.
+ */
+export function OverviewAiInsightCard() {
+  const [store, setStore] = useState<InsightsStore>(loadInsightsStore)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const insight = latestInsight(store)
+
+  useEffect(() => {
+    const handler = () => setStore(loadInsightsStore())
+    window.addEventListener(INSIGHTS_CHANGED_EVENT, handler)
+    return () => window.removeEventListener(INSIGHTS_CHANGED_EVENT, handler)
+  }, [])
+
+  async function generate() {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    const { ok, data } = await postSuite({ kind: 'insights' })
+    setBusy(false)
+    if (!ok || data.error || data.kind !== 'insights') {
+      setError((data.error as string) ?? 'The insight could not be generated.')
+      return
+    }
+    const payload = data as unknown as InsightsPayload
+    const next = mergeInsight(store, payload)
+    setStore(next)
+    persistInsightStore(next)
+  }
+
+  return (
+    <section
+      aria-label="AI daily insight"
+      data-testid="overview-insight-card"
+      className={`relative overflow-hidden rounded-xl border bg-card p-4 md:p-5 transition-shadow ${
+        insight ? 'shadow-[0_0_0_1px_rgba(16,185,129,0.06),0_8px_24px_-12px_rgba(0,0,0,0.5)]' : ''
+      }`}
+    >
+      {/* corner sheen — matches the Daily Briefing card */}
+      <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-white/5 blur-3xl" />
+
+      <div className="relative flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/25">
+            <Sunrise className={`h-4.5 w-4.5 ${!insight && !busy ? 'animate-pulse' : ''}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h2 className="text-sm font-semibold tracking-tight">AI Insight</h2>
+              {insight && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                  style={{ background: TONE[insight.tone].soft, color: TONE[insight.tone].color }}
+                >
+                  {TONE[insight.tone].label}
+                </span>
+              )}
+              {insight && <DegradedBadge degraded={insight.degraded} rateLimited={Boolean(insight.rateLimited)} />}
+            </div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
+              {insight ? `Latest session · ${insight.date}` : 'Your latest session, interpreted'}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={insight ? 'outline' : 'default'}
+          onClick={() => void generate()}
+          disabled={busy}
+          data-testid="overview-insight-generate"
+        >
+          {busy ? (
+            <>
+              <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />
+              Writing…
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              {insight ? 'Regenerate' : 'Generate'}
+            </>
+          )}
+        </Button>
+      </div>
+
+      <div className="relative mt-3">
+        {error ? <ErrorRow message={error} /> : null}
+        {!error && busy && !insight ? (
+          <div className="space-y-2" aria-busy="true">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+              <RefreshCw className="h-3 w-3 animate-spin" /> Reading your last session…
+            </p>
+          </div>
+        ) : insight ? (
+          <div style={{ opacity: busy ? 0.6 : 1, transition: 'opacity 200ms' }}>
+            <h4 className="text-sm font-bold leading-snug mb-2.5" style={{ color: 'var(--text-primary)' }}>{insight.headline}</h4>
+            <div className="flex gap-2 flex-wrap mb-3">
+              <StatChip label="Day P&L" value={fmtUsd(insight.dayPnl)} color={insight.dayPnl > 0 ? '#22c55e' : insight.dayPnl < 0 ? '#ef4444' : undefined} />
+              <StatChip label="Trades" value={String(insight.dayTrades)} />
+            </div>
+            <ul className="space-y-2 mb-3">
+              {insight.bullets.map((b, i) => (
+                <li key={i} className="flex gap-2 text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0" style={{ background: TONE[insight.tone].color }} />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="rounded-lg p-3 flex items-start gap-2.5" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
+              <ArrowRight size={13} className="shrink-0 mt-0.5" style={{ color: '#22c55e' }} />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: '#4ade80' }}>Focus for tomorrow</p>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }}>{insight.focusTomorrow}</p>
+              </div>
+            </div>
+            <p className="text-[10px] mt-3" style={{ color: 'var(--text-secondary)' }}>
+              Generated {new Date(insight.generatedAt).toLocaleString()} · shared with the AI Suite tabs and AI Suite ▸ Daily Insights (the per-day rail lives there)
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 rounded-lg border border-dashed border-border/60 p-4">
+            <Sunrise className="h-4 w-4 mt-0.5 text-emerald-400 shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">
+                No daily insight saved yet. <span className="text-foreground font-medium">Generate</span> one — it is written from the same closed trades this desk shows: sequence, mistakes, one focus for tomorrow.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 

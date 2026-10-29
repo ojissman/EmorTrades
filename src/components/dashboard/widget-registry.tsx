@@ -28,6 +28,7 @@ import type { DashboardWidgetInstance } from '@/store/app-store'
 import { AIWidget } from '@/components/ai/ai-page-layer'
 import { DailyBriefing } from '@/components/dashboard-briefing'
 import { BehaviorRadar } from '@/components/behavior-radar'
+import { OverviewAiInsightCard } from './overview-ai-suite'
 import { AnimatedNumber } from '@/components/animated-number'
 import { FitValue } from '@/components/fit-value'
 import {
@@ -38,7 +39,7 @@ import {
   LayoutGrid, ChartColumn, Rows3, Columns3, Minimize2, PenTool,
   DollarSign, Target, Gauge, Scale, TrendingUp, TrendingDown, ArrowUpRight,
   ArrowDownRight, Flame, Percent, Sigma, Wallet, Trophy, LineChart,
-  PieChart as ChartPieIcon, Table2, History, Sparkles, Activity, BarChart3,
+  PieChart as ChartPieIcon, Table2, History, Sparkles, Activity, BarChart3, Sunrise,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -1168,6 +1169,11 @@ export const WIDGET_DEFS: WidgetDef[] = [
     render: () => <RadarLazy />,
   },
   {
+    id: 'ai-insight', title: 'AI Insight', description: 'The latest daily AI insight — your last session interpreted: sequence, mistakes, one focus for tomorrow; on the Overview it renders directly below the Behavior Radar', category: 'AI & Briefing',
+    defaultSpan: 3, defaultSize: 'standard', prefersWide: true, bare: true,
+    render: () => <OverviewAiInsightCard />,
+  },
+  {
     id: 'ai-pinned', title: 'Pinned AI Widget', description: 'Your pinned AI card — configure it in AI Suite ▸ Trade Suite ▸ AI Widget; renders here only while pinned', category: 'AI & Briefing',
     defaultSpan: 3, defaultSize: 'standard', prefersWide: true, bare: true,
     render: () => <DeskAiPinned />,
@@ -1269,6 +1275,7 @@ const WIDGET_ICONS: Record<string, IconType> = {
   'daily-briefing': Sparkles,
   'behavior-radar': Activity,
   'ai-pinned': Sparkles,
+  'ai-insight': Sunrise,
   'desk-hero-stats': Gauge,
   'desk-period-summary': Wallet,
   'desk-equity': LineChart,
@@ -1294,14 +1301,15 @@ export const WIDGET_CATEGORIES: WidgetCategoryId[] = ['KPIs', 'Charts', 'Tables 
  * Each of the five preset Overview layouts expressed as a widget list — the
  * starting point when a custom dashboard is created from that base.
  *
- * Classic View IS the former Dashboard landing page, widget for widget:
- * briefing → radar → hero stats → equity + daily P&L → period summary →
+ * Classic View IS the former Dashboard landing page: briefing → radar →
+ * AI insight → hero stats → equity + daily P&L → period summary →
  * open positions + recent trades → top symbols + setup performance.
  */
 export const PRESET_WIDGET_LAYOUTS: Record<string, DashboardWidgetInstance[]> = {
   'Classic View': [
     { widgetId: 'daily-briefing', span: 3, size: 'standard', hidden: false },
     { widgetId: 'behavior-radar', span: 3, size: 'standard', hidden: false },
+    { widgetId: 'ai-insight', span: 3, size: 'standard', hidden: false },
     { widgetId: 'desk-hero-stats', span: 3, size: 'standard', hidden: false },
     { widgetId: 'desk-equity', span: 2, size: 'standard', hidden: false },
     { widgetId: 'desk-daily', span: 1, size: 'standard', hidden: false },
