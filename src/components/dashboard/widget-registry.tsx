@@ -1168,7 +1168,7 @@ export const WIDGET_DEFS: WidgetDef[] = [
     render: () => <RadarLazy />,
   },
   {
-    id: 'ai-pinned', title: 'Pinned AI Widget', description: 'Renders once you pin the AI Widget from Tools › AI Suite › AI Widget', category: 'AI & Briefing',
+    id: 'ai-pinned', title: 'Pinned AI Widget', description: 'Your pinned AI card — configure it in AI Suite ▸ Trade Suite ▸ AI Widget; renders here only while pinned', category: 'AI & Briefing',
     defaultSpan: 3, defaultSize: 'standard', prefersWide: true, bare: true,
     render: () => <DeskAiPinned />,
   },

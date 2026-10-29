@@ -15,9 +15,14 @@
  * All views compute from the same filtered /api/trades payload via the shared
  * computeOverviewStats() helper and render through the same registry components
  * the Custom Dashboard builder previews — what you compose is what these show.
+ *
+ * TP2-P7 — every branch ends in the bottom AI zone (pinned AI card + the AI
+ * Suite tabs: Coach Review / Summary / Insight), and the grid branches carry
+ * show/hide toggles for the Daily Briefing and Behavior Radar in the banner
+ * row (the plan-reader "unanswered questions" pattern, persisted locally).
  */
 
-import { useEffect, useMemo, type ComponentType, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
 import { useAppStore } from '@/store/app-store'
@@ -48,6 +53,8 @@ import { markDrillOrigin, drillToDay, drillToTrades } from '@/lib/drill'
 // Task 22-b — Equity Chart in Overview (Settings ▸ Display) reads the live
 // pref + the user's starting capital from the shared ['user'] cache.
 import { useSettingsPrefsStore } from '@/store/settings-prefs-store'
+import { AiWidgetDash } from '@/components/ai/ai-widget-card'
+import { OverviewAiSuite } from '@/components/dashboard/overview-ai-suite'
 import '@/components/shell/shell.css'
 
 type IconType = ComponentType<{ className?: string; style?: CSSProperties }>
@@ -565,6 +572,42 @@ function OnboardingHero({ hasAccounts }: { hasAccounts: boolean }) {
   )
 }
 
+// ---- section show/hide prefs (TP2-P7) -------------------------------------------
+// The plan-reader “Show the N unanswered questions” pattern, applied to the
+// two AI desk sections: a quiet italic toggle in the banner row flips a local
+// + persisted pref that filters the widget arrays the grid branches render.
+
+/** The four bespoke preset views render their own JSX — no briefing/radar grid. */
+const BESPOKE_OVERVIEW_TYPES = ['Simple Overview', 'Charts + Table overview', 'All-in-one Overview', 'Multi All-in-one Overview']
+
+const OVERVIEW_SECTIONS_KEY = 'tradesviz.overviewSections.v1'
+
+interface OverviewSectionPrefs {
+  briefingHidden: boolean
+  radarHidden: boolean
+}
+
+function loadSectionPrefs(): OverviewSectionPrefs {
+  try {
+    const raw = localStorage.getItem(OVERVIEW_SECTIONS_KEY)
+    if (raw) {
+      const v = JSON.parse(raw) as Partial<OverviewSectionPrefs>
+      return { briefingHidden: Boolean(v.briefingHidden), radarHidden: Boolean(v.radarHidden) }
+    }
+  } catch {
+    /* corrupt or unavailable — defaults */
+  }
+  return { briefingHidden: false, radarHidden: false }
+}
+
+function saveSectionPrefs(p: OverviewSectionPrefs) {
+  try {
+    localStorage.setItem(OVERVIEW_SECTIONS_KEY, JSON.stringify(p))
+  } catch {
+    /* private mode — in-memory only */
+  }
+}
+
 // ---- main component -----------------------------------------------------------
 
 export function OverviewPage() {
@@ -648,7 +691,77 @@ export function OverviewPage() {
   }, [stats.curve, equityMode, startingCapital])
 
   const activeDashboard = customDashboards.find((d) => d.id === activeDashboardId) ?? null
-  const banner = <ViewBanner type={overviewType} dashboardName={activeDashboard?.name ?? null} />
+
+  // TP2-P7 — show/hide toggles for Daily Briefing / Behavior Radar + the
+  // bottom AI zone. Section prefs are local + persisted; they only ever
+  // REMOVE widgets the current layout actually renders, so a toggle appears
+  // exactly when its section is part of the active layout (never on the four
+  // bespoke preset views, which never render briefing/radar).
+  const [sectionPrefs, setSectionPrefs] = useState<OverviewSectionPrefs>(loadSectionPrefs)
+  const toggleSection = (key: 'briefingHidden' | 'radarHidden') => {
+    setSectionPrefs((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      saveSectionPrefs(next)
+      return next
+    })
+  }
+
+  const isCustomLayout = Boolean(activeDashboard?.widgets && activeDashboard.widgets.length > 0)
+  const isGridView = isCustomLayout || !BESPOKE_OVERVIEW_TYPES.includes(overviewType)
+  const baseWidgets = (isCustomLayout ? activeDashboard?.widgets : PRESET_WIDGET_LAYOUTS['Classic View']) ?? []
+  const hasBriefing = baseWidgets.some((w) => w.widgetId === 'daily-briefing' && !w.hidden)
+  const hasRadar = baseWidgets.some((w) => w.widgetId === 'behavior-radar' && !w.hidden)
+  const layoutHasPinned = baseWidgets.some((w) => w.widgetId === 'ai-pinned' && !w.hidden)
+  const gridWidgets = baseWidgets.filter(
+    (w) =>
+      !((w.widgetId === 'daily-briefing' && sectionPrefs.briefingHidden) ||
+        (w.widgetId === 'behavior-radar' && sectionPrefs.radarHidden))
+  )
+
+  const banner = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5" data-testid="overview-banner-row">
+      <ViewBanner type={overviewType} dashboardName={activeDashboard?.name ?? null} />
+      {isGridView && hasBriefing && (
+        <button
+          type="button"
+          onClick={() => toggleSection('briefingHidden')}
+          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          data-testid="overview-briefing-toggle"
+          title={sectionPrefs.briefingHidden ? 'Show the Daily Briefing section' : 'Hide the Daily Briefing section'}
+        >
+          {sectionPrefs.briefingHidden ? 'Show the Daily Briefing' : 'Daily Briefing shown — hide'}
+        </button>
+      )}
+      {isGridView && hasRadar && (
+        <button
+          type="button"
+          onClick={() => toggleSection('radarHidden')}
+          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          data-testid="overview-radar-toggle"
+          title={sectionPrefs.radarHidden ? 'Show the Behavior Radar section' : 'Hide the Behavior Radar section'}
+        >
+          {sectionPrefs.radarHidden ? 'Show the Behavior Radar' : 'Behavior Radar shown — hide'}
+        </button>
+      )}
+    </div>
+  )
+
+  // TP2-P7 — the bottom AI zone on EVERY overview branch: the pinned AI card
+  // (skipped when the active layout already places it in the grid) above the
+  // AI Suite tabs (Coach Review · Summary · Insight).
+  const bottomAiZone = (
+    <div className="space-y-4" data-testid="overview-ai-zone">
+      {!layoutHasPinned && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="overview-pinned-slot">
+          <div className="md:col-span-2">
+            <AiWidgetDash />
+          </div>
+        </div>
+      )}
+      <OverviewAiSuite />
+    </div>
+  )
+
   const viewProps = { stats, trades, banner, onboarding, equityCurve, equityStart: equityMode ? startingCapital : 0 }
 
   // Task 15-W3 — a failed fetch is not an empty journal: the landing page
@@ -703,7 +816,8 @@ export function OverviewPage() {
             </button>
           </div>
         )}
-        <CustomDashboardGrid widgets={activeDashboard.widgets} stats={stats} trades={trades} testId="custom-grid" />
+        <CustomDashboardGrid widgets={gridWidgets} stats={stats} trades={trades} testId="custom-grid" />
+        {bottomAiZone}
       </div>
     )
   }
@@ -715,20 +829,45 @@ export function OverviewPage() {
         {banner}
         {onboarding}
         <CustomDashboardGrid
-          widgets={PRESET_WIDGET_LAYOUTS['Classic View']}
+          widgets={gridWidgets}
           stats={stats}
           trades={trades}
           testId="classic-grid"
         />
+        {bottomAiZone}
       </div>
     )
   }
 
   // ---- redesigned presets --------------------------------------------------------
-  if (overviewType === 'Simple Overview') return <SimpleView {...viewProps} />
-  if (overviewType === 'Charts + Table overview') return <ChartsTableView {...viewProps} />
-  if (overviewType === 'All-in-one Overview') return <AllInOneView {...viewProps} />
-  if (overviewType === 'Multi All-in-one Overview') return <MultiAllInOneView {...viewProps} />
+  if (overviewType === 'Simple Overview')
+    return (
+      <div className="space-y-4">
+        <SimpleView {...viewProps} />
+        {bottomAiZone}
+      </div>
+    )
+  if (overviewType === 'Charts + Table overview')
+    return (
+      <div className="space-y-4">
+        <ChartsTableView {...viewProps} />
+        {bottomAiZone}
+      </div>
+    )
+  if (overviewType === 'All-in-one Overview')
+    return (
+      <div className="space-y-4">
+        <AllInOneView {...viewProps} />
+        {bottomAiZone}
+      </div>
+    )
+  if (overviewType === 'Multi All-in-one Overview')
+    return (
+      <div className="space-y-4">
+        <MultiAllInOneView {...viewProps} />
+        {bottomAiZone}
+      </div>
+    )
 
   // Fallback — unknown type renders the desk.
   return (
@@ -736,11 +875,12 @@ export function OverviewPage() {
       {banner}
       {onboarding}
       <CustomDashboardGrid
-        widgets={PRESET_WIDGET_LAYOUTS['Classic View']}
+        widgets={gridWidgets}
         stats={stats}
         trades={trades}
         testId="classic-grid"
       />
+      {bottomAiZone}
     </div>
   )
 }

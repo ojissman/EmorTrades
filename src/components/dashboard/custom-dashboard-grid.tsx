@@ -16,6 +16,7 @@ import type { DashboardWidgetInstance } from '@/store/app-store'
 import { useAppStore } from '@/store/app-store'
 import { ArrowUpRight } from 'lucide-react'
 import type { OverviewStats, OverviewTradeRow } from '@/lib/overview-stats'
+import { loadWidgetConfig } from '@/components/ai/ai-widget-card'
 
 interface Props {
   widgets: DashboardWidgetInstance[]
@@ -26,7 +27,13 @@ interface Props {
 
 export function CustomDashboardGrid({ widgets, stats, trades, testId }: Props) {
   const navigate = useAppStore((s) => s.navigate)
-  const visible = widgets.filter((w) => !w.hidden && getWidgetDef(w.widgetId))
+  // TP2-P7 — an `ai-pinned` instance only takes a grid cell while a config is
+  // actually pinned; unpinned instances are skipped instead of rendering an
+  // empty gap in the layout (the card itself renders null when disabled).
+  const pinnedEnabled = loadWidgetConfig().enabled
+  const visible = widgets.filter(
+    (w) => !w.hidden && getWidgetDef(w.widgetId) && !(w.widgetId === 'ai-pinned' && !pinnedEnabled)
+  )
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid={testId}>
       {visible.map((w) => {

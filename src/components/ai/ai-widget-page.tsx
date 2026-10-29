@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import {
   AiWidgetCard,
   DEFAULT_WIDGET_CONFIG,
+  WIDGET_CONFIG_EVENT,
   loadWidgetConfig,
   saveWidgetConfig,
   type WidgetMode,
@@ -50,13 +51,21 @@ export function AiWidgetPage() {
   function pin() {
     const next = { ...config, enabled: true, savedAt: new Date().toISOString() }
     saveWidgetConfig(next)
+    // TP2-P7 — broadcast so any mounted dashboard card (Overview home) picks
+    // the new pin up immediately instead of waiting for a remount.
+    window.dispatchEvent(new Event(WIDGET_CONFIG_EVENT))
     setConfig(next)
     setSaved(true)
   }
 
   function unpin() {
-    const next = { ...DEFAULT_WIDGET_CONFIG, savedAt: new Date().toISOString() }
+    // TP2-P7 — unpin must actually UNPUBLISH the card: the default config
+    // carries enabled: true (the preview forces it on), so the stored config
+    // is disabled explicitly — otherwise the dashboard card would survive an
+    // unpin and "pinning" would feel stuck on.
+    const next = { ...DEFAULT_WIDGET_CONFIG, enabled: false, savedAt: new Date().toISOString() }
     saveWidgetConfig(next)
+    window.dispatchEvent(new Event(WIDGET_CONFIG_EVENT))
     setConfig(next)
     setSaved(false)
   }
@@ -229,8 +238,10 @@ export function AiWidgetPage() {
           </div>
         </div>
         <p className="text-[10px] leading-relaxed px-1" style={{ color: 'var(--text-secondary)' }}>
-          The pinned card renders on the dashboard home right under the daily briefing, grounded in the same real
-          journal data as the rest of the AI Suite. Payloads are cached locally and refresh on demand.
+          The pinned card renders in the AI zone at the bottom of your Overview home — on every layout (Classic, the
+          preset views, and custom dashboards) — grounded in the same real journal data as the rest of the AI Suite.
+          Payloads are cached locally and refresh on demand. Place the “Pinned AI Widget” in a custom layout to
+          position it elsewhere in the grid.
         </p>
       </aside>
     </div>

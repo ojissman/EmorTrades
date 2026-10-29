@@ -11,7 +11,7 @@
  * so navigation is instant and offline still shows the last truthful card.
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Eye, Lightbulb, MessagesSquare, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react'
 import {
@@ -47,6 +47,12 @@ interface WidgetPayload {
 
 export const WIDGET_CONFIG_KEY = 'ai-suite.widget-config.v1'
 const WIDGET_CACHE_KEY = 'ai-suite.widget-cache.v1'
+
+/** Same-tab broadcast fired whenever the pinned config is written (pin /
+ *  unpin on the AI Widget page) so every mounted <AiWidgetDash /> re-reads
+ *  localStorage immediately — no remount, no stale pinned card. The `storage`
+ *  event covers cross-tab changes. */
+export const WIDGET_CONFIG_EVENT = 'ai-suite:widget-config-changed'
 
 export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   enabled: true,
@@ -194,8 +200,20 @@ export function AiWidgetCard({
 /**
  * Dashboard mount point — reads the pinned config from localStorage and renders
  * nothing when the trader has not pinned a widget (or un-pinned it).
+ * Task TP2-P7 — the config is now REACTIVE: pin/unpin on the AI Widget page
+ * broadcasts WIDGET_CONFIG_EVENT, so a mounted dash card appears/disappears
+ * without waiting for a route remount (and `storage` covers other tabs).
  */
 export function AiWidgetDash() {
-  const config = useMemo(() => loadWidgetConfig(), [])
+  const [config, setConfig] = useState<WidgetConfig>(loadWidgetConfig)
+  useEffect(() => {
+    const refresh = () => setConfig(loadWidgetConfig())
+    window.addEventListener(WIDGET_CONFIG_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(WIDGET_CONFIG_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [])
   return <AiWidgetCard config={config} />
 }
