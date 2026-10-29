@@ -5081,3 +5081,12 @@ Pre-push audit (security): .env and upload/ NEVER tracked in any commit (no OAut
 Push: fast-forward 540aeaf..fb241e8 (remote was 13 commits behind, exactly today's session: AUTH-1→8, DEPLOY-1/2, SWEEP-1) + 5 backup tags. Verified via GitHub API: remote main HEAD = fb241e8 = local HEAD.
 
 Notes / follow-ups: (1) The token was pasted in chat — if this transcript is ever exposed, revoke it at github.com/settings/tokens and share a new one; it also lives in ~/.git-credentials (expected). (2) Repo: https://github.com/ojissman/EmorTrades (private). (3) Push cadence going forward: after each completed task, `git push` — no other action needed.
+
+---
+Task ID: AUTH-8-CLOSE (owner confirmation — production Google login live)
+Agent: orchestrator (Z.ai Code main session)
+Task: Owner clicked Publish and confirmed on the deployed app: "done and its working now.. this current task is completed."
+
+Closure: Google "Continue with Google" is WORKING on https://emortrade.space-z.ai with the new OAuth client (936461639731-64p065gf…) and the production origin pin. The full chain is now live end-to-end on production: button → Google consent → code → token exchange → session — including the one leg (real Gmail consent) that could only ever be verified by a live account holder. AUTH-8 closed with owner confirmation; no defects reported.
+
+Standing state at closure: local = deployed = pushed (origin/main f70204a before this entry); dev server healthy on :3000; no watchdog by owner order (restart = `bun run dev`); push pipeline live per GIT-2 (git push after each completed task).
