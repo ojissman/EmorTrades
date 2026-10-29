@@ -72,6 +72,7 @@ import {
   Dices,
   KeyRound,
   Loader2,
+  MailCheck,
   MoreHorizontal,
   PlayCircle,
   RefreshCw,
@@ -84,6 +85,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { AdminSecuritySection } from './admin-security-section'
 
 // ---------------------------------------------------------------------------
 // Types (mirror the API response shapes exactly)
@@ -98,6 +100,8 @@ interface AdminUserRow {
   email: string
   role: AdminRole
   status: AdminStatus
+  emailVerified?: string | null
+  googleLinked?: boolean
   createdAt: string
   lastLoginAt: string | null
   tradeCount: number
@@ -124,7 +128,7 @@ interface ApiMessage {
 type PatchMutation = UseMutationResult<
   { user: unknown; message: string },
   Error,
-  { id: string; payload: { role?: AdminRole; status?: AdminStatus } }
+  { id: string; payload: { role?: AdminRole; status?: AdminStatus; action?: 'verify-email' } }
 >
 type DeleteMutation = UseMutationResult<{ ok: boolean; message: string }, Error, { id: string }>
 type ResetMutation = UseMutationResult<
@@ -158,7 +162,7 @@ async function requestJson<T = ApiMessage>(
 }
 
 /** "just now" / "5m ago" / "3d ago", falling back to a formatted date. */
-function timeAgoLabel(iso: string | null | undefined): string {
+export function timeAgoLabel(iso: string | null | undefined): string {
   if (!iso) return 'Never'
   const t = new Date(iso).getTime()
   if (Number.isNaN(t)) return '—'
@@ -426,7 +430,22 @@ function UserRow({
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium leading-tight">{displayName}</p>
-            <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{u.email}</p>
+            <p className="mt-0.5 flex items-center gap-1.5">
+              <span className="truncate text-xs leading-tight text-muted-foreground">{u.email}</span>
+              {!u.emailVerified && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-amber-500/30 bg-amber-500/10 text-[9px] text-amber-300 px-1.5 py-0"
+                >
+                  pending
+                </Badge>
+              )}
+              {u.googleLinked && (
+                <span className="shrink-0 text-[10px] text-muted-foreground" title="Google-linked account">
+                  G
+                </span>
+              )}
+            </p>
           </div>
         </div>
       </TableCell>
@@ -518,6 +537,20 @@ function UserRow({
               )}
               {u.status === 'ACTIVE' ? 'Suspend account' : 'Reactivate account'}
             </DropdownMenuItem>
+            {!u.emailVerified && (
+              <DropdownMenuItem
+                disabled={rowBusy}
+                onClick={() =>
+                  patchMutation.mutate({
+                    id: u.id,
+                    payload: { action: 'verify-email' },
+                  })
+                }
+              >
+                <MailCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                Verify email manually
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={rowBusy} onClick={() => onReset(u)}>
               <KeyRound className="h-4 w-4" aria-hidden="true" /> Reset password…
@@ -882,9 +915,10 @@ export function AdminPage() {
           </span>
           Admin Console
         </h1>
-        <p className="text-sm text-muted-foreground">Manage users, roles, and platform activity.</p>
+        <p className="text-sm text-muted-foreground">Manage users, roles, security, and platform activity.</p>
       </header>
       <StatsSection />
+      <AdminSecuritySection />
       <UsersSection />
     </div>
   )

@@ -1,0 +1,158 @@
+/* ============================================================================
+   LANDING PAGE — premium motion vocabulary (AUTH-3)
+   Keyframes for the pieces framer-motion doesn't own: marquee, radar sweep,
+   float, sheen sweep, typing caret, gauge fills. All disabled under
+   prefers-reduced-motion.
+   ========================================================================== */
+
+@keyframes lp-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes lp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes lp-float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes lp-sheen {
+  0% { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(240%) skewX(-18deg); }
+}
+
+@keyframes lp-radar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lp-caret {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+}
+
+@keyframes lp-ping-soft {
+  0% { transform: scale(1); opacity: 0.7; }
+  80%, 100% { transform: scale(2.1); opacity: 0; }
+}
+
+@keyframes lp-bar-grow {
+  from { transform: scaleY(0.15); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes lp-ticker {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+.lp-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: lp-marquee 36s linear infinite;
+}
+
+.lp-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+.lp-float { animation: lp-float 6s ease-in-out infinite; }
+.lp-float-soft { animation: lp-float-soft 5s ease-in-out infinite; }
+.lp-float-delay { animation: lp-float 7s ease-in-out 1.2s infinite; }
+
+.lp-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.lp-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(226, 232, 240, 0.07), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+
+.lp-sheen:hover::after {
+  animation: lp-sheen 0.9s ease;
+}
+
+.lp-radar-sweep {
+  background: conic-gradient(
+    from 0deg,
+    rgba(52, 211, 153, 0) 0deg,
+    rgba(52, 211, 153, 0) 300deg,
+    rgba(52, 211, 153, 0.35) 350deg,
+    rgba(52, 211, 153, 0.55) 360deg
+  );
+  animation: lp-radar 3.6s linear infinite;
+}
+
+.lp-caret {
+  display: inline-block;
+  width: 8px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: #34d399;
+  animation: lp-caret 1s steps(1) infinite;
+}
+
+.lp-ping-dot { position: relative; }
+.lp-ping-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: lp-ping-soft 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.lp-bar-grow { transform-origin: bottom; animation: lp-bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.lp-bar-grow:nth-child(2) { animation-delay: 0.08s; }
+.lp-bar-grow:nth-child(3) { animation-delay: 0.16s; }
+.lp-bar-grow:nth-child(4) { animation-delay: 0.24s; }
+.lp-bar-grow:nth-child(5) { animation-delay: 0.32s; }
+.lp-bar-grow:nth-child(6) { animation-delay: 0.4s; }
+.lp-bar-grow:nth-child(7) { animation-delay: 0.48s; }
+.lp-bar-grow:nth-child(8) { animation-delay: 0.56s; }
+
+.lp-ticker-a { animation: lp-ticker 2.4s ease-in-out infinite; }
+.lp-ticker-b { animation: lp-ticker 2.4s ease-in-out 0.8s infinite; }
+.lp-ticker-c { animation: lp-ticker 2.4s ease-in-out 1.6s infinite; }
+
+/* Fine engineering grid used behind hero / mockups */
+.lp-grid-bg {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+/* Custom scrollbar for landing tour overflow areas */
+.lp-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+.lp-scroll::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.5); border-radius: 999px; }
+.lp-scroll::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-marquee-track,
+  .lp-float,
+  .lp-float-soft,
+  .lp-float-delay,
+  .lp-radar-sweep,
+  .lp-caret,
+  .lp-ping-dot::before,
+  .lp-bar-grow,
+  .lp-ticker-a,
+  .lp-ticker-b,
+  .lp-ticker-c {
+    animation: none !important;
+  }
+  .lp-sheen:hover::after { animation: none !important; }
+}

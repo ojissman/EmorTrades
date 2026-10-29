@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { QueryProvider } from '@/components/query-provider'
 import { AppShell } from '@/components/app-shell'
 import { PublicExperience } from './public-experience'
+import { UrlParamToaster } from './auth-shared'
 import { useAuthStore, type AuthUser } from '@/store/auth-store'
 import { Logo } from '@/components/logo'
 
@@ -67,6 +68,10 @@ function GateContent() {
 export function AuthGate() {
   return (
     <QueryProvider>
+      {/* surfaces ?verified=1 / ?welcome=google / ?googleError=… outcomes
+          from the email-link and Google redirect flows as toasts, then cleans
+          the URL. Mounted outside GateContent so it works signed in or out. */}
+      <UrlParamToaster />
       <GateContent />
     </QueryProvider>
   )

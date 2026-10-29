@@ -5,8 +5,9 @@ import { requireAdmin } from '@/lib/server/auth'
 export const dynamic = 'force-dynamic'
 
 /**
- * PATCH /api/admin/users/[id] — ADMIN ONLY. Promote/demote and
- * suspend/reactivate accounts.
+ * PATCH /api/admin/users/[id] — ADMIN ONLY. Promote/demote, suspend/
+ * reactivate, and manually verify a user's email (useful when a link is
+ * stuck in someone's spam folder).
  *
  * Guards:
  *  · you cannot change your own role or status (no self-lockout)
@@ -26,8 +27,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const body = await req.json().catch(() => ({}))
     const role = typeof body.role === 'string' ? body.role : undefined
     const status = typeof body.status === 'string' ? body.status : undefined
+    const verifyEmail = body.action === 'verify-email'
 
-    if (!role && !status) {
+    if (!role && !status && !verifyEmail) {
       return NextResponse.json({ error: 'Bad request', message: 'Provide a role and/or status to update.' }, { status: 400 })
     }
     if (role && role !== 'ADMIN' && role !== 'USER') {
@@ -40,6 +42,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const target = await db.user.findUnique({ where: { id }, select: { id: true, role: true, status: true, name: true } })
     if (!target) {
       return NextResponse.json({ error: 'Not found', message: 'That user does not exist.' }, { status: 404 })
+    }
+
+    // Manual email verification — allowed on yourself too (harmless, useful).
+    if (verifyEmail) {
+      const user = await db.user.update({
+        where: { id },
+        data: { emailVerified: new Date() },
+        select: { id: true, name: true, email: true, role: true, status: true, emailVerified: true },
+      })
+      return NextResponse.json({ user, message: `Verified ${user.email}. They can sign in now.` })
     }
 
     // Self-protection: never modify your own role/status from the console.

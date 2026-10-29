@@ -162,7 +162,6 @@ type UserRow = {
   startingCapital: number | string
   riskPerTrade: number | string
 }
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -310,6 +309,45 @@ export function AccountTab() {
     }
   }
 
+  // ---- Sign-in Email (AUTH-3: password-confirmed email change) ----
+  const userEmail = userData?.email ?? ''
+  const [syncedEmail, setSyncedEmail] = useState<string | null>(null)
+  const [emailForm, setEmailForm] = useState({ email: '', currentPassword: '' })
+  const [savingEmail, setSavingEmail] = useState(false)
+  if (syncedEmail !== userEmail) {
+    setSyncedEmail(userEmail)
+    setEmailForm({ email: userEmail, currentPassword: '' })
+  }
+
+  async function saveEmail() {
+    if (savingEmail) return
+    setSavingEmail(true)
+    try {
+      const res = await fetch('/api/user', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailForm.email,
+          currentPassword: emailForm.currentPassword,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({ title: data?.error || 'Email change failed', variant: 'destructive' })
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      toast({
+        title: 'Sign-in email updated',
+        description: `Use ${emailForm.email} next time you sign in.`,
+      })
+    } catch {
+      toast({ title: 'Email change failed', variant: 'destructive' })
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
   // ---- Loading state ----
   if (settingsLoading || userLoading) {
     return (
@@ -347,6 +385,54 @@ export function AccountTab() {
           <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
             Displayed in the top-bar account menu
           </p>
+        </div>
+      </SectionCard>
+
+      {/* Sign-in Email */}
+      <SectionCard
+        title="Sign-in Email"
+        description="The address you use to sign in — changing it requires your current password"
+      >
+        <div className="max-w-md space-y-3">
+          <div>
+            <Label htmlFor="acc-email">Email</Label>
+            <Input
+              id="acc-email"
+              type="email"
+              autoComplete="email"
+              className="mt-1.5"
+              value={emailForm.email}
+              onChange={(e) => setEmailForm({ ...emailForm, email: e.target.value })}
+            />
+          </div>
+          {emailForm.email !== userEmail && (
+            <div>
+              <Label htmlFor="acc-email-password">Current password</Label>
+              <Input
+                id="acc-email-password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Confirm with your password"
+                className="mt-1.5"
+                value={emailForm.currentPassword}
+                onChange={(e) => setEmailForm({ ...emailForm, currentPassword: e.target.value })}
+              />
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Google-linked accounts without a password can change the email freely.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button
+              onClick={saveEmail}
+              disabled={savingEmail || !emailForm.email || emailForm.email === userEmail}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              data-testid="save-email"
+            >
+              {savingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Save email
+            </Button>
+          </div>
         </div>
       </SectionCard>
 

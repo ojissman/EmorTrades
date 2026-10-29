@@ -20,6 +20,8 @@ export async function GET() {
         email: true,
         role: true,
         status: true,
+        emailVerified: true,
+        googleId: true,
         createdAt: true,
         lastLoginAt: true,
         _count: {
@@ -36,6 +38,8 @@ export async function GET() {
         email: u.email,
         role: u.role,
         status: u.status,
+        emailVerified: u.emailVerified,
+        googleLinked: Boolean(u.googleId),
         createdAt: u.createdAt,
         lastLoginAt: u.lastLoginAt,
         tradeCount: u._count.trades,

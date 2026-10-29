@@ -26,8 +26,13 @@ model User {
   role            String         @default("USER") // USER | ADMIN
   status          String         @default("ACTIVE") // ACTIVE | SUSPENDED
   lastLoginAt     DateTime?
+  // ── Email verification + Google OAuth (AUTH-2) ────────────────────────
+  emailVerified   DateTime? // set ⇒ email verified; null ⇒ pending
+  googleId        String?  @unique // Google account id (gmail one-click sign-in)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  verificationTokens VerificationToken[]
+  authLogs        AuthLog[]
   accounts        Account[]
   trades          Trade[]
   executions      Execution[]
@@ -1000,4 +1005,48 @@ model SystemAccount {
   account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@id([systemId, accountId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH-2 — email verification, bot protection audit log, system flags
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One-time tokens for email verification links (24h expiry, single use). */
+model VerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  token      String    @unique
+  purpose    String    @default("EMAIL_VERIFY") // EMAIL_VERIFY (extensible)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
+/** Security audit log — every public auth attempt (register / login / google /
+ *  verify / resend) with its outcome. Powers the Admin Console ▸ Security tab
+ *  and provides the visible half of the bot-detection story. */
+model AuthLog {
+  id        String   @id @default(cuid())
+  kind      String   // REGISTER | LOGIN | GOOGLE | VERIFY | RESEND
+  email     String?
+  outcome   String   // OK | FAIL | BLOCKED
+  reason    String?  // human-readable detail (bot signal, bad password…)
+  ip        String?
+  userAgent String?
+  userId    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+/** Server-wide key/value flags editable from the Admin Console (e.g. toggle
+ *  email-verification enforcement) — survives restarts, no redeploys. */
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

@@ -55,9 +55,23 @@ export async function PATCH(req: NextRequest) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return NextResponse.json({ error: 'Enter a valid email address' }, { status: 400 })
       }
-      const clash = await db.user.findFirst({ where: { email, id: { not: user.id } } })
-      if (clash) {
-        return NextResponse.json({ error: 'That email is already in use' }, { status: 409 })
+      if (email !== user.email) {
+        // AUTH-2: changing the sign-in email re-proves identity with the
+        // current password (Google-only accounts are exempt — no password).
+        if (user.passwordHash) {
+          const { verifyPassword } = await import('@/lib/server/auth')
+          const currentOk = verifyPassword(String(body.currentPassword ?? ''), user.passwordHash)
+          if (!currentOk) {
+            return NextResponse.json({ error: 'Enter your current password to change the email' }, { status: 403 })
+          }
+        }
+        const clash = await db.user.findFirst({ where: { email, id: { not: user.id } } })
+        if (clash) {
+          return NextResponse.json({ error: 'That email is already in use' }, { status: 409 })
+        }
+        // Already-verified owner moves their verified status along (password
+        // proof above); a pending-verification account keeps pending status.
+        if (user.emailVerified) data.emailVerified = new Date()
       }
       data.email = email
     }
