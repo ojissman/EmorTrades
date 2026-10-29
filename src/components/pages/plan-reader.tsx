@@ -900,7 +900,7 @@ function QAUnit({ unit, color }: { unit: QAUnit; color: string }) {
             {unit.key}
           </span>
         )}
-        <span className="text-[11.5px] italic leading-snug text-muted-foreground/80">{unit.label}</span>
+        <span className="text-[11.5px] font-bold leading-snug text-muted-foreground/80">{unit.label}</span>
       </div>
       {/* the answer — the trader's voice: serif prose floating on the page,
           hung on a hairline rule in the section's hue (no box: the
