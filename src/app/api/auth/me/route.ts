@@ -21,8 +21,14 @@ export async function GET() {
       defaultCurrency: true,
       startingCapital: true,
       riskPerTrade: true,
+      googleId: true,
+      passwordHash: true,
     },
   })
   if (!auth.ok) return auth.response
-  return NextResponse.json({ user: auth.user })
+  // Derived booleans only — the raw googleId / password hash never leave the server.
+  const { googleId, passwordHash, ...user } = auth.user
+  return NextResponse.json({
+    user: { ...user, googleLinked: Boolean(googleId), hasPassword: Boolean(passwordHash) },
+  })
 }

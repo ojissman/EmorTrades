@@ -19,6 +19,8 @@ const USER_SELECT = {
   riskPerTrade: true,
   timezone: true,
   defaultCurrency: true,
+  googleId: true,
+  passwordHash: true,
 } as const
 
 export async function GET() {
@@ -27,7 +29,9 @@ export async function GET() {
     if (!auth.ok) return auth.response
     const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
-    return NextResponse.json({ user })
+    // Derived booleans only — the raw googleId / password hash never leave the server.
+    const { googleId, passwordHash, ...safe } = user
+    return NextResponse.json({ user: { ...safe, googleLinked: Boolean(googleId), hasPassword: Boolean(passwordHash) } })
   } catch (e: any) {
     console.error('GET /api/user error:', e?.message, e?.code)
     return NextResponse.json({ error: 'Failed', message: e?.message }, { status: 500 })

@@ -55,11 +55,14 @@ export function GoogleIcon({ className }: { className?: string }) {
 export function GoogleButton({
   label = 'Continue with Google',
   onNavigate,
+  intent,
   className,
 }: {
   label?: string
   /** Called right before navigating away (forms use it to show a pending state). */
   onNavigate?: () => void
+  /** 'link' → Settings-initiated explicit link flow (session-bound intent cookie). */
+  intent?: 'link'
   className?: string
 }) {
   const { data: config, isLoading } = useBotConfig()
@@ -73,7 +76,7 @@ export function GoogleButton({
     }
     setRedirecting(true)
     onNavigate?.()
-    window.location.href = '/api/auth/google/start'
+    window.location.href = intent === 'link' ? '/api/auth/google/start?intent=link' : '/api/auth/google/start'
   }
 
   return (
@@ -296,14 +299,18 @@ export function AuthShell({
 
 /**
  * URL-param toaster — surfaces the outcome of email-link verification and
- * Google sign-in redirects as toasts, then cleans the URL.
+ * Google sign-in / link redirects as toasts, then cleans the URL.
+ * (`?link=google` is NOT handled here — it routes to the GoogleLinkConfirm
+ * screen, which owns its URL cleanup.)
  */
 export function UrlParamToaster() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const verified = params.get('verified')
     const welcome = params.get('welcome')
+    const linked = params.get('linked')
     const googleError = params.get('googleError')
+    const linkError = params.get('linkError')
 
     if (verified === '1') toast.success('Email verified — welcome to EmorTrades!')
     else if (verified === '0')
@@ -311,6 +318,10 @@ export function UrlParamToaster() {
         description: 'Sign in with your email and password to get a fresh link.',
       })
     else if (welcome === 'google') toast.success('Signed in with Google — welcome aboard!')
+    else if (linked === 'google')
+      toast.success('Google linked', {
+        description: 'You can now sign in with that Google account.',
+      })
 
     if (googleError) {
       const messages: Record<string, string> = {
@@ -324,7 +335,19 @@ export function UrlParamToaster() {
       toast.error(messages[googleError] ?? 'Google sign-in failed. Please try again.')
     }
 
-    if (verified || welcome || googleError) {
+    if (linkError) {
+      const messages: Record<string, string> = {
+        cancelled: 'Google linking was cancelled — nothing changed.',
+        state: 'Google linking failed a security check — please try again.',
+        taken: 'That Google account is already linked to another EmorTrades account.',
+        suspended: 'Your account has been suspended. Contact an administrator.',
+        'not-configured': 'Google sign-in is not configured on this server yet.',
+        failed: 'Google linking failed. Please try again.',
+      }
+      toast.error(messages[linkError] ?? 'Google linking failed. Please try again.')
+    }
+
+    if (verified || welcome || linked || googleError || linkError) {
       // Clean the URL without reloading
       window.history.replaceState({}, '', window.location.pathname + window.location.hash)
     }

@@ -27,11 +27,22 @@
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Loader2, Save } from 'lucide-react'
+import { Check, Loader2, Save, ShieldCheck, Unlink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Select,
   SelectContent,
@@ -42,6 +53,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SectionCard } from '@/components/settings/section-card'
+import { GoogleButton } from '@/components/auth/auth-shared'
 import { useToast } from '@/hooks/use-toast'
 import {
   settingsSlice,
@@ -161,6 +173,8 @@ type UserRow = {
   timezone: string
   startingCapital: number | string
   riskPerTrade: number | string
+  googleLinked: boolean
+  hasPassword: boolean
 }
 // ---------------------------------------------------------------------------
 // Component
@@ -348,6 +362,32 @@ export function AccountTab() {
     }
   }
 
+  // ---- Google Sign-In (AUTH-6: explicit link / unlink) ----
+  const [unlinking, setUnlinking] = useState(false)
+  const [unlinkOpen, setUnlinkOpen] = useState(false)
+  const googleLinked = userData?.googleLinked ?? false
+  const hasPassword = userData?.hasPassword ?? true
+
+  async function unlinkGoogle() {
+    if (unlinking) return
+    setUnlinking(true)
+    try {
+      const res = await fetch('/api/auth/google/unlink', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast({ title: data?.message || 'Could not unlink Google', variant: 'destructive' })
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      toast({ title: 'Google unlinked', description: data?.message || 'Password sign-in continues to work.' })
+    } catch {
+      toast({ title: 'Could not unlink Google', variant: 'destructive' })
+    } finally {
+      setUnlinking(false)
+      setUnlinkOpen(false)
+    }
+  }
+
   // ---- Loading state ----
   if (settingsLoading || userLoading) {
     return (
@@ -433,6 +473,78 @@ export function AccountTab() {
               Save email
             </Button>
           </div>
+        </div>
+      </SectionCard>
+
+      {/* Google Sign-In (AUTH-6: explicit link / unlink) */}
+      <SectionCard
+        title="Google Sign-In"
+        description="Use the Continue with Google button on the sign-in page. Linking never merges accounts — it only adds a second way in."
+      >
+        <div className="max-w-md space-y-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-inset)] p-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white">
+                <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" aria-hidden="true">
+                  <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z" />
+                  <path fill="#FBBC05" d="M5.27 14.29A7.2 7.2 0 0 1 4.89 12c0-.8.14-1.57.38-2.29V6.62H1.29a12 12 0 0 0 0 10.76l3.98-3.09z" />
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42A11.97 11.97 0 0 0 12 0 11.99 11.99 0 0 0 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z" />
+                </svg>
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Google account
+                </p>
+                <p className="truncate text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                  {googleLinked
+                    ? `Linked — one-click sign-in enabled${userData?.email ? ` (${userData.email})` : ''}`
+                    : 'Not linked — sign in with email and password only'}
+                </p>
+              </div>
+            </div>
+            {googleLinked ? (
+              <Badge className="shrink-0 border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
+                <ShieldCheck className="h-3 w-3" />
+                Linked
+              </Badge>
+            ) : (
+              <Badge className="shrink-0 border-[var(--border-strong)] bg-transparent text-[var(--text-secondary)]">
+                Off
+              </Badge>
+            )}
+          </div>
+
+          {googleLinked ? (
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                onClick={() => setUnlinkOpen(true)}
+                disabled={unlinking}
+                className="text-red-400 border-red-900/50 hover:bg-red-950/30 hover:text-red-300"
+                data-testid="google-unlink-button"
+              >
+                {unlinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
+                Unlink Google
+              </Button>
+              {!hasPassword && (
+                <p className="text-xs text-amber-400">
+                  This account signs in with Google only — set a password below before unlinking.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <GoogleButton
+                label="Link Google account"
+                intent="link"
+                className="!bg-[var(--bg-inset)] !border-[var(--border-strong)] !text-[var(--text-primary)] hover:!bg-[var(--bg-elevated)]"
+              />
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                You&apos;ll confirm with Google, then land right back here linked.
+              </p>
+            </div>
+          )}
         </div>
       </SectionCard>
 
@@ -553,6 +665,33 @@ export function AccountTab() {
           </Button>
         </div>
       </SectionCard>
+
+      {/* Unlink Google — explicit confirmation (destructive-ish action) */}
+      <AlertDialog open={unlinkOpen} onOpenChange={setUnlinkOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink Google sign-in?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hasPassword
+                ? 'The Continue with Google button will no longer sign you in. Your email and password keep working, and nothing in your journal changes. You can re-link anytime.'
+                : 'This account signs in with Google only — unlinking now would lock you out. Set a password first (Change Password section), then come back.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Google linked</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault() // stay open until the request settles
+                unlinkGoogle()
+              }}
+              disabled={unlinking || !hasPassword}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {unlinking ? 'Unlinking…' : 'Yes, unlink'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
