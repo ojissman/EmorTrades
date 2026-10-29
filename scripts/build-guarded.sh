@@ -18,11 +18,13 @@
 # until :3000 answers 200 — `bun run build` now never comes back with the
 # app down.
 #
+# v3 (SWEEP-1): the keepalive watchdog was removed at the owner's request.
+# Restore now relaunches `bun run dev` directly (no watchdog anywhere).
+#
 # Sequence:
-#   1. pause the dev-keepalive watchdog (it would relaunch dev mid-build)
-#   2. stop the dev server — the compiler gets the whole cgroup to itself
-#   3. next build (unchanged semantics), then assemble the standalone bundle
-#   4. RESTORE: relaunch watchdog + dev, wait for :3000 to answer 200, exit.
+#   1. stop the dev server — the compiler gets the whole cgroup to itself
+#   2. next build (unchanged semantics), then assemble the standalone bundle
+#   3. RESTORE: relaunch dev, wait for :3000 to answer 200, exit.
 #      The EXIT trap runs the same idempotent restore on failure paths.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -31,8 +33,6 @@ log() { echo "[build-guarded $(date '+%H:%M:%S')] $*"; }
 
 # Idempotent: safe to call twice (explicit success path + EXIT trap).
 restore_services() {
-  pgrep -f dev-keepalive.sh >/dev/null 2>&1 || \
-    ( setsid bash scripts/dev-keepalive.sh >>/tmp/keepalive.log 2>&1 </dev/null & )
   if ! curl -s --max-time 2 -o /dev/null http://localhost:3000/ 2>/dev/null; then
     pgrep -f "next dev -p 3000" >/dev/null 2>&1 || \
       ( setsid bash -c 'exec bun run dev' >>/tmp/next-dev.out 2>&1 </dev/null & )
@@ -40,18 +40,7 @@ restore_services() {
 }
 trap 'restore_services' EXIT
 
-# 1 · pause the watchdog (a mid-build dev relaunch is the memory contention
-#     this script exists to prevent)
-pkill -f dev-keepalive.sh 2>/dev/null || true
-sleep 1
-pkill -f dev-keepalive.sh 2>/dev/null || true
-if pgrep -f dev-keepalive.sh >/dev/null 2>&1; then
-  log "WARNING: watchdog still alive — continuing, it may race the build"
-else
-  log "watchdog paused"
-fi
-
-# 2 · stop the dev server and wait for port 3000 to go dark
+# 1 · stop the dev server and wait for port 3000 to go dark
 pkill -f "next dev -p 3000" 2>/dev/null || true
 pkill -f "bun run dev" 2>/dev/null || true
 for _ in $(seq 1 15); do
@@ -64,7 +53,7 @@ for _ in $(seq 1 10); do
 done
 log "dev stopped — free: $(free -m | awk '/^Mem:/{print $4"MB used:"$3"MB"}')"
 
-# 3 · build with the whole cgroup available
+# 2 · build with the whole cgroup available
 STATUS=0
 ./node_modules/.bin/next build || STATUS=$?
 if [ "$STATUS" -ne 0 ]; then
@@ -72,7 +61,7 @@ if [ "$STATUS" -ne 0 ]; then
   exit "$STATUS"
 fi
 
-# 4 · assemble the standalone bundle (same steps the original script had)
+# 3 · assemble the standalone bundle (same steps the original script had)
 cp -r .next/static .next/standalone/.next/ || STATUS=$?
 cp -r public .next/standalone/ || STATUS=$?
 if [ "$STATUS" -ne 0 ]; then
@@ -81,7 +70,7 @@ if [ "$STATUS" -ne 0 ]; then
 fi
 log "standalone assembled"
 
-# 5 · bring the app back BEFORE this script returns — the platform may
+# 4 · bring the app back BEFORE this script returns — the platform may
 #     health-check the preview the moment `bun run build` exits.
 restore_services
 for _ in $(seq 1 30); do
