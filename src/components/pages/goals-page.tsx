@@ -370,6 +370,9 @@ export function GoalsPage() {
   // TP-7-h — 'annual' joins the periods (schema comment: daily, weekly,
   // monthly, annual).
   const [periodFilter, setPeriodFilter] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'annual'>('all')
+  // TP2-P4 — plan filter: 'all' | a plan id | '__unlinked__' (legacy goals
+  // created before plan-linking). Doubles as the per-plan scoreboard.
+  const [planFilter, setPlanFilter] = useState<string>('all')
   const { data: goalsData, isLoading } = useQuery({
     queryKey: ['goals'],
     queryFn: async () => {
@@ -457,6 +460,27 @@ export function GoalsPage() {
     return map
   }, [tradesData])
 
+  // TP2-P4 — plan-scoped day maps. A plan-linked goal reads only its plan's
+  // trades (Trade.tradingPlanId); an unlinked goal keeps the account-wide
+  // view. Derived lazily per plan id and cached inside the memo.
+  const planDayMaps = useMemo(() => {
+    const cache = new Map<string, Map<string, any[]>>()
+    const forPlan = (planId: string | null): Map<string, any[]> => {
+      const key = planId || ''
+      let m = cache.get(key)
+      if (!m) {
+        m = new Map()
+        for (const [day, trades] of dayMap) {
+          const scoped = planId ? trades.filter((t) => t.tradingPlanId === planId) : trades
+          if (scoped.length > 0) m.set(day, scoped)
+        }
+        cache.set(key, m)
+      }
+      return m
+    }
+    return { forPlan }
+  }, [dayMap])
+
   const goals = goalsData?.goals || []
 
   // TP2 Phase 3 — goals are EDITED IN THE PLAN. "Edit goals" lands on the
@@ -476,25 +500,27 @@ export function GoalsPage() {
   // not read as "within limit" on a vacuous no-trade day.
   const getPeriod = (goal: any) => {
     const now = new Date()
+    // TP2-P4 — the bucket set itself is plan-scoped for linked goals.
+    const dm = planDayMaps.forPlan(goal.planId || null)
     let trades: any[] = []
     if (goal.type === 'daily') {
-      trades = dayMap.get(`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`) || []
+      trades = dm.get(`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`) || []
     } else if (goal.type === 'weekly') {
       const ws = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
       for (let i = 0; i < 7; i++) {
         const d = new Date(ws)
         d.setDate(d.getDate() + i)
-        const arr = dayMap.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
+        const arr = dm.get(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
         if (arr) trades.push(...arr)
       }
     } else if (goal.type === 'annual') {
       // TP-7-h — year-to-date window, mirroring the monthly branch.
-      for (const [key, arr] of dayMap) {
+      for (const [key, arr] of dm) {
         const [y] = key.split('-').map(Number)
         if (y === now.getFullYear()) trades.push(...arr)
       }
     } else {
-      for (const [key, arr] of dayMap) {
+      for (const [key, arr] of dm) {
         const [y, m] = key.split('-').map(Number)
         if (y === now.getFullYear() && m === now.getMonth()) trades.push(...arr)
       }
@@ -502,29 +528,64 @@ export function GoalsPage() {
     return { value: periodValue(trades, goal.metric), traded: trades.length > 0 }
   }
 
+  // TP2-P4 — one goal, one verdict over its OWN window AND plan scope.
+  // Shared by the period scoreboard, the plan chips and their tooltips so
+  // every count on the page agrees with the cards.
+  const evalGoal = (g: any) => {
+    if (SERVER_METRICS.includes(g.metric)) {
+      // plan-aware metrics read the server progress payload (value +
+      // hasData); a no-data window is never a vacuous miss.
+      const sp = g.progress
+      const value = typeof sp?.value === 'number' ? sp.value : 0
+      const hasData = !!sp?.hasData
+      const isCap = g.metric === 'rule_breaks_max'
+      return { value, hasData, hit: isCap ? hasData && value <= g.target : hasData && value >= g.target }
+    }
+    const { value, traded } = getPeriod(g)
+    const isLossLimit = g.metric === 'pnl' && g.target < 0
+    return { value, hasData: traded, hit: isLossLimit ? traded && value >= g.target : value >= g.target }
+  }
+
+  // TP2-P4 — plan grouping keys + filter helpers.
+  const UNLINKED = '__unlinked__'
+  const goalPlanKey = (g: any) => (g.planId ? g.planId : UNLINKED)
+  const matchesPlanFilter = (g: any) => planFilter === 'all' || goalPlanKey(g) === planFilter
+  const planStats = (key: string) => {
+    const gs = goals.filter((g: any) => g.isActive && goalPlanKey(g) === key)
+    const rows = gs.map(evalGoal)
+    return {
+      total: gs.length,
+      hits: rows.filter((r) => r.hit).length,
+      traded: rows.some((r) => r.hasData),
+      goals: gs,
+    }
+  }
+
+  // TP2-P4 — with a plan filter active, "Edit goals" edits THAT plan.
+  const editTarget =
+    planFilter !== 'all' && planFilter !== UNLINKED
+      ? `/trading-plans/plan-editor?plan=${planFilter}&mode=edit`
+      : editGoalsTarget
+
   // Task 111 — per-period scoreboard over ACTIVE goals only (paused goals
   // are excluded from the counts; they stay visible but dimmed below).
-  // Every goal of a period shares the same trade bucket, so one getPeriod
-  // call per goal both counts hits and reveals whether the period traded.
+  // TP2-P4 — every count respects the plan filter, so the pills become the
+  // selected plan's own scoreboard.
   const scoreboard = (() => {
-    const active = goals.filter((g: any) => g.isActive)
+    const inScope = goals.filter((g: any) => g.isActive && matchesPlanFilter(g))
     const build = (type: 'daily' | 'weekly' | 'monthly' | 'annual') => {
-      const gs = active.filter((g: any) => g.type === type)
+      const gs = inScope.filter((g: any) => g.type === type)
       const rows = gs.map((g: any) => {
-        // TP-7-h — plan-aware metrics read the server progress payload
-        // (value + hasData); a no-data window is never a vacuous miss.
-        if (SERVER_METRICS.includes(g.metric)) {
-          const sp = g.progress
-          const value = typeof sp?.value === 'number' ? sp.value : 0
-          const hasData = !!sp?.hasData
-          const isCap = g.metric === 'rule_breaks_max'
-          const hit = isCap ? hasData && value <= g.target : hasData && value >= g.target
-          return { label: METRIC_LABELS[g.metric], value, target: g.target as number, metric: g.metric as string, hit, hasData }
+        // evalGoal carries the same per-goal verdict as the cards.
+        const r = evalGoal(g)
+        return {
+          label: METRIC_LABELS[g.metric],
+          value: r.value,
+          target: g.target as number,
+          metric: g.metric as string,
+          hit: r.hit,
+          hasData: r.hasData,
         }
-        const { value, traded } = getPeriod(g)
-        const isLossLimit = g.metric === 'pnl' && g.target < 0
-        const hit = isLossLimit ? traded && value >= g.target : value >= g.target
-        return { label: METRIC_LABELS[g.metric], value, target: g.target as number, metric: g.metric as string, hit, hasData: traded }
       })
       return {
         total: gs.length,
@@ -538,10 +599,29 @@ export function GoalsPage() {
       weekly: build('weekly'),
       monthly: build('monthly'),
       annual: build('annual'),
-      activeCount: active.length,
-      pausedCount: goals.length - active.length,
+      activeCount: inScope.length,
+      pausedCount: goals.filter((g: any) => !g.isActive && matchesPlanFilter(g)).length,
     }
   })()
+
+  // TP2-P4 — plan chips: every non-archived plan (even one without goals —
+  // clicking it explains WHY it has none), plus "Unlinked" for legacy goals.
+  const planChips = useMemo(() => {
+    const chips: { key: string; label: string; color?: string; draft?: boolean }[] = plans.map((p: any) => ({
+      key: p.id as string,
+      label: p.name as string,
+      color: p.color as string,
+      draft: p.status === 'draft',
+    }))
+    if (goals.some((g: any) => !g.planId)) chips.push({ key: UNLINKED, label: 'Unlinked' })
+    return chips
+  }, [plans, goals])
+  const planFilterLabel =
+    planFilter === 'all'
+      ? 'all plans'
+      : planFilter === UNLINKED
+        ? 'unlinked goals'
+        : plans.find((p: any) => p.id === planFilter)?.name || 'this plan'
 
   // Task 118 — section boundary lookup for the reorder chevrons.
   const sectionRank = (goal: any) => {
@@ -565,17 +645,63 @@ export function GoalsPage() {
     annual: goals.filter((g: any) => g.type === 'annual'),
   }
 
+  // TP2-P4 — plan-scoped view of the page + the plan groups inside a section.
+  const filteredGoals = goals.filter(matchesPlanFilter)
+  const planGroupsOf = (gs: any[]) => {
+    // ordered: the hub's plan order, then plans missing from the hub list
+    // (archived — their name/color still arrive via goal.plan), unlinked last.
+    const keys: string[] = []
+    for (const p of plans) if (gs.some((g: any) => g.planId === p.id)) keys.push(p.id)
+    for (const g of gs)
+      if (g.planId && !plans.some((p: any) => p.id === g.planId) && !keys.includes(g.planId)) keys.push(g.planId)
+    if (gs.some((g: any) => !g.planId)) keys.push(UNLINKED)
+    return keys.map((key) => {
+      const list = gs.filter((g: any) => goalPlanKey(g) === key)
+      const meta =
+        key === UNLINKED
+          ? null
+          : plans.find((p: any) => p.id === key) || {
+              name: list[0]?.plan?.name || 'Plan',
+              color: list[0]?.plan?.color as string | undefined,
+            }
+      return {
+        key,
+        name: meta ? (meta.name as string) : 'Unlinked',
+        color: meta?.color as string | undefined,
+        unlinked: key === UNLINKED,
+        goals: list,
+      }
+    })
+  }
+
+  // TP2-P4 — flat render list for one section: under 'all plans', a section
+  // holding 2+ plan groups gets full-width group header rows interleaved
+  // between the groups' cards (single grid, headers span every column).
+  const sectionFlat = (type: 'daily' | 'weekly' | 'monthly' | 'annual') => {
+    const sectionGoals = grouped[type].filter(matchesPlanFilter)
+    if (planFilter !== 'all') return sectionGoals
+    const groups = planGroupsOf(sectionGoals)
+    if (groups.length < 2) return sectionGoals
+    const flat: any[] = []
+    for (const grp of groups) {
+      flat.push({ __group: grp })
+      flat.push(...grp.goals)
+    }
+    return flat
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-lg font-semibold">Trading Goals</h2>
           <p className="text-xs text-muted-foreground">
-            Read-only progress — goals are edited in the trading plan they belong to
+            Read-only progress — goals are edited in the trading plan they belong to. Linked goals
+            track only their plan&apos;s trades.
           </p>
         </div>
         <Button
-          onClick={() => navigate(editGoalsTarget)}
+          onClick={() => navigate(editTarget)}
           className="bg-emerald-600 hover:bg-emerald-700 shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_4px_16px_-6px_rgba(16,185,129,0.5)]"
           data-testid="goals-edit-link"
         >
@@ -590,7 +716,7 @@ export function GoalsPage() {
           <p className="text-sm text-muted-foreground mb-3">
             No goals in force — the goal ladder (section 3) of your trading plan projects them on publish.
           </p>
-          <Button onClick={() => navigate(editGoalsTarget)} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={() => navigate(editTarget)} className="bg-emerald-600 hover:bg-emerald-700">
             <Pencil className="h-4 w-4 mr-1.5" />
             Edit goals in the plan
           </Button>
@@ -618,7 +744,9 @@ export function GoalsPage() {
                         )
                         .join('\n')
                     : seg === 'all'
-                      ? `${scoreboard.activeCount} active goals · ${scoreboard.pausedCount} paused`
+                      ? `${scoreboard.activeCount} active goals · ${scoreboard.pausedCount} paused${
+                          planFilter !== 'all' ? ` · ${planFilterLabel}` : ''
+                        }`
                       : 'No goals for this period'
                 return (
                   <button
@@ -659,16 +787,158 @@ export function GoalsPage() {
             )}
           </div>
 
+          {/* TP2-P4 — plan chips: per-plan scoreboard + filter. Tone mirrors the
+              period pills (emerald all-hit, amber partial, red genuine miss,
+              muted quiet / no goals yet). Plans without goals stay clickable —
+              they explain themselves via the empty state. */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">Plan</span>
+            <div className="inline-flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                aria-pressed={planFilter === 'all'}
+                onClick={() => setPlanFilter('all')}
+                title="Every goal in force, grouped by plan below"
+                data-testid="plan-chip-all"
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
+                  planFilter === 'all'
+                    ? 'border-border bg-white/[0.07] text-foreground shadow-sm'
+                    : 'border-border/70 bg-muted/30 text-foreground/75 hover:bg-white/[0.05] hover:text-foreground',
+                )}
+              >
+                All plans
+                <span className="ml-1.5 text-[10px] font-semibold tnum text-muted-foreground">{scoreboard.activeCount}</span>
+              </button>
+              {planChips.map((chip) => {
+                const s = planStats(chip.key)
+                const tone = toneOf({ hits: s.hits, total: s.total, traded: s.traded })
+                const st = TONE_STYLES[tone]
+                const tip =
+                  s.total > 0
+                    ? `${chip.label}${chip.draft ? ' (draft)' : ''}\n${s.goals
+                        .map((g: any) => {
+                          const r = evalGoal(g)
+                          return `${METRIC_LABELS[g.metric]} (${g.type}): ${
+                            r.hasData ? METRIC_FORMATS[g.metric](r.value) : 'no data'
+                          } vs ${METRIC_FORMATS[g.metric](g.target)} ${r.hit ? '✓' : '✗'}`
+                        })
+                        .join('\n')}`
+                    : chip.key === UNLINKED
+                      ? 'Goals created before plan-linking — they track every trade in the account'
+                      : `${chip.label} (${plans.find((p: any) => p.id === chip.key)?.status ?? 'plan'}) has no goals yet\nThe goal ladder (section 3) projects them on publish.`
+                return (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    aria-pressed={planFilter === chip.key}
+                    title={tip}
+                    onClick={() => setPlanFilter(planFilter === chip.key ? 'all' : chip.key)}
+                    data-testid={`plan-chip-${chip.key}`}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
+                      planFilter === chip.key
+                        ? 'border-border bg-white/[0.07] text-foreground shadow-sm'
+                        : cn(
+                            'bg-muted/30 text-foreground/75 hover:bg-white/[0.05] hover:text-foreground',
+                            // VLM review — the orphan cohort reads as an outlier
+                            // at a glance, not just via its dashed dot.
+                            chip.key === UNLINKED ? 'border-dashed border-border/70' : 'border-border/70',
+                          ),
+                    )}
+                  >
+                    {chip.key === UNLINKED ? (
+                      <span className="h-2 w-2 rounded-full border border-dashed border-muted-foreground/60" aria-hidden />
+                    ) : (
+                      <span className="h-2 w-2 rounded-full" style={{ background: chip.color }} aria-hidden />
+                    )}
+                    <span className="max-w-[140px] truncate">{chip.label}</span>
+                    {chip.draft && <span className="text-[9px] uppercase tracking-wide text-muted-foreground/70">draft</span>}
+                    {s.total > 0 && (
+                      <span className={cn('rounded px-1 py-px text-[10px] font-semibold tnum', st.text, st.bg)}>
+                        {s.hits}/{s.total}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            {planFilter !== 'all' && (
+              <span className="text-[10px] text-muted-foreground">showing {planFilterLabel} only</span>
+            )}
+          </div>
+
           <div className="space-y-6">
+            {/* TP2-P4 — a plan filter with zero goals shows ONE explanatory
+                card instead of four empty section headers. */}
+            {planFilter !== 'all' && filteredGoals.length === 0 && (
+              planFilter === UNLINKED ? (
+                <p className="text-xs text-muted-foreground">
+                  No unlinked goals — every goal in force is projected from a trading plan.
+                </p>
+              ) : (
+                <Card className="p-12 text-center" data-testid="plan-empty-state">
+                  <Flag className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {plans.find((p: any) => p.id === planFilter)?.status === 'draft'
+                      ? 'This plan has not been published yet — the goal ladder (section 3) projects its goals on publish.'
+                      : 'The goal ladder (section 3) of this plan is empty — add goals and publish to project them.'}
+                  </p>
+                  <Button
+                    onClick={() => navigate(`/trading-plans/plan-editor?plan=${planFilter}&mode=edit`)}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    <Pencil className="h-4 w-4 mr-1.5" />
+                    Edit this plan&apos;s goals
+                  </Button>
+                </Card>
+              )
+            )}
             {(['daily', 'weekly', 'monthly', 'annual'] as const).map((type) => {
               if (periodFilter !== 'all' && periodFilter !== type) return null
+              // TP2-P4 — plan-scoped section set; empty sections hide under a
+              // plan filter (the plan's own empty state above covers zero).
+              const sectionGoals = grouped[type].filter(matchesPlanFilter)
+              if (planFilter !== 'all' && sectionGoals.length === 0) return null
               return (
               <div key={type}>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 {type} Goals
               </h3>
+              {/* TP2-P4 — an empty section says so instead of a bare header. */}
+              {sectionGoals.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No {type} goals in force yet — the goal ladder (section 3) of a trading plan projects them on publish.
+                </p>
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {grouped[type].map((goal: any) => {
+                {sectionFlat(type).map((goal: any) => {
+                  // TP2-P4 — full-width plan group header interleaved in the
+                  // grid ('all plans' view, section holds 2+ plan groups).
+                  if (goal.__group) {
+                    const grp = goal.__group
+                    return (
+                      <div
+                        key={`grp-${grp.key}`}
+                        className="col-span-full flex items-center justify-between border-b border-border/50 pb-1.5"
+                        data-testid={`goal-group-${grp.key}`}
+                      >
+                        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/70">
+                          {grp.unlinked ? (
+                            <span className="h-1.5 w-1.5 rounded-full border border-dashed border-muted-foreground/60" aria-hidden />
+                          ) : (
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: grp.color }} aria-hidden />
+                          )}
+                          {grp.name}
+                        </span>
+                        <span className="text-[10px] tnum text-muted-foreground">
+                          {grp.goals.length} {grp.goals.length === 1 ? 'goal' : 'goals'}
+                        </span>
+                      </div>
+                    )
+                  }
                   // TP-7-h — plan-aware metrics take their current value from
                   // the server progress payload (the page cannot see
                   // adherence/day-plan/rule-check data); the five legacy
@@ -720,15 +990,16 @@ export function GoalsPage() {
                   // TP-7-h — deadline countdown for the chip below.
                   const dlDays = goal.deadline ? deadlineDaysLeft(goal.deadline) : null
 
+                  // TP2-P4 — the history strip reads the plan-scoped map too.
                   const dots = isServer
                     ? sp?.history || []
                     : type === 'daily'
-                      ? buildDailyDots(dayMap, goal.metric, target)
+                      ? buildDailyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
                       : type === 'weekly'
-                        ? buildWeeklyDots(dayMap, goal.metric, target)
+                        ? buildWeeklyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
                         : type === 'monthly'
-                          ? buildMonthlyDots(dayMap, goal.metric, target)
-                          : buildAnnualDots(dayMap, goal.metric, target)
+                          ? buildMonthlyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
+                          : buildAnnualDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
 
                   return (
                     <Card
@@ -868,24 +1139,38 @@ export function GoalsPage() {
                         onClick={() => {
                           const now = new Date()
                           const iso = (d: Date) => d.toISOString().slice(0, 10)
+                          // TP2-P4 — a plan-linked goal drills into ITS plan's trades.
+                          const scope = goal.planId ? { tradingPlanId: goal.planId } : {}
                           if (goal.type === 'daily') {
                             const k = iso(now)
-                            drillToTrades({ customStartDate: `${k}T00:00:00.000Z`, customEndDate: `${k}T23:59:59.999Z` })
+                            drillToTrades({ customStartDate: `${k}T00:00:00.000Z`, customEndDate: `${k}T23:59:59.999Z`, ...scope })
                           } else if (goal.type === 'weekly') {
                             const ws = new Date(now)
                             ws.setDate(ws.getDate() - ws.getDay())
                             const we = new Date(ws)
                             we.setDate(we.getDate() + 6)
-                            drillToTrades({ customStartDate: `${iso(ws)}T00:00:00.000Z`, customEndDate: `${iso(we)}T23:59:59.999Z` })
+                            drillToTrades({
+                              customStartDate: `${iso(ws)}T00:00:00.000Z`,
+                              customEndDate: `${iso(we)}T23:59:59.999Z`,
+                              ...scope,
+                            })
                           } else if (goal.type === 'annual') {
                             // TP-7-h — year-to-date drill.
                             const y = now.getFullYear()
-                            drillToTrades({ customStartDate: `${y}-01-01T00:00:00.000Z`, customEndDate: `${y}-12-31T23:59:59.999Z` })
+                            drillToTrades({
+                              customStartDate: `${y}-01-01T00:00:00.000Z`,
+                              customEndDate: `${y}-12-31T23:59:59.999Z`,
+                              ...scope,
+                            })
                           } else {
-                            drillToTrades(monthPatch(now.toISOString().slice(0, 7)))
+                            drillToTrades({ ...monthPatch(now.toISOString().slice(0, 7)), ...scope })
                           }
                         }}
-                        title="Open the trades table scoped to this goal's period"
+                        title={
+                          goal.planId
+                            ? "Open this plan's trades scoped to the goal's period"
+                            : "Open the trades table scoped to this goal's period"
+                        }
                         className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
                       >
                         View this period&apos;s trades <ArrowUpRight className="h-3 w-3" />
@@ -940,13 +1225,13 @@ export function GoalsPage() {
                           metric={goal.metric}
                           target={target}
                           stripLabel={
-                            type === 'daily'
+                            (type === 'daily'
                               ? 'This month'
                               : type === 'weekly'
                                 ? 'Last 8 weeks'
                                 : type === 'monthly'
                                   ? 'Last 6 months'
-                                  : 'Last 6 years'
+                                  : 'Last 6 years') + (goal.planId ? ' · plan trades' : '')
                           }
                           countNoun={type === 'daily' ? 'days' : type === 'weekly' ? 'wks' : type === 'monthly' ? 'mo' : 'yrs'}
                         />
@@ -955,6 +1240,7 @@ export function GoalsPage() {
                   )
                 })}
               </div>
+              )}
               </div>
               )
             })}

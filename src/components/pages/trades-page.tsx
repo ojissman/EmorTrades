@@ -1773,7 +1773,8 @@ export function TradesPage() {
           (filterStore.accountId && filterStore.accountId !== 'all') ||
           (filterStore.tagIds && filterStore.tagIds.length > 0) ||
           (filterStore.mistakeIds && filterStore.mistakeIds.length > 0) ||
-          filterStore.planFollowed !== undefined) && (
+          filterStore.planFollowed !== undefined ||
+          filterStore.tradingPlanId !== undefined) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Context:
@@ -1987,6 +1988,18 @@ export function TradesPage() {
                 ✕
               </Badge>
             )}
+            {/* TP2-P4 — plan-scope deep link (goals page drill). */}
+            {filterStore.tradingPlanId !== undefined && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[10px] cursor-pointer hover:bg-accent border-teal-500/30 bg-teal-500/10 text-teal-300"
+                onClick={() => filterStore.clearFilter('tradingPlanId')}
+                title="Trading-plan scope — click to remove"
+                data-testid="plan-scope-chip"
+              >
+                Plan: {tpBulkPlans.find((p: any) => p.id === filterStore.tradingPlanId)?.name ?? 'plan'} ✕
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -2011,6 +2024,7 @@ export function TradesPage() {
                 filterStore.clearFilter('tagIds')
                 filterStore.clearFilter('mistakeIds')
                 filterStore.clearFilter('planFollowed')
+                filterStore.clearFilter('tradingPlanId')
               }}
             >
               Clear all

@@ -57,6 +57,10 @@ export interface FilterState extends GlobalScopeFields {
    *  the hour-window pair, not a drawer family. The plan filter itself lives
    *  INSIDE the plan and Explore pages now (the top-bar filter is gone). */
   planFollowed?: boolean | 'unmarked'
+  /** TP2-P4 — trading-plan scope deep link (goals page drill): the plan a
+   *  goal belongs to, so "view this period's trades" lands on the plan's own
+   *  trades. A drill param like planFollowed, not a drawer family. */
+  tradingPlanId?: string
   // Outcome filter
   outcome?: 'win' | 'loss' | 'breakeven' | 'all'
   // Sorting
@@ -124,6 +128,7 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
       hourFrom: undefined,
       hourTo: undefined,
       planFollowed: undefined,
+      tradingPlanId: undefined,
       // Task 141 lesson applies to the scope arrays too — explicit voids.
       symbol: undefined,
     }),
@@ -188,6 +193,7 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
       s.hourFrom !== undefined ||
       s.hourTo !== undefined ||
       s.planFollowed !== undefined ||
+      s.tradingPlanId !== undefined ||
       s.customStartDate !== undefined ||
       s.minPnl !== undefined ||
       s.maxPnl !== undefined ||
@@ -230,6 +236,8 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
     if (s.hourTo !== undefined) params.set('hourTo', String(s.hourTo))
     // Task 15-W7 / TP2 — plan adherence deep links (psychology cohorts).
     if (s.planFollowed !== undefined) params.set('planFollowed', String(s.planFollowed))
+    // TP2-P4 — plan-scope deep link (goals page drill).
+    if (s.tradingPlanId) params.set('tradingPlanId', s.tradingPlanId)
     if (s.minPnl !== undefined) params.set('minPnl', String(s.minPnl))
     if (s.maxPnl !== undefined) params.set('maxPnl', String(s.maxPnl))
     if (s.minR !== undefined) params.set('minR', String(s.minR))

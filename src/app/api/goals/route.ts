@@ -11,6 +11,16 @@ export const dynamic = 'force-dynamic'
 // the three plan-aware metrics only the server can see: Trade.adherenceStatus,
 // DayPlan.completedAt and the trade mark summary. The five legacy metrics keep their
 // client-side period computation on the goals page — GET just adds keys.
+//
+// ── TP2-P4 — plan-scoped progress ────────────────────────────────────────────
+// The server metrics are now computed PER PLAN: a goal linked to a plan reads
+// only that plan's trades (Trade.tradingPlanId) and the day plans listing it
+// (DayPlan.planIds JSON); unlinked goals keep the account-wide totals. Day
+// totals are built once as a two-level map ('' = whole account, else planId).
+// TP2 fix: the mark summary IS the rule check now — 'broke' marks count as
+// breaks and every checked mark (followed | broke) as a live check, so
+// rule_breaks_max evaluates again (the pre-TP2 per-rule counters were never
+// migrated and left the metric permanently "no data").
 
 const GOAL_KINDS = ['outcome', 'performance', 'process', 'development']
 const GOAL_STATUSES = ['active', 'achieved', 'missed', 'failed', 'superseded']
@@ -65,13 +75,15 @@ function calKey(y: number, m: number, d: number): string {
   return new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10)
 }
 
-// ── per-day raw counts feeding the three plan-aware metrics ────────────────
-// checked/followed: a trade counts as "checked" only when the engine reached
-// a verdict (adherenceStatus followed | broke) — cant_tell / no_plan / never
-// checked trades are honest non-data for an adherence rate, not silent 0%.
+// ── per-plan raw counts feeding the three plan-aware metrics ────────────────
+// checked/followed/breaks/evaluated: a trade counts as "checked" only when the
+// engine reached a verdict (adherenceStatus followed | broke) — cant_tell /
+// no_plan / never checked trades are honest non-data for an adherence rate,
+// not silent 0%. TP2: the mark summary replaced per-rule results, so each
+// checked mark IS one live check and 'broke' marks are the breaks themselves.
 // planned/completed: every DayPlan row (a day plan exists) vs routine
-// completed (completedAt set). evaluated/breaks: live (non-hindsight,
-// non-superseded) rule checks vs their fails.
+// completed (completedAt set) — a day plan belongs to the plans its planIds
+// JSON lists (account-wide '' plus each listed plan).
 
 type DayTotals = {
   checked: number
@@ -86,37 +98,71 @@ function emptyTotals(): DayTotals {
   return { checked: 0, followed: 0, planned: 0, completed: 0, evaluated: 0, breaks: 0 }
 }
 
-async function buildDayTotals(userId: string, tz: string): Promise<Map<string, DayTotals>> {
-  const map = new Map<string, DayTotals>()
-  const at = (k: string): DayTotals => {
-    let t = map.get(k)
+/**
+ * TP2-P4 — day totals grouped by plan scope: outer key '' = the whole account
+ * (legacy/unlinked goals), otherwise a TradingPlan id. Trades contribute to
+ * '' and to their linked plan when set; day plans contribute to '' and to
+ * every plan their planIds JSON lists. One query pair feeds every scope.
+ */
+async function buildDayTotalsByPlan(userId: string, tz: string): Promise<Map<string, Map<string, DayTotals>>> {
+  const groups = new Map<string, Map<string, DayTotals>>()
+  const at = (groupKey: string, dayKey: string): DayTotals => {
+    let days = groups.get(groupKey)
+    if (!days) {
+      days = new Map()
+      groups.set(groupKey, days)
+    }
+    let t = days.get(dayKey)
     if (!t) {
       t = emptyTotals()
-      map.set(k, t)
+      days.set(dayKey, t)
     }
     return t
   }
   const [trades, dayPlans] = await Promise.all([
-    db.trade.findMany({ where: { userId }, select: { entryTime: true, adherenceStatus: true } }),
-    db.dayPlan.findMany({ where: { userId }, select: { date: true, completedAt: true } }),
+    db.trade.findMany({
+      where: { userId },
+      select: { entryTime: true, adherenceStatus: true, tradingPlanId: true },
+    }),
+    db.dayPlan.findMany({ where: { userId }, select: { date: true, completedAt: true, planIds: true } }),
   ])
   for (const t of trades) {
     if (t.adherenceStatus !== 'followed' && t.adherenceStatus !== 'broke') continue
     // bucket by local ENTRY day — the page's Task 15-W1 convention
-    const d = at(localDayKey(t.entryTime, tz))
-    d.checked += 1
-    if (t.adherenceStatus === 'followed') d.followed += 1
+    const dayKey = localDayKey(t.entryTime, tz)
+    // every checked trade lands in the account-wide bucket; a plan-linked
+    // trade ALSO lands in its plan's bucket (TP2-P4 scoping).
+    for (const gk of t.tradingPlanId ? ['', t.tradingPlanId] : ['']) {
+      const d = at(gk, dayKey)
+      d.checked += 1
+      d.evaluated += 1
+      if (t.adherenceStatus === 'followed') d.followed += 1
+      else d.breaks += 1
+    }
   }
   for (const p of dayPlans) {
     // DayPlan.date is stored at the picked calendar day's UTC midnight — the
     // day itself is the key, no timezone re-bucketing (day-plans route).
-    const d = at(p.date.toISOString().slice(0, 10))
-    d.planned += 1
-    if (p.completedAt) d.completed += 1
+    const dayKey = p.date.toISOString().slice(0, 10)
+    let groupKeys: string[] = ['']
+    if (p.planIds) {
+      try {
+        const ids = JSON.parse(p.planIds)
+        if (Array.isArray(ids)) {
+          const listed = ids.filter((x: unknown): x is string => typeof x === 'string')
+          if (listed.length > 0) groupKeys = ['', ...listed]
+        }
+      } catch {
+        // malformed JSON — the day plan still counts account-wide
+      }
+    }
+    for (const gk of groupKeys) {
+      const d = at(gk, dayKey)
+      d.planned += 1
+      if (p.completedAt) d.completed += 1
+    }
   }
-  // TP2 — breaks are the marked "broke" trades themselves (the mark summary
-  // replaced per-rule results), counted in the loop above via adherenceStatus.
-  return map
+  return groups
 }
 
 function totalsOver(map: Map<string, DayTotals>, start: string, end: string): DayTotals {
@@ -330,7 +376,7 @@ export async function GET() {
     // TP-7-h — server-side progress for the plan-aware metrics only. Zero
     // extra queries unless a goal actually asks for one of them.
     const needsProgress = goals.some((g) => SERVER_METRICS.includes(g.metric))
-    const dayTotals = needsProgress ? await buildDayTotals(user.id, user.timezone) : null
+    const dayTotalsByPlan = needsProgress ? await buildDayTotalsByPlan(user.id, user.timezone) : null
     const cal = needsProgress ? localCal(new Date(), user.timezone) : null
 
     return NextResponse.json({
@@ -338,8 +384,10 @@ export async function GET() {
         ...g,
         plan: g.planId ? planMap.get(g.planId) ?? null : null,
         progress:
-          dayTotals && cal && SERVER_METRICS.includes(g.metric)
-            ? computeProgress(g.metric, g.type, g.target, dayTotals, cal)
+          dayTotalsByPlan && cal && SERVER_METRICS.includes(g.metric)
+            ? // TP2-P4 — the goal's own plan's totals ('' = account-wide when
+              // unlinked); a plan with nothing marked yet is an honest no-data.
+              computeProgress(g.metric, g.type, g.target, dayTotalsByPlan.get(g.planId || '') ?? new Map(), cal)
             : null,
       })),
     })
