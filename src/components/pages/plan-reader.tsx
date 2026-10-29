@@ -119,17 +119,23 @@ function groupDocument(blocks: DocBlock[]): { preamble: DocBlock[]; sections: Do
  * the answer borders, the rail numeral, the gliding marker, the folio), so
  * color itself tells the reader where they are: nine hues, one weight,
  * none of them loud enough to out-shout the prose.
+ *
+ * THE ORDER is the journey: it starts at jade — the hue nearest the plan
+ * accent's own family, so the handoff from hero to body is a step, not a
+ * jump — then walks the whole wheel (petrol, iris, mauve, rose, rust,
+ * ochre, olive, moss) so every section is distinct and the document drifts
+ * from cool to warm and back to green by its close.
  */
 const SECTION_COLORS = [
-  '#c15b49', // 1 rust
-  '#bd7f3c', // 2 ochre
-  '#a5993c', // 3 olive gold
-  '#74a03f', // 4 moss
-  '#33a184', // 5 jade
-  '#3f9fae', // 6 petrol
-  '#9a6fb8', // 7 iris
-  '#bd6a97', // 8 mauve
-  '#c75d68', // 9 rose
+  '#33a184', // 1 jade — kin to the hero's teal
+  '#3f9fae', // 2 petrol
+  '#a37cc2', // 3 iris
+  '#c478a2', // 4 mauve
+  '#c75d68', // 5 rose
+  '#c15b49', // 6 rust
+  '#bd7f3c', // 7 ochre
+  '#a5993c', // 8 olive gold
+  '#74a03f', // 9 moss
 ] as const
 const sectionColor = (i: number) => SECTION_COLORS[i % SECTION_COLORS.length]!
 
@@ -513,7 +519,7 @@ export function PlanReader({
                 <section key={i} id={`sec-${i}`} data-sec-idx={i} className="scroll-mt-6">
                   {/* section header */}
                   <header>
-                    <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: c, opacity: 0.85 }}>
+                    <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.3em]" style={{ color: c }}>
                       {s.number ? `Section ${s.number}` : 'Section'}
                     </p>
                     <h2 className="text-[22px] font-semibold tracking-tight leading-tight">{s.title}</h2>
@@ -985,7 +991,7 @@ function AnswerBlock({ block, color }: { block: DocBlock; color: string }) {
                   <th
                     key={i}
                     className="whitespace-nowrap border-b px-3 pb-2 pt-1 text-left text-[9.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80 first:pl-0 last:pr-0"
-                    style={{ borderBottomColor: `${color}80` }}
+                    style={{ borderBottomColor: `${color}b3` }}
                   >
                     {h}
                   </th>
