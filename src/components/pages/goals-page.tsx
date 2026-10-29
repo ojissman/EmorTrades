@@ -24,7 +24,29 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 // Task 26 — lucide icons shared by the page.
-import { Flag, Pencil, Trophy, Eye, TriangleAlert, FileSpreadsheet, ArrowUpRight, CalendarClock } from 'lucide-react'
+import {
+  Flag,
+  Pencil,
+  Trophy,
+  Eye,
+  TriangleAlert,
+  FileSpreadsheet,
+  ArrowUpRight,
+  CalendarClock,
+  Activity,
+  AlertTriangle,
+  Flame,
+  Medal,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  Zap,
+} from 'lucide-react'
+// TP2-P5 — the premium dashboard furniture + AI surfaces.
+import { KpiStrip, PlanScorecards, AtRiskList, TrophyCase, PerformanceMatrix, type PlanScorecard, type AtRiskItem, type TrophyItem, type MatrixRow, type Kpi } from '@/components/pages/goals-widgets'
+import { GoalsAiPanel } from '@/components/pages/goals-ai-panel'
+import { GoalDetailModal, type ModalGoal } from '@/components/pages/goal-detail-modal'
 // Task 15-W6 — goal evidence drill (period-scoped trades).
 import { drillToTrades, monthPatch } from '@/lib/drill'
 import { useToast } from '@/hooks/use-toast'
@@ -373,6 +395,8 @@ export function GoalsPage() {
   // TP2-P4 — plan filter: 'all' | a plan id | '__unlinked__' (legacy goals
   // created before plan-linking). Doubles as the per-plan scoreboard.
   const [planFilter, setPlanFilter] = useState<string>('all')
+  // TP2-P5 — the goal detail modal target (null = closed).
+  const [detail, setDetail] = useState<ModalGoal | null>(null)
   const { data: goalsData, isLoading } = useQuery({
     queryKey: ['goals'],
     queryFn: async () => {
@@ -623,6 +647,303 @@ export function GoalsPage() {
         ? 'unlinked goals'
         : plans.find((p: any) => p.id === planFilter)?.name || 'this plan'
 
+  // TP2-P5 — every goal's history dots, computed ONCE (the card loop, the
+  // KPI strip, the matrix, the watchlist and the modal all read this map —
+  // one source, zero drift). Server metrics take the API's dots; the five
+  // client metrics build plan-scoped dots here.
+  const dotsByGoal = useMemo(() => {
+    const map = new Map<string, Dot[]>()
+    for (const g of goals) {
+      if (SERVER_METRICS.includes(g.metric)) {
+        map.set(g.id, g.progress?.history || [])
+        continue
+      }
+      const dm = planDayMaps.forPlan(g.planId || null)
+      map.set(
+        g.id,
+        g.type === 'daily'
+          ? buildDailyDots(dm, g.metric, g.target)
+          : g.type === 'weekly'
+            ? buildWeeklyDots(dm, g.metric, g.target)
+            : g.type === 'monthly'
+              ? buildMonthlyDots(dm, g.metric, g.target)
+              : buildAnnualDots(dm, g.metric, g.target),
+      )
+    }
+    return map
+  }, [goals, planDayMaps])
+
+  // TP2-P5 — the page-level analytics feeding the KPI strip, watchlist and
+  // trophy case (the scoreboard above already feeds the pills/chips).
+  const analytics = (() => {
+    const active = goals.filter((g: any) => g.isActive)
+    const evals = active.map((g: any) => ({ g, r: evalGoal(g) }))
+    const withData = evals.filter((e) => e.r.hasData)
+    const hits = withData.filter((e) => e.r.hit).length
+    const hitRate = withData.length ? Math.round((hits / withData.length) * 100) : null
+    // momentum + streaks read the dot arrays (each ends at the current period)
+    let latest = 0
+    let prev = 0
+    let bestStreak = 0
+    let streakLabel: string | null = null
+    for (const g of active) {
+      const dots = dotsByGoal.get(g.id) || []
+      const last = dots[dots.length - 1]
+      const p = dots[dots.length - 2]
+      if (last?.traded && last.hit) latest++
+      if (p?.traded && p.hit) prev++
+      let run = 0
+      for (const d of dots) {
+        if (!d.traded) continue
+        if (d.hit) {
+          run++
+          if (run > bestStreak) {
+            bestStreak = run
+            streakLabel = `${METRIC_LABELS[g.metric]} (${g.type})`
+          }
+        } else run = 0
+      }
+    }
+    // at-risk: deadline within 7 days (or overdue) OR last 3 traded periods missed
+    const atRisk: { goal: any; why: string; daysLeft: number | null; overdue: boolean }[] = []
+    for (const g of active) {
+      const dl = g.deadline ? deadlineDaysLeft(g.deadline) : null
+      const tradedDots = (dotsByGoal.get(g.id) || []).filter((d) => d.traded).slice(-3)
+      const missRun = tradedDots.length === 3 && tradedDots.every((d) => !d.hit)
+      const deadlineRisk = dl != null && dl <= 7
+      if (deadlineRisk || missRun) {
+        atRisk.push({
+          goal: g,
+          why: deadlineRisk ? (dl! < 0 ? `deadline ${-dl!}d overdue` : `deadline in ${dl}d`) : 'last 3 periods missed',
+          daysLeft: dl,
+          overdue: dl != null && dl < 0,
+        })
+      }
+    }
+    return {
+      hitRate,
+      hits,
+      withDataN: withData.length,
+      inForce: active.length,
+      paused: goals.length - active.length,
+      latest,
+      prev,
+      bestStreak,
+      streakLabel,
+      atRisk,
+      achieved: goals.filter((g: any) => g.status === 'achieved').length,
+    }
+  })()
+
+  // TP2-P5 — the KPI strip items (icons + tones resolved here, rendered once).
+  const kpis: Kpi[] = [
+    {
+      id: 'hit-rate',
+      label: 'Hit rate',
+      value: analytics.hitRate == null ? '—' : `${analytics.hitRate}%`,
+      sub: `${analytics.hits}/${analytics.withDataN} with data`,
+      icon: Target,
+      tone: analytics.hitRate == null ? 'muted' : analytics.hitRate >= 60 ? 'emerald' : analytics.hitRate >= 30 ? 'amber' : 'red',
+      hint: 'Active goals hitting their own current window (plan-scoped)',
+    },
+    {
+      id: 'in-force',
+      label: 'In force',
+      value: String(analytics.inForce),
+      sub: `${analytics.paused} paused · ${goals.length} total`,
+      icon: Flag,
+      tone: 'sky',
+      hint: 'Active goals currently driving the scoreboard',
+    },
+    {
+      id: 'momentum',
+      label: 'Momentum',
+      value: `${analytics.prev}→${analytics.latest}`,
+      sub: `previous → current period`,
+      icon: analytics.latest > analytics.prev ? TrendingUp : analytics.latest < analytics.prev ? TrendingDown : Activity,
+      tone: analytics.latest > analytics.prev ? 'emerald' : analytics.latest < analytics.prev ? 'red' : 'muted',
+      hint: 'Goals hitting their latest period vs the one before',
+    },
+    {
+      id: 'streak',
+      label: 'Best streak',
+      value: analytics.bestStreak > 0 ? `×${analytics.bestStreak}` : '—',
+      sub: analytics.streakLabel ? analytics.streakLabel : 'no hit run yet',
+      icon: Flame,
+      tone: analytics.bestStreak >= 3 ? 'amber' : 'muted',
+      hint: 'Longest run of consecutive hit periods inside one goal',
+    },
+    {
+      id: 'at-risk',
+      label: 'At risk',
+      value: String(analytics.atRisk.length),
+      sub: analytics.atRisk.length ? 'deadlines & miss runs' : 'nothing at risk',
+      icon: AlertTriangle,
+      tone: analytics.atRisk.length ? (analytics.atRisk.some((a) => a.overdue) ? 'red' : 'amber') : 'emerald',
+      hint: 'Deadlines within 7 days / overdue, or 3 straight misses',
+    },
+    {
+      id: 'achieved',
+      value: String(analytics.achieved),
+      label: 'Achieved',
+      sub: 'goal status trophies',
+      icon: Trophy,
+      tone: analytics.achieved > 0 ? 'emerald' : 'muted',
+      hint: 'Goals marked achieved (status field)',
+    },
+  ]
+
+  // TP2-P5 — plan scorecards: chip keys + planStats + hub adherence + the
+  // per-index hit-ratio sparkline across that plan's goals' dots.
+  const scorecards: PlanScorecard[] = planChips.map((chip) => {
+    const planGoals = goals.filter((g: any) => goalPlanKey(g) === chip.key)
+    const evals = planGoals.filter((g: any) => g.isActive).map((g: any) => evalGoal(g))
+    const withData = evals.filter((e) => e.hasData)
+    const hits = withData.filter((e) => e.hit).length
+    const hub = plans.find((p: any) => p.id === chip.key)
+    const spark: (number | null)[] = []
+    const maxLen = planGoals.reduce((m: number, g: any) => Math.max(m, (dotsByGoal.get(g.id) || []).length), 0)
+    for (let i = 0; i < 8; i++) {
+      let hitN = 0
+      let n = 0
+      if (i < maxLen) {
+        for (const g of planGoals) {
+          const d = (dotsByGoal.get(g.id) || [])[i]
+          if (d?.traded) {
+            n++
+            if (d.hit) hitN++
+          }
+        }
+      }
+      spark.push(n > 0 ? hitN / n : null)
+    }
+    return {
+      key: chip.key,
+      name: chip.label,
+      color: chip.color,
+      draft: chip.draft,
+      unlinked: chip.key === UNLINKED,
+      goals: planGoals.filter((g: any) => g.isActive).length,
+      hits,
+      withData: withData.length,
+      linkedTrades: chip.key === UNLINKED ? undefined : (hub as any)?._count?.trades,
+      followed: chip.key === UNLINKED ? undefined : (hub as any)?.adherence?.followed,
+      broke: chip.key === UNLINKED ? undefined : (hub as any)?.adherence?.broke,
+      spark,
+    }
+  })
+
+  // TP2-P5 — the watchlist items (most urgent first: overdue > deadline > miss runs).
+  const atRiskItems: AtRiskItem[] = analytics.atRisk
+    .sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99))
+    .map((a) => ({
+      goalId: a.goal.id,
+      label: METRIC_LABELS[a.goal.metric] || a.goal.metric,
+      type: a.goal.type,
+      planName: a.goal.plan?.name ?? null,
+      color: a.goal.color,
+      why: a.why,
+      overdue: a.overdue,
+    }))
+
+  // TP2-P5 — the trophy case (earned/locked, all derived from real data).
+  const anyDotHit = Array.from(dotsByGoal.values()).some((dots) => dots.some((d) => d.hit))
+  const anyPerfectRun = goals.some((g: any) => {
+    const traded = (dotsByGoal.get(g.id) || []).filter((d) => d.traded)
+    return traded.length >= 2 && traded.every((d) => d.hit)
+  })
+  const capHeld = goals.some((g: any) => g.metric === 'rule_breaks_max' && evalGoal(g).hasData && evalGoal(g).hit)
+  const routineKept = goals.some(
+    (g: any) => g.metric === 'routine_completion' && (g.status === 'achieved' || (evalGoal(g).hasData && evalGoal(g).hit)),
+  )
+  const trophies: TrophyItem[] = [
+    { id: 'first-hit', name: 'First Hit', desc: 'Any goal hit in any period', icon: Zap, earned: anyDotHit },
+    { id: 'streak', name: 'Streak ×3', desc: '3+ consecutive periods hit on one goal', icon: Flame, earned: analytics.bestStreak >= 3 },
+    { id: 'perfect', name: 'Perfect Run', desc: 'A goal hitting every traded period', icon: Trophy, earned: anyPerfectRun },
+    { id: 'cap', name: 'Within Cap', desc: 'Rule-break cap held with data', icon: ShieldCheck, earned: capHeld },
+    { id: 'routine', name: 'Routine Kept', desc: 'Routine completion achieved', icon: Medal, earned: routineKept },
+    { id: 'planned', name: 'Plan Bound', desc: 'Goals projected from a trading plan', icon: Target, earned: goals.some((g: any) => g.planId) },
+  ]
+
+  // TP2-P5 — consistency matrix rows (respect BOTH filters, like the sections).
+  const matrixRows: MatrixRow[] = goals
+    .filter((g: any) => matchesPlanFilter(g) && (periodFilter === 'all' || g.type === periodFilter))
+    .map((g: any) => ({
+      goalId: g.id,
+      label: METRIC_LABELS[g.metric] || g.metric,
+      type: g.type,
+      planName: g.plan?.name ?? null,
+      color: g.color,
+      dots: (dotsByGoal.get(g.id) || []).slice(-8),
+      metric: g.metric,
+    }))
+
+  // TP2-P5 — the evidence drill (shared by the card link and the modal).
+  const drillPeriod = (goal: any) => {
+    const now = new Date()
+    const iso = (d: Date) => d.toISOString().slice(0, 10)
+    const scope = goal.planId ? { tradingPlanId: goal.planId } : {}
+    if (goal.type === 'daily') {
+      const k = iso(now)
+      drillToTrades({ customStartDate: `${k}T00:00:00.000Z`, customEndDate: `${k}T23:59:59.999Z`, ...scope })
+    } else if (goal.type === 'weekly') {
+      const ws = new Date(now)
+      ws.setDate(ws.getDate() - ws.getDay())
+      const we = new Date(ws)
+      we.setDate(we.getDate() + 6)
+      drillToTrades({ customStartDate: `${iso(ws)}T00:00:00.000Z`, customEndDate: `${iso(we)}T23:59:59.999Z`, ...scope })
+    } else if (goal.type === 'annual') {
+      const y = now.getFullYear()
+      drillToTrades({ customStartDate: `${y}-01-01T00:00:00.000Z`, customEndDate: `${y}-12-31T23:59:59.999Z`, ...scope })
+    } else {
+      drillToTrades({ ...monthPatch(now.toISOString().slice(0, 7)), ...scope })
+    }
+  }
+
+  // TP2-P5 — open the detail modal for a goal (card click, matrix row, watchlist).
+  const openGoal = (goalId: string) => {
+    const g = goals.find((x: any) => x.id === goalId)
+    if (!g) return
+    const isServer = SERVER_METRICS.includes(g.metric)
+    const sp = isServer ? g.progress || null : null
+    const { value: current, traded } = isServer
+      ? { value: typeof sp?.value === 'number' ? sp.value : 0, traded: !!sp?.hasData }
+      : getPeriod(g)
+    const noData = isServer && !traded
+    const target = g.target
+    const isCap = g.metric === 'rule_breaks_max'
+    const isLossLimit = g.metric === 'pnl' && target < 0
+    const hit = isCap ? traded && current <= target : isLossLimit ? traded && current >= target : traded && current >= target
+    const budgetUsed =
+      isLossLimit && current < 0 ? Math.min((current / target) * 100, 100) : isCap && current > 0 ? Math.min((current / target) * 100, 100) : 0
+    const progressPct =
+      isLossLimit || isCap ? budgetUsed : noData ? 0 : target > 0 ? Math.min((current / target) * 100, 100) : hit ? 100 : 0
+    setDetail({
+      id: g.id,
+      metric: g.metric,
+      metricLabel: METRIC_LABELS[g.metric] || g.metric,
+      type: g.type,
+      target,
+      floor: g.floor ?? null,
+      stretch: g.stretch ?? null,
+      color: g.color,
+      kind: g.kind ?? null,
+      deadline: g.deadline ?? null,
+      isActive: !!g.isActive,
+      plan: g.plan ?? null,
+      dots: dotsByGoal.get(g.id) || [],
+      current,
+      hasData: traded,
+      hit,
+      isLossLimit,
+      isCap,
+      progressPct: Math.round(progressPct),
+      detail: sp?.detail ?? null,
+      fmt: METRIC_FORMATS[g.metric] || ((v: number) => String(v)),
+      periodDrill: () => drillPeriod(g),
+    })
+  }
+
   // Task 118 — section boundary lookup for the reorder chevrons.
   const sectionRank = (goal: any) => {
     const section = goals.filter((g: any) => g.type === goal.type)
@@ -723,6 +1044,10 @@ export function GoalsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
+          {/* TP2-P5 — the command strip: six KPI cards (hit rate, in force,
+              momentum, streak, at-risk, achieved) opening the page. */}
+          <KpiStrip items={kpis} />
+
           {/* Task 111 — scoreboard segmented control: hit counts per period
               over active goals, doubling as a section filter. The pill tone
               mirrors the dot-strip semantics (emerald all-hit, amber partial,
@@ -870,7 +1195,15 @@ export function GoalsPage() {
             )}
           </div>
 
-          <div className="space-y-6">
+          {/* TP2-P5 — AI GOAL INTELLIGENCE: Summary · Insights · Review ·
+              Coach. Keyed by the plan filter so each scope keeps its own saved
+              reports (remount = rehydrate, never stale cross-plan coaching). */}
+          <GoalsAiPanel key={planFilter} scope={planFilter} scopeLabel={planFilterLabel} />
+
+          {/* TP2-P5 — the dashboard body: goal sections (left, 2/3) + the
+              scorecards / watchlist / trophy rail (right, 1/3). */}
+          <div className="grid xl:grid-cols-3 gap-4 items-start">
+            <div className="xl:col-span-2 space-y-6 min-w-0">
             {/* TP2-P4 — a plan filter with zero goals shows ONE explanatory
                 card instead of four empty section headers. */}
             {planFilter !== 'all' && filteredGoals.length === 0 && (
@@ -913,7 +1246,7 @@ export function GoalsPage() {
                   No {type} goals in force yet — the goal ladder (section 3) of a trading plan projects them on publish.
                 </p>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {sectionFlat(type).map((goal: any) => {
                   // TP2-P4 — full-width plan group header interleaved in the
                   // grid ('all plans' view, section holds 2+ plan groups).
@@ -990,26 +1323,20 @@ export function GoalsPage() {
                   // TP-7-h — deadline countdown for the chip below.
                   const dlDays = goal.deadline ? deadlineDaysLeft(goal.deadline) : null
 
-                  // TP2-P4 — the history strip reads the plan-scoped map too.
-                  const dots = isServer
-                    ? sp?.history || []
-                    : type === 'daily'
-                      ? buildDailyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
-                      : type === 'weekly'
-                        ? buildWeeklyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
-                        : type === 'monthly'
-                          ? buildMonthlyDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
-                          : buildAnnualDots(planDayMaps.forPlan(goal.planId || null), goal.metric, target)
+                  // TP2-P5 — the shared dot map (card, KPIs, matrix, modal — one source).
+                  const dots = dotsByGoal.get(goal.id) || []
 
                   return (
                     <Card
                       key={goal.id}
                       className={cn(
-                        'p-4 group relative',
+                        'p-4 group relative cursor-pointer transition-colors hover:border-border/80',
                         !goal.isActive && 'opacity-60',
                         goal.id === flashId && 'goal-highlight-flash',
                       )}
                       data-testid={`goal-card-${goal.id}`}
+                      onClick={() => openGoal(goal.id)}
+                      title="Open the goal detail"
                     >
                       {goal.id === flashId && flashOrigin === 'import' && (
                         <span
@@ -1136,35 +1463,9 @@ export function GoalsPage() {
                           weeks, matching the dot strip and the calendar). */}
                       <button
                         type="button"
-                        onClick={() => {
-                          const now = new Date()
-                          const iso = (d: Date) => d.toISOString().slice(0, 10)
-                          // TP2-P4 — a plan-linked goal drills into ITS plan's trades.
-                          const scope = goal.planId ? { tradingPlanId: goal.planId } : {}
-                          if (goal.type === 'daily') {
-                            const k = iso(now)
-                            drillToTrades({ customStartDate: `${k}T00:00:00.000Z`, customEndDate: `${k}T23:59:59.999Z`, ...scope })
-                          } else if (goal.type === 'weekly') {
-                            const ws = new Date(now)
-                            ws.setDate(ws.getDate() - ws.getDay())
-                            const we = new Date(ws)
-                            we.setDate(we.getDate() + 6)
-                            drillToTrades({
-                              customStartDate: `${iso(ws)}T00:00:00.000Z`,
-                              customEndDate: `${iso(we)}T23:59:59.999Z`,
-                              ...scope,
-                            })
-                          } else if (goal.type === 'annual') {
-                            // TP-7-h — year-to-date drill.
-                            const y = now.getFullYear()
-                            drillToTrades({
-                              customStartDate: `${y}-01-01T00:00:00.000Z`,
-                              customEndDate: `${y}-12-31T23:59:59.999Z`,
-                              ...scope,
-                            })
-                          } else {
-                            drillToTrades({ ...monthPatch(now.toISOString().slice(0, 7)), ...scope })
-                          }
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          drillPeriod(goal)
                         }}
                         title={
                           goal.planId
@@ -1244,9 +1545,29 @@ export function GoalsPage() {
               </div>
               )
             })}
+            </div>
+
+            {/* TP2-P5 — the right rail: per-plan scorecards (click = filter),
+                the at-risk watchlist (click = goal modal), the trophy case. */}
+            <aside className="space-y-4" data-testid="goals-sidebar">
+              <PlanScorecards
+                cards={scorecards}
+                activeKey={planFilter}
+                onSelect={(k) => setPlanFilter(planFilter === k ? 'all' : k)}
+              />
+              <AtRiskList items={atRiskItems} onOpen={openGoal} />
+              <TrophyCase trophies={trophies} />
+            </aside>
           </div>
+
+          {/* TP2-P5 — the consistency matrix: every goal (respecting both
+              filters) × its own last 8 periods, hit-rate ranked bar. */}
+          <PerformanceMatrix rows={matrixRows} onOpen={openGoal} />
         </div>
       )}
+
+      {/* TP2-P5 — the goal detail modal (card click / matrix row / watchlist). */}
+      <GoalDetailModal goal={detail} onClose={() => setDetail(null)} />
 
       {/* Modal — shared by create and edit (Task 109) */}
     </div>
