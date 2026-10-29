@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
 import { buildDayTotalsByPlan, buildTradeDaysByPlan, evalGoal, localCal, type GoalEval } from '@/lib/goal-progress'
@@ -316,7 +317,9 @@ export async function POST(req: NextRequest) {
     const goalId = typeof body.goalId === 'string' && body.goalId.trim() ? body.goalId.trim() : null
     const scope = typeof body.scope === 'string' && body.scope.trim() ? body.scope.trim() : 'all'
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const digest = await buildGoalsDigest(user.id, user.timezone, scope, goalId)
@@ -397,7 +400,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const goalId = searchParams.get('goalId')
     const scope = searchParams.get('scope') || 'all'
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     if (goalId) {

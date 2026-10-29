@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import {
   getTemplate,
   computeChallenge,
@@ -50,7 +51,9 @@ async function loadContext(userId: string): Promise<ChallengeContext | null> {
 
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const [rows, ctx] = await Promise.all([
@@ -117,7 +120,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const template = getTemplate(body.templateId)
@@ -156,7 +161,9 @@ export async function PATCH(req: NextRequest) {
     if (!id || !action) {
       return NextResponse.json({ error: 'Missing id/action' }, { status: 400 })
     }
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const row = await db.challenge.findFirst({ where: { id, userId: user.id } })

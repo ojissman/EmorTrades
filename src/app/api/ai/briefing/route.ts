@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { calculateAnalytics, type TradeInput } from '@/lib/analytics'
 import { loadServerCurrencyDisplay, serverFmtSignedUsd, serverFmtUsd } from '@/lib/server-money'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
@@ -20,7 +21,9 @@ interface Briefing {
 // current streak, open exposure and overall risk stats.
 export async function POST() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // Currency Display pref — headline/chips money honors Settings ▸ Display.
     await loadServerCurrencyDisplay(user.id)

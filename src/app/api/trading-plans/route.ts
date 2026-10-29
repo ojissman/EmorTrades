@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { TEMPLATE_VERSION } from '@/config/plan-template'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     // ?include=tree — the BACKUP mode: every plan (archived included) with the
@@ -83,7 +86,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ error: 'A plan needs a name' }, { status: 400 })

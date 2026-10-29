@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { loadServerCurrencyDisplay, serverFmtSignedUsd, serverFmtUsd } from '@/lib/server-money'
 import {
   calculateAnalytics,
@@ -181,7 +182,9 @@ async function generateReview(tradeId: string) {
   })
   if (!trade) return { status: 404 as const, body: { error: 'Trade not found' } }
 
-  const user = await db.user.findFirst()
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+  const user = auth.user
   if (!user) return { status: 404 as const, body: { error: 'No user' } }
   // Currency Display pref — review text money honors Settings ▸ Display (AI).
   await loadServerCurrencyDisplay(user.id)

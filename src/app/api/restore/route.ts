@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,7 +105,9 @@ function tradeFingerprint(
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user found' }, { status: 404 })
 
     const body = await req.json()

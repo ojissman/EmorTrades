@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { loadServerCurrencyDisplay, serverFmtUsd } from '@/lib/server-money'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -266,7 +267,9 @@ export async function POST(req: NextRequest) {
     const weeksBack = Math.max(0, Math.min(52, Number.isFinite(rawWeeks) ? rawWeeks : 1))
     const accountId: string | null = typeof body.accountId === 'string' ? body.accountId : null
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // Currency Display pref — the report text honors Settings ▸ Display.
     await loadServerCurrencyDisplay(user.id)
@@ -356,7 +359,9 @@ export async function GET(req: NextRequest) {
     const id = searchParams.get('id')
     const periodStart = searchParams.get('periodStart')
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     // Stored reports are returned verbatim — their money strings keep the

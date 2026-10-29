@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,9 @@ export async function GET(req: NextRequest) {
     const tradeId = searchParams.get('tradeId')
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const where: any = { userId: user.id }
@@ -43,7 +46,9 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id query param is required' }, { status: 400 })
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     // Ownership-scoped delete (not world-writable by id)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { linkTrade, LinkError } from '@/lib/plan-link'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +17,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params
-    const user = await (await import('@/lib/db')).db.user.findFirst()
-    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     const body = await req.json().catch(() => ({}))
 
     const outcome = await linkTrade(user.id, id, {

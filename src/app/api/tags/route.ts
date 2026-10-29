@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,7 +8,9 @@ export const dynamic = 'force-dynamic'
 // Consumed by the tags-analysis pages; additive, no other consumers.
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const [tags, groups] = await Promise.all([
       db.tag.findMany({
@@ -41,7 +44,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     if (body.kind === 'group') {
       if (!body.name) return NextResponse.json({ error: 'Missing name' }, { status: 400 })
@@ -79,7 +84,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { id, name, color, groupId } = body
     if (!id || !name) return NextResponse.json({ error: 'Missing id or name' }, { status: 400 })
@@ -121,7 +128,9 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     if (searchParams.get('kind') === 'group') {

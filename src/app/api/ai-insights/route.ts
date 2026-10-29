@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { loadServerCurrencyDisplay, serverFmtUsd } from '@/lib/server-money'
 import {
   calculateAnalytics,
@@ -18,9 +19,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { question, kind = 'overview' } = body
 
-    const user = await db.user.findFirst({
+    const auth = await requireUser({
       include: { setups: true, accounts: true },
     })
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // Currency Display pref — digest money honors Settings ▸ Display (AI area).
     await loadServerCurrencyDisplay(user.id)

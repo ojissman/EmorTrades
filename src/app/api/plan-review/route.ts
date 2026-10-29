@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { computePlanReview, weekWindow, monthWindow, quarterWindow, yearWindow, type PeriodWindow } from '@/lib/plan-review'
 import { localDayStart, zonedParts } from '@/lib/tz-math'
 
@@ -25,7 +26,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const sp = req.nextUrl.searchParams
 

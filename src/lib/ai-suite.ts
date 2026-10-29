@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { getSessionUserId } from '@/lib/server/auth'
 import type { TradeInput } from '@/lib/analytics'
 import { isRateLimitError, zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -167,7 +168,8 @@ export async function loadSuiteContext(
   // range). Takes precedence over the period's own relative window.
   customWindow?: { from: Date; to: Date } | null
 ): Promise<SuiteContext | null> {
-  const user = await db.user.findFirst()
+  const uid = await getSessionUserId()
+  const user = uid ? await db.user.findUnique({ where: { id: uid } }) : null
   if (!user) return null
   const { from: presetFrom, label: presetLabel } = periodWindow(period)
 

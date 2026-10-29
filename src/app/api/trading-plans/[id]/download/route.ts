@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { buildPlanDocument, type DocPlanTree } from '@/lib/plan-document'
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import {
@@ -26,7 +27,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function GET(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const plan = await db.tradingPlan.findFirst({ where: { id, userId: user.id } })
     if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })

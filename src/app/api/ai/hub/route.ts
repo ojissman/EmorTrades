@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { AI_ROSTER, type RosterEntry } from '@/config/ai-roster'
 import { getProviderForEntry, isSelectable } from '@/lib/ai-providers/registry'
 import { type ChatMessage, ProviderError } from '@/lib/ai-providers/types'
@@ -59,8 +60,9 @@ interface Digest {
 }
 
 async function buildDigest(): Promise<Digest | null> {
-  const user = await db.user.findFirst()
-  if (!user) return null
+  const auth = await requireUser()
+  if (!auth.ok) return null
+  const user = auth.user
   const trades = await db.trade.findMany({
     where: { userId: user.id, status: 'closed' },
     select: { symbol: true, pnl: true, exitTime: true, entryTime: true },

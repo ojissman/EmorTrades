@@ -42,6 +42,7 @@ import {
   Upload,
   Images,
   LayoutDashboard,
+  ShieldCheck,
 } from 'lucide-react'
 
 export type NavBadge = 'NEW'
@@ -306,6 +307,17 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
 ]
+
+/**
+ * Multi-user launch — the Admin Console nav item. NOT part of NAV_ITEMS: the
+ * sidebar appends it (below the main nav) only for ADMIN sessions, in both
+ * Simple Mode and the full nav.
+ */
+export const ADMIN_NAV_ITEM: NavItem = {
+  label: 'Admin Console',
+  path: '/admin',
+  icon: ShieldCheck,
+}
 
 /**
  * Bottom utility icon row (§2, below item 16) — Settings · Trades import ·

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { loadFactsContext } from '@/lib/plan-marking'
 import { computeWarnings, parseSetupRiskPct, type TradeWarning } from '@/lib/plan-warnings'
 
@@ -17,7 +18,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const body = await req.json().catch(() => ({}))
     const num = (v: unknown): number | null => {

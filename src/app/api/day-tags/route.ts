@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const [dayTags, groups] = await Promise.all([
       db.dayTag.findMany({
@@ -33,7 +36,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // kind:'group' creates a DayTagGroup — the Settings ▸ Tags day-groups
     // dialog writes real server groups (the tags-analysis group views read
@@ -67,7 +72,9 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { id, name, color, groupId } = body
     if (!id || !name) return NextResponse.json({ error: 'Missing id or name' }, { status: 400 })
@@ -110,7 +117,9 @@ export async function DELETE(req: NextRequest) {
     // kind=group deletes a DayTagGroup — tags are detached (groupId → null),
     // never deleted, matching the dialog's promise.
     if (searchParams.get('kind') === 'group') {
-      const user = await db.user.findFirst()
+      const auth = await requireUser()
+      if (!auth.ok) return auth.response
+      const user = auth.user
       if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
       const existingGroup = await db.dayTagGroup.findFirst({ where: { id, userId: user.id } })
       if (!existingGroup) return NextResponse.json({ error: 'Not found' }, { status: 404 })

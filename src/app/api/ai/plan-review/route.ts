@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { parseContent, type PlanContent } from '@/lib/plan-versioning'
 import { QUESTIONS_BY_KEY } from '@/config/plan-template'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
@@ -577,7 +578,9 @@ export async function POST(req: NextRequest) {
     }
     const kind = kindRaw
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     let digest: any
@@ -664,7 +667,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const planId = searchParams.get('planId')
     if (!planId) return NextResponse.json({ error: 'planId query param is required' }, { status: 400 })
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const latest: Record<string, unknown> = {}

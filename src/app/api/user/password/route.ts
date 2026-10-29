@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,9 +38,11 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const user = await db.user.findFirst({
+    const auth = await requireUser({
       select: { id: true, passwordHash: true },
     })
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     // A password already exists -> the current one must verify (401 on miss).

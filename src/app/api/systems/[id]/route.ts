@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { TEMPLATE_VERSION } from '@/config/plan-template'
 
 export const dynamic = 'force-dynamic'
@@ -7,8 +8,9 @@ export const dynamic = 'force-dynamic'
 type Params = { params: Promise<{ id: string }> }
 
 async function ownedSystem(id: string) {
-  const user = await db.user.findFirst()
-  if (!user) return { error: NextResponse.json({ error: 'No user' }, { status: 404 }) }
+  const auth = await requireUser()
+  if (!auth.ok) return { error: auth.response }
+  const user = auth.user
   const system = await db.system.findFirst({ where: { id, userId: user.id } })
   if (!system) return { error: NextResponse.json({ error: 'System not found' }, { status: 404 }) }
   return { user, system }

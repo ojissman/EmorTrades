@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { TEMPLATE_VERSION } from '@/config/plan-template'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const plan = await db.tradingPlan.findFirst({ where: { id, userId: user.id } })
     if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 })

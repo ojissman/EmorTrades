@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { judgeTrade, currentMark, isMarkStale } from '@/lib/plan-marking'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,9 @@ export const maxDuration = 120
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const body = await req.json().catch(() => ({}))
     const from = body?.from ? new Date(body.from) : null

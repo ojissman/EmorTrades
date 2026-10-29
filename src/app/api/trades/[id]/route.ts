@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { z } from 'zod'
 import { aggregateLegs, classifyStrategy, computeLegPnl, STRATEGY_KINDS, type LegInput } from '@/lib/legs'
 
@@ -116,7 +117,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }
@@ -156,7 +159,9 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }
@@ -394,7 +399,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }

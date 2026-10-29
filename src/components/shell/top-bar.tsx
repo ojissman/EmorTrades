@@ -17,6 +17,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { settingsSlice, useUserSettings } from '@/hooks/use-user-settings'
+import { useIsAdmin } from '@/store/auth-store'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -327,6 +328,8 @@ export function TopBar() {
   const homeRoute = homepageTab === 'trades-table' ? '/tables/trades' : homepageTab === 'calendar' ? '/calendar' : homepageTab === 'journal' ? '/notes/journal' : '/overview'
   const userName = String(userData?.user?.name ?? 'EmorTrader')
   const userEmail = String(userData?.user?.email ?? '')
+  // Multi-user launch — the user menu links to the Admin Console for admins.
+  const isAdmin = useIsAdmin()
 
   const [searchHidden, setSearchHidden] = useState(false)
   const [tourOpen, setTourOpen] = useState(false)
@@ -615,17 +618,21 @@ export function TopBar() {
               { label: 'Getting Started', route: '/overview' },
               { label: 'Keyboard Shortcuts', shortcutHint: '?' },
               { label: 'AI Suite Help', route: '/ai-suite?tab=qa' },
+              ...(isAdmin ? [{ label: 'Admin Console', route: '/admin' }] : []),
               { label: 'Sign out', signOut: true },
             ] as { label: string; route?: string; href?: string; signOut?: boolean; shortcutHint?: string }[]).map((item) =>
               item.signOut ? (
                 <button
                   key={item.label}
-                  onClick={() =>
-                    toast({
-                      title: 'Sign out',
-                      description: 'This journal runs locally on your machine — there is no session to sign out of.',
-                    })
-                  }
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/auth/logout', { method: 'POST' })
+                    } catch {
+                      // cookie clearing is server-side; reload regardless
+                    }
+                    window.location.hash = '#/'
+                    window.location.reload()
+                  }}
                   className="flex items-center justify-between w-full h-8 px-2 rounded-md text-[13px] transition-colors hover:bg-[var(--bg-hover)]"
                   style={{ color: 'var(--text-primary)' }}
                 >

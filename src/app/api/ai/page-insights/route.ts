@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { calculateAnalytics, calculateSymbolStats, type TradeInput } from '@/lib/analytics'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -79,8 +80,9 @@ function rateLimited(ip: string): boolean {
 // ---- Data digest -----------------------------------------------------------
 
 async function buildDigest() {
-  const user = await db.user.findFirst({ include: { accounts: true } })
-  if (!user) return null
+  const auth = await requireUser({ include: { accounts: true } })
+  if (!auth.ok) return null
+  const user = auth.user
   const trades = await db.trade.findMany({
     where: { userId: user.id, status: 'closed' },
     orderBy: { exitTime: 'desc' },

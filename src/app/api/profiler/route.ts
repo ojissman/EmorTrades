@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
 // TP-7-f — declared-vs-observed: the plan's current published version answers
@@ -860,7 +861,9 @@ export async function GET(req: NextRequest) {
     const accountId = searchParams.get('accountId')
     const range = searchParams.get('range') || '180'
 
-    const user = await db.user.findFirst({ include: { accounts: true, setups: true } })
+    const auth = await requireUser({ include: { accounts: true, setups: true } })
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const where: Record<string, unknown> = { userId: user.id, status: 'closed', exitTime: { not: null } }

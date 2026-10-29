@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import {
   calculateAnalytics,
   calculateSymbolStats,
@@ -31,10 +32,11 @@ interface CoachContext {
 }
 
 async function buildCoachContext(): Promise<CoachContext | null> {
-  const user = await db.user.findFirst({
+  const auth = await requireUser({
     include: { setups: true, accounts: true },
   })
-  if (!user) return null
+  if (!auth.ok) return null
+  const user = auth.user
 
   const trades = await db.trade.findMany({
     where: { userId: user.id, status: 'closed' },

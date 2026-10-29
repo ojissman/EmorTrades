@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { loadServerCurrencyDisplay, serverFmtUsd } from '@/lib/server-money'
 import {
   callZai,
@@ -606,7 +607,9 @@ Write a PERIOD SUMMARY as STRICT JSON only. Schema:
 
     // ---- INSIGHTS ------------------------------------------------------------
     if (kind === 'insights') {
-      const user = await db.user.findFirst()
+      const auth = await requireUser()
+      if (!auth.ok) return auth.response
+      const user = auth.user
       if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
       const days = await recentTradingDays(user.id)
@@ -665,7 +668,9 @@ Write the MORNING-STYLE INSIGHT for one trading day as STRICT JSON only. Schema:
 
     // ---- TRADE CHAT ----------------------------------------------------------
     if (kind === 'trade-chat') {
-      const user = await db.user.findFirst()
+      const auth = await requireUser()
+      if (!auth.ok) return auth.response
+      const user = auth.user
       if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
       const tradeId = (body.tradeId ?? '').trim()
       const question = (body.question ?? '').trim().slice(0, 500)

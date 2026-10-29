@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import {
   calculateAnalytics,
   calculateEquityCurve,
@@ -20,13 +21,15 @@ export async function GET(req: NextRequest) {
     const accountId = searchParams.get('accountId')
     const range = searchParams.get('range') || '180' // days
 
-    const user = await db.user.findFirst({
+    const auth = await requireUser({
       include: {
         accounts: true,
         setups: true,
         settings: true,
       },
     })
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }

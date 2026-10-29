@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
 // Returns current demo user info
 export async function GET() {
   try {
-    const user = await db.user.findFirst({
+    const auth = await requireUser({
       select: {
         id: true,
         name: true,
@@ -17,6 +18,8 @@ export async function GET() {
         defaultCurrency: true,
       },
     })
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ user: null })
     }

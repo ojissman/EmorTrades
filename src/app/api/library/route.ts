@@ -3,6 +3,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { UPLOADS_DIR, ensureUploadsDir, ALLOWED_MIME, maxUploadBytesFor, filenameFromUrl } from '@/lib/library-store'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,9 @@ export const runtime = 'nodejs'
  */
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const screenshots = await db.screenshot.findMany({
@@ -79,7 +82,9 @@ const MAX_FILES_PER_REQUEST = 12
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const form = await req.formData()

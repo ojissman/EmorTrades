@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { z } from 'zod'
 import { autoAttachNewsToTrade } from '../trade-news/route'
 import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope, hourInSessionWindow } from '@/lib/server/trade-scope'
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'entryTime'
     const sortDir = searchParams.get('sortDir') || 'desc'
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }
@@ -307,7 +310,9 @@ export async function POST(req: NextRequest) {
       )
     }
     const body = parsed.data
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }

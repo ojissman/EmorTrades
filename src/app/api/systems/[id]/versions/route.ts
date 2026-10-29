@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { publishVersion } from '@/lib/plan-versioning'
 import { TEMPLATE_VERSION } from '@/config/plan-template'
 
@@ -15,7 +16,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const system = await db.system.findFirst({ where: { id, userId: user.id } })
     if (!system) return NextResponse.json({ error: 'System not found' }, { status: 404 })
@@ -33,7 +36,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const system = await db.system.findFirst({ where: { id, userId: user.id } })
     if (!system) return NextResponse.json({ error: 'System not found' }, { status: 404 })

@@ -97,6 +97,12 @@ const AiSuitePage = dynamic(
   () => import('@/components/pages/ai-suite-page').then((m) => ({ default: m.AiSuitePage })),
   { ssr: false, loading: () => <PageLoaderFallback /> },
 )
+// Multi-user launch — the Admin Console (user/role management). Rendered for
+// ADMIN sessions only; the page itself also guards (APIs 403 for non-admins).
+const AdminPage = dynamic(
+  () => import('@/components/pages/admin/admin-guard').then((m) => ({ default: m.AdminGuardedPage })),
+  { ssr: false, loading: () => <PageLoaderFallback /> },
+)
 // Task 42 — date charts (one component × 2 routes).
 const DateChartsDay = dynamic(
   () => import('@/components/pages/date-charts-page').then((m) => ({ default: () => <m.DateChartsPage mode="day" /> })),
@@ -415,6 +421,8 @@ export const PAGE_REGISTRY: Record<string, PageEntry> = {
   '/settings': lg('settings', 'Settings', 'Configure your account', () => <SettingsPage />),
   '/trades-import': lg('import', 'Trades Import', 'Import trades from your broker', () => <ImportPage />),
   '/library': { kind: 'custom', title: 'Screenshots & Video Library', subtitle: 'Upload, caption and inspect trade evidence — screenshots, video and audio', render: () => <LibraryPage /> },
+  // ---- Admin (multi-user launch) ----------------------------------------------
+  '/admin': { kind: 'custom', title: 'Admin Console', subtitle: 'Manage users, roles, and platform activity', render: () => <AdminPage /> },
 
   // ---- Hidden routes (not in nav) ---------------------------------------------
   // Task 147 — Trade Detail was merged into Trade Explore. The old route is

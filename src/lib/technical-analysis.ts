@@ -28,6 +28,7 @@
  */
 
 import { db } from '@/lib/db'
+import { getSessionUserId } from '@/lib/server/auth'
 import { fetchCandles, type Candle } from '@/lib/market'
 
 // ---- public types -----------------------------------------------------------------
@@ -297,11 +298,12 @@ async function loadTape(symbol: string, start: Date, end: Date): Promise<Session
 // ---- main builder -----------------------------------------------------------------------
 
 export async function buildTechnicalAnalysis(scope: Scope, accountId?: string | null): Promise<TechnicalAnalysisPayload> {
-  const cacheKey = `${scope}:${accountId ?? 'all'}`
+  const uid0 = await getSessionUserId()
+  const cacheKey = `${uid0 ?? 'anon'}:${scope}:${accountId ?? 'all'}`
   const cached = resultCache.get(cacheKey)
   if (cached && cached.expires > Date.now()) return cached.payload
 
-  const user = await db.user.findFirst()
+  const user = uid0 ? await db.user.findUnique({ where: { id: uid0 } }) : null
   if (!user) throw new Error('No user')
 
   const where: { userId: string; status: string; accountId?: string } = { userId: user.id, status: 'closed' }
@@ -518,11 +520,12 @@ function pearson(pairs: [number, number][]): number | null {
 }
 
 export async function buildRelativeVolume(accountId?: string | null): Promise<RelativeVolumePayload> {
-  const cacheKey = `rvol:${accountId ?? 'all'}`
+  const uid0 = await getSessionUserId()
+  const cacheKey = `${uid0 ?? 'anon'}:rvol:${accountId ?? 'all'}`
   const cached = rvolCache.get(cacheKey)
   if (cached && cached.expires > Date.now()) return cached.payload
 
-  const user = await db.user.findFirst()
+  const user = uid0 ? await db.user.findUnique({ where: { id: uid0 } }) : null
   if (!user) throw new Error('No user')
 
   const where: { userId: string; status: string; accountId?: string } = { userId: user.id, status: 'closed' }

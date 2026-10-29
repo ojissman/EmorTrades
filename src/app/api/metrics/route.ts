@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope } from '@/lib/server/trade-scope'
 
 export const dynamic = 'force-dynamic'
@@ -396,7 +397,9 @@ export async function GET(req: NextRequest) {
     const cached = getCached(sig)
     if (cached) return NextResponse.json(cached)
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user found' }, { status: 404 })
 
     // Task 148 — parse + apply the shared global scope after the SQL where.

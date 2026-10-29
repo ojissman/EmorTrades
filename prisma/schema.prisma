@@ -22,6 +22,10 @@ model User {
   riskPerTrade     Float          @default(1.0)
   startingCapital Float          @default(10000)
   displayMode     String         @default("pnl") // pnl, r, points, ticks
+  // ── Auth & access control (multi-user) ────────────────────────────────
+  role            String         @default("USER") // USER | ADMIN
+  status          String         @default("ACTIVE") // ACTIVE | SUSPENDED
+  lastLoginAt     DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   accounts        Account[]

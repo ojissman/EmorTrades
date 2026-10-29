@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { computePlanReview, type PlanReviewData } from '@/lib/plan-review'
 import { getAdapter } from '@/lib/ai-providers/registry'
 import { withAiRetry } from '@/lib/ai/zai-retry'
@@ -122,7 +123,9 @@ function reviewForPrompt(d: PlanReviewData): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const sp = req.nextUrl.searchParams
     const kind = sp.get('kind')
@@ -149,7 +152,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const body = await req.json().catch(() => ({}))
     const kind = String(body?.kind ?? '')

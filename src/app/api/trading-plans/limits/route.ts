@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { parseContent } from '@/lib/plan-versioning'
 import { declaredLimitsOf, parseTradesPerDay } from '@/lib/plan-content-values'
 
@@ -28,7 +29,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
     const plans = await db.tradingPlan.findMany({

@@ -23,6 +23,7 @@ import {
   NAV_ITEMS,
   SIMPLE_MODE_NAV,
   UTILITY_ITEMS,
+  ADMIN_NAV_ITEM,
   chainForRoute,
   simpleChainForRoute,
   type NavItem,
@@ -32,6 +33,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Switch } from '@/components/ui/switch'
 import { preloadPage } from '@/components/pages/lazy-pages'
 import { suiteSectionForRoute } from '@/config/suite-sections'
+import { useIsAdmin } from '@/store/auth-store'
 import { timeAgoShort } from '@/lib/time-ago'
 import { useBackupFreshness } from '@/hooks/use-backup-freshness'
 import { Upload, Plus, Settings, Circle, Pin, X, GripVertical, History } from 'lucide-react'
@@ -241,7 +243,13 @@ export function Sidebar() {
 
   // Fix 3.2/3.4 — Simple Mode renders its OWN friendly list (not a filter of
   // the full nav); every entry is a pointer to an EXISTING page.
-  const items = useMemo(() => (simpleMode ? SIMPLE_MODE_NAV : NAV_ITEMS), [simpleMode])
+  // Multi-user launch — admins get the Admin Console as a first-class nav
+  // item (below the main nav, above the utility row) in BOTH nav modes.
+  const isAdmin = useIsAdmin()
+  const items = useMemo(
+    () => (isAdmin ? [...(simpleMode ? SIMPLE_MODE_NAV : NAV_ITEMS), ADMIN_NAV_ITEM] : simpleMode ? SIMPLE_MODE_NAV : NAV_ITEMS),
+    [simpleMode, isAdmin],
+  )
 
   // Task 81 — resolve stored pin routes against the shared suite-section
   // registry (label + icon + owning page); a pin is ACTIVE when the current

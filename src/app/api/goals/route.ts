@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 // TP2-P5 — the evaluation machinery now lives in the shared lib (the AI
 // goals-review route evaluates with the EXACT same arithmetic this page shows).
 import { SERVER_METRICS, buildDayTotalsByPlan, localCal, computeProgress } from '@/lib/goal-progress'
@@ -84,7 +85,9 @@ async function resolvePlanPin(
 
 export async function GET() {
   try {
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // Task 118 — `order` is a global display rank; sections (daily/weekly/
     // monthly/annual) filter this ordering client-side, so relative order
@@ -130,7 +133,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     // TP-7-h — plan-aware columns ride along (all optional).
     const tp = tpGoalFields(body)
@@ -177,7 +182,9 @@ export async function PUT(req: NextRequest) {
     if (body.isActive !== undefined) data.isActive = !!body.isActive
     Object.assign(data, tpGoalFields(body))
     if ('planId' in body) {
-      const user = await db.user.findFirst()
+      const auth = await requireUser()
+      if (!auth.ok) return auth.response
+      const user = auth.user
       if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
       const pin = await resolvePlanPin(body, user.id)
       if ('error' in pin) return NextResponse.json({ error: pin.error }, { status: 400 })
@@ -229,7 +236,9 @@ export async function PATCH(req: NextRequest) {
       if (body.isActive !== undefined) data.isActive = !!body.isActive
       Object.assign(data, tpGoalFields(body))
       if ('planId' in body) {
-        const user = await db.user.findFirst()
+        const auth = await requireUser()
+        if (!auth.ok) return auth.response
+        const user = auth.user
         if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
         const pin = await resolvePlanPin(body, user.id)
         if ('error' in pin) return NextResponse.json({ error: pin.error }, { status: 400 })

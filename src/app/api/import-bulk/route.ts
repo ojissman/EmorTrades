@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { autoAttachNewsToTrade } from '../trade-news/route'
 import { suggestMultiplier } from '@/lib/contracts'
 import { recordStopChange } from '@/lib/plan-link'
@@ -47,7 +48,9 @@ export async function POST(req: NextRequest) {
       source?: ImportSource
     }
 
-    const user = await db.user.findFirst()
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }
