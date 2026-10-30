@@ -103,6 +103,11 @@ const AdminPage = dynamic(
   () => import('@/components/pages/admin/admin-guard').then((m) => ({ default: m.AdminGuardedPage })),
   { ssr: false, loading: () => <PageLoaderFallback /> },
 )
+// ADMIN-2 — user-side support tickets page (Feedback & Support module).
+const UserSupportPage = dynamic(
+  () => import('@/components/pages/support/user-support-page').then((m) => ({ default: m.UserSupportPage })),
+  { ssr: false, loading: () => <PageLoaderFallback /> },
+)
 // Task 42 — date charts (one component × 2 routes).
 const DateChartsDay = dynamic(
   () => import('@/components/pages/date-charts-page').then((m) => ({ default: () => <m.DateChartsPage mode="day" /> })),
@@ -423,6 +428,8 @@ export const PAGE_REGISTRY: Record<string, PageEntry> = {
   '/library': { kind: 'custom', title: 'Screenshots & Video Library', subtitle: 'Upload, caption and inspect trade evidence — screenshots, video and audio', render: () => <LibraryPage /> },
   // ---- Admin (multi-user launch) ----------------------------------------------
   '/admin': { kind: 'custom', title: 'Admin Console', subtitle: 'Manage users, roles, and platform activity', render: () => <AdminPage /> },
+  // ADMIN-2 — user-side support tickets (Feedback & Support module)
+  '/tools/support': { kind: 'custom', title: 'Support', subtitle: 'Get help and track your tickets', render: () => <UserSupportPage /> },
 
   // ---- Hidden routes (not in nav) ---------------------------------------------
   // Task 147 — Trade Detail was merged into Trade Explore. The old route is

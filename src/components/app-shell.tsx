@@ -41,6 +41,9 @@ import { ShortcutsOverlay } from './shell/shortcuts-overlay'
 import { TradeModalDeepLinkWatcher } from './shell/trade-modal-deeplink'
 import { useQuery } from '@tanstack/react-query'
 import { PriceAlertsMonitor } from '@/components/watchlist/price-alerts-monitor'
+import { AdminPlatform } from '@/components/admin/admin-platform'
+// ADMIN-2 — the administration platform replaces the trader shell entirely
+// when the SPA route lives under /admin (own sidebar/topbar/theme).
 
 interface Account {
   id: string
@@ -77,6 +80,19 @@ function ShellContent() {
   const accounts: Account[] = accountsData?.accounts || []
 
   const { commandPaletteOpen } = useAppStore()
+
+  // ADMIN-2 — admin routes get the dedicated administration platform (own
+  // 240px sidebar, topbar, light/dark theme). The hash→store sync above still
+  // applies; deep links like #/admin/users/<id> work, and navigating back to
+  // any trader route remounts this shell unchanged.
+  if (route.startsWith('/admin')) {
+    return (
+      <div className="shell-root h-screen flex flex-col overflow-hidden">
+        <SettingsPrefsApplier />
+        <AdminPlatform />
+      </div>
+    )
+  }
 
   return (
     <div className="shell-root h-screen flex flex-col overflow-hidden">

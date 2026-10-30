@@ -60,6 +60,8 @@ import {
 import { PeakPopup, PeakPopupTrigger, PeakPopupContent, PeakPopupClose } from './peak-popup'
 import { useThemePrefs, activeTheme, nextThemeId } from '@/store/theme-prefs-store'
 import { AlertsCenter } from '@/components/alerts-center'
+// ADMIN-2 — platform messages (announcements + notifications) bell.
+import { PlatformMessagesBell } from '@/components/platform-messages/bell'
 // Task 10 — economic news-release awareness: next high-impact release as a
 // live-countdown chip, riding the top bar on every journal page (md+).
 import { EconReleaseChip } from '@/components/shell/econ-release-chip'
@@ -566,6 +568,9 @@ export function TopBar() {
 
       {/* Alerts — behavior patterns + watchlist price crossings */}
       <AlertsCenter />
+
+      {/* ADMIN-2 — platform announcements + admin notifications (in-app) */}
+      <PlatformMessagesBell />
 
       {/* Task 152 — theme icon CYCLES the 6-theme registry on click (no
           dropdown; the full picker lives in Settings ▸ Display). Each press

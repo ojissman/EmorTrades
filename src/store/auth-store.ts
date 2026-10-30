@@ -13,6 +13,14 @@ export interface AuthUser {
   role: string // 'USER' | 'ADMIN'
   status: string // 'ACTIVE' | 'SUSPENDED'
   avatar?: string | null
+  timezone?: string
+  defaultCurrency?: string
+  googleLinked?: boolean
+  hasPassword?: boolean
+  // ADMIN-2 — administration platform access (resolved server-side in /api/auth/me)
+  adminRole?: 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT' | null
+  isAdmin?: boolean
+  adminPermissions?: string[]
 }
 
 interface AuthState {
@@ -25,4 +33,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user }),
 }))
 
-export const useIsAdmin = () => useAuthStore((s) => s.user?.role === 'ADMIN')
+export const useIsAdmin = () => useAuthStore((s) => Boolean(s.user?.isAdmin) || s.user?.role === 'ADMIN')
+
+/** The staff role for the admin platform (null = no admin platform access). */
+export const useAdminRole = () => useAuthStore((s) => s.user?.adminRole ?? null)
+
+export const useAdminPermissions = () => useAuthStore((s) => s.user?.adminPermissions ?? [])

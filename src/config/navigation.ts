@@ -143,6 +143,8 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Risk Tools', path: '/tools/risk-tools' },
       { label: 'Execution', path: '/tools/execution' },
       { label: 'Challenges', path: '/tools/challenges' },
+      // ADMIN-2 — user-side support tickets (Feedback & Support module)
+      { label: 'Support', path: '/tools/support' },
     ],
   },
 
