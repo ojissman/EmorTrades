@@ -58,7 +58,10 @@ import {
   Rows3,
   Search,
   Download,
+  // ADMIN-3 — admin branch of the bar (Back to App left anchor)
+  ArrowLeft,
 } from 'lucide-react'
+import { AdminGlobalSearch } from '@/components/admin/global-search'
 import { useToast } from '@/hooks/use-toast'
 import { PeakPopup, PeakPopupTrigger, PeakPopupContent } from './peak-popup'
 import { GlobalFiltersDrawer } from './global-filters-drawer'
@@ -398,6 +401,40 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
   const selectedPnl = selectedAccount
     ? (selectedAccount as AccountWithCount).pnl ?? 0
     : accounts.reduce((s, a) => s + ((a as AccountWithCount).pnl ?? 0), 0)
+
+  // ADMIN-3 — admin routes keep THIS bar (region #2 stays per the owner's
+  // unification direction) with admin-appropriate zones: the fixed-left
+  // anchor becomes "Back to App" (the one-click way back to the trader
+  // pages), the dynamic middle carries the ADMIN GLOBAL SEARCH, and the
+  // trader fixed-right cluster (Filters · Account · Date-range — dashboard-
+  // scoped trader controls) is honestly absent on admin pages instead of
+  // silently mutating trader filter state from an admin context.
+  if (route.startsWith('/admin')) {
+    return (
+      <div
+        className="h-11 w-full sticky top-11 z-40 flex items-center gap-2 px-2 border-b shell-bar"
+        role="toolbar"
+        aria-label="Global action bar (administration)"
+      >
+        {/* ---- FIXED LEFT: Back to App (same anchor grammar as Custom Dashboards) ---- */}
+        <button
+          onClick={() => useAppStore.getState().navigate('/overview')}
+          className="flex items-center gap-2 h-8 px-2 rounded-md text-[13px] font-medium transition-colors hover:bg-[var(--bg-hover)] shrink-0"
+          style={{ color: 'var(--text-primary)' }}
+          aria-label="Back to the trading app"
+          data-testid="admin-back-to-app"
+        >
+          <ArrowLeft className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+          <span className="hidden sm:inline">Back to App</span>
+        </button>
+
+        {/* ---- DYNAMIC middle: the admin global search ---- */}
+        <div className="flex-1 flex items-center gap-2 min-w-0 px-1 overflow-hidden">
+          <AdminGlobalSearch />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-11 w-full sticky top-11 z-40 flex items-center gap-2 px-2 border-b shell-bar" role="toolbar" aria-label="Global action bar">

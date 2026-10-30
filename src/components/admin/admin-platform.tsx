@@ -1,25 +1,29 @@
 'use client'
 
 /**
- * ADMIN PLATFORM (ADMIN-2) — the full administration experience, mounted by
- * the AppShell whenever the SPA route lives under /admin. Own sidebar +
- * topbar + theme (the trader shell is fully replaced, not nested).
+ * ADMIN CONTENT ROUTER (ADMIN-3) — renders ONLY the administration page
+ * body. The shell around it (top bar, global action bar, this sidebar,
+ * global overlays, theme) is the APP's own shell now: AppShell mounts
+ * <AdminSidebar/> + <AdminContent/> for #/admin routes exactly like the
+ * trader frame, so the admin experience shares the app's chrome, theme
+ * (all 6 registry themes + dark-lift + accent-hue) and navigation design
+ * language. The former own-topbar/sidebar/theme (ADMIN-2) is gone.
  *
  * Routing stays on the app's hash router (#/admin/users/…). Nav items are
- * permission-filtered in the sidebar and this router renders a clear
- * "insufficient permissions" state — but the REAL enforcement is server-side
- * in every /api/admin route (requirePermission).
+ * permission-filtered in the sidebar; this router renders a clear
+ * "insufficient permissions" state — but the REAL enforcement is
+ * server-side in every /api/admin route (requirePermission).
+ *
+ * admin-scope wrapper: admin.css re-points the --a-* token set onto the
+ * app's theme tokens, so every .a-* class and Recharts fill follows the
+ * app theme with zero page-level changes.
  */
 
 import dynamic from 'next/dynamic'
-import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { useMemo } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useAppStore } from '@/store/app-store'
 import { useAuthStore } from '@/store/auth-store'
-import { useAdminTheme } from './theme'
-import { AdminSidebar, useSidebarCollapsed } from './sidebar'
-import { AdminTopbar } from './topbar'
 import { AdminEmptyState } from './ui/primitives'
 import './admin.css'
 
@@ -149,16 +153,13 @@ const ROUTES: Record<string, AdminRouteDef> = {
   },
 }
 
-/* ── Platform shell ──────────────────────────────────────────────────────── */
+/* ── Content router ──────────────────────────────────────────────────────── */
 
-export function AdminPlatform() {
+export function AdminContent() {
   const route = useAppStore((s) => s.route)
   const routeQuery = useAppStore((s) => s.routeQuery)
   const user = useAuthStore((s) => s.user)
   const permissions = user?.adminPermissions ?? []
-  const { theme, toggle } = useAdminTheme()
-  const [collapsed, toggleCollapsed] = useSidebarCollapsed()
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   const matched = useMemo(() => {
     // '/admin/users/abc' → '/admin/users/:id' + userId
@@ -170,15 +171,6 @@ export function AdminPlatform() {
     const def = ROUTES[route]
     return def ? { def, userId: undefined as string | undefined } : null
   }, [route])
-
-  const logout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-    } catch {
-      /* cookie cleared server-side best-effort; reload regardless */
-    }
-    window.location.href = '/'
-  }
 
   const notAdmin = user && !user.isAdmin && user.role !== 'ADMIN'
 
@@ -223,27 +215,5 @@ export function AdminPlatform() {
     content = matched.def.render({ userId: matched.userId, query: routeQuery })
   }
 
-  return (
-    <div className="admin-root flex h-screen overflow-hidden" data-theme={theme}>
-      <AdminSidebar
-        collapsed={collapsed}
-        onToggleCollapse={toggleCollapsed}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-        onLogout={logout}
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <AdminTopbar
-          onOpenMobile={() => setMobileOpen(true)}
-          theme={theme}
-          onToggleTheme={toggle}
-          onLogout={logout}
-          title={matched?.def.title ?? 'Administration'}
-        />
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain" id="admin-content">
-          {content}
-        </main>
-      </div>
-    </div>
-  )
+  return <div className="admin-scope min-h-full">{content}</div>
 }

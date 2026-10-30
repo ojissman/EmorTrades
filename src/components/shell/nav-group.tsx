@@ -24,12 +24,25 @@ interface NavGroupProps {
   onLeafHover?: (path: string) => void
   /** Render inside a rail flyout (denser, no own collapse behavior). */
   inFlyout?: boolean
+  /**
+   * ADMIN-3 — optional route-matching override (opt-in, additive). Lets a
+   * consumer with DEEP routes (admin: '/admin/users/<id>') keep the owning
+   * leaf + its group chain lit. Default (omitted) = the trader nav's exact
+   * match, byte-identical to pre-ADMIN-3 behavior.
+   */
+  matchRoute?: (path: string, route: string) => boolean
 }
 
 /** True when the active route lives anywhere inside this item's subtree. */
 export function subtreeContainsRoute(item: NavItem, route: string): boolean {
   if (item.path === route) return true
   return (item.children ?? []).some((c) => subtreeContainsRoute(c, route))
+}
+
+/** True when the active route lives anywhere inside this item's subtree (matchRoute variant). */
+function subtreeMatches(item: NavItem, route: string, matchRoute: (path: string, route: string) => boolean): boolean {
+  if (matchRoute(item.path, route)) return true
+  return (item.children ?? []).some((c) => subtreeMatches(c, route, matchRoute))
 }
 
 export function NavGroup({
@@ -41,10 +54,12 @@ export function NavGroup({
   onNavigate,
   onLeafHover,
   inFlyout = false,
+  matchRoute,
 }: NavGroupProps) {
   const isGroup = Boolean(item.children?.length)
   const open = openGroups.has(item.path)
-  const active = route === item.path
+  const active = matchRoute ? matchRoute(item.path, route) : route === item.path
+  const branchActive = matchRoute ? subtreeMatches(item, route, matchRoute) : active || subtreeContainsRoute(item, route)
 
   // ----- Leaf -----
   if (!isGroup) {
@@ -76,7 +91,7 @@ export function NavGroup({
   return (
     <div>
       <button
-        data-active={active || subtreeContainsRoute(item, route)}
+        data-active={branchActive}
         onClick={() => (inFlyout ? undefined : onToggleGroup(item.path))}
         onMouseEnter={() => onLeafHover?.(item.path)}
         aria-expanded={inFlyout ? undefined : open}
@@ -110,6 +125,7 @@ export function NavGroup({
                   route={route}
                   onNavigate={onNavigate}
                   onLeafHover={onLeafHover}
+                  matchRoute={matchRoute}
                 />
               ))}
             </div>
@@ -127,6 +143,7 @@ export function NavGroup({
               route={route}
               onNavigate={onNavigate}
               onLeafHover={onLeafHover}
+              matchRoute={matchRoute}
               inFlyout
             />
           ))}

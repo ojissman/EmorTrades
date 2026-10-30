@@ -1,89 +1,69 @@
 /* ============================================================================
-   ADMIN PLATFORM THEME (ADMIN-2) — premium trading SaaS design system
+   ADMIN THEME (ADMIN-3) — UNIFIED WITH THE APP THEME.
    ----------------------------------------------------------------------------
-   Exact palette from the platform spec, as CSS custom properties so both the
-   layout classes AND Recharts SVG fills (var() resolves in SVG attributes)
-   re-theme instantly. Scoped to .admin-root — the trader app is untouched.
+   The admin pages no longer own a theme. Every --a-* token is now an ALIAS
+   of the app's shell theme tokens (shell.css `html[data-theme=…]` — all 6
+   registry themes, light + dark, dark-lift and accent-hue overrides), so all
+   .a-* classes AND Recharts SVG fills (var() resolves in SVG attributes)
+   follow the app theme instantly, with zero page-level changes.
+   Scoped to .admin-scope (the wrapper AdminContent renders); the trader app
+   is untouched.
    ========================================================================== */
 
-.admin-root {
-  /* dark (default) */
-  --a-bg: #0b1120;
-  --a-sidebar: #0f172a;
-  --a-card: #111827;
-  --a-card-2: #0d1526;
-  --a-border: #253047;
-  --a-border-soft: #1c2740;
-  --a-primary: #3b82f6;
-  --a-primary-soft: rgba(59, 130, 246, 0.14);
-  --a-primary-fg: #ffffff;
-  --a-success: #10b981;
-  --a-success-soft: rgba(16, 185, 129, 0.14);
-  --a-danger: #ef4444;
-  --a-danger-soft: rgba(239, 68, 68, 0.14);
-  --a-warning: #f59e0b;
-  --a-warning-soft: rgba(245, 158, 11, 0.14);
-  --a-neutral-soft: rgba(148, 163, 184, 0.14);
-  --a-text: #f8fafc;
-  --a-text-2: #94a3b8;
-  --a-text-3: #64748b;
-  --a-hover: rgba(148, 163, 184, 0.08);
-  --a-active: rgba(59, 130, 246, 0.12);
-  --a-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
-  --a-shadow-pop: 0 12px 40px -12px rgba(0, 0, 0, 0.6);
-  --a-scroll-thumb: #2c3a55;
-  --a-input-bg: #0d1526;
-  --a-sidebar-text: #94a3b8;
-  --a-skeleton: rgba(148, 163, 184, 0.09);
+.admin-scope {
+  /* aliases onto the app theme tokens (shell.css) */
+  --a-bg: var(--bg-content);
+  --a-sidebar: var(--bg-bar);
+  --a-card: var(--bg-card);
+  --a-card-2: var(--bg-inset);
+  --a-border: var(--border-strong);
+  --a-border-soft: var(--shell-border);
+  --a-primary: var(--shell-accent);
+  --a-primary-soft: color-mix(in srgb, var(--shell-accent) 14%, transparent);
+  --a-primary-fg: #ffffff; /* same contrast contract as .shell-accent-btn */
+  --a-success: var(--shell-success);
+  --a-success-soft: color-mix(in srgb, var(--shell-success) 14%, transparent);
+  --a-danger: var(--shell-danger);
+  --a-danger-soft: color-mix(in srgb, var(--shell-danger) 14%, transparent);
+  --a-warning: var(--shell-warning);
+  --a-warning-soft: color-mix(in srgb, var(--shell-warning) 14%, transparent);
+  --a-neutral-soft: color-mix(in srgb, var(--text-secondary) 14%, transparent);
+  --a-text: var(--text-primary);
+  --a-text-2: var(--text-secondary);
+  --a-text-3: color-mix(in srgb, var(--text-secondary) 78%, transparent);
+  --a-hover: var(--bg-hover);
+  --a-active: color-mix(in srgb, var(--shell-accent) 12%, transparent);
+  --a-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  --a-shadow-pop: 0 12px 40px -12px rgba(0, 0, 0, 0.5);
+  --a-scroll-thumb: color-mix(in srgb, var(--text-secondary) 40%, transparent);
+  --a-input-bg: var(--bg-inset);
+  --a-sidebar-text: var(--text-secondary);
+  --a-skeleton: color-mix(in srgb, var(--text-secondary) 10%, transparent);
 
-  background: var(--a-bg);
   color: var(--a-text);
   font-feature-settings: 'cv02', 'cv03', 'cv04';
 }
 
-.admin-root[data-theme='light'] {
-  --a-bg: #f8fafc;
-  --a-sidebar: #ffffff;
-  --a-card: #ffffff;
-  --a-card-2: #f1f5f9;
-  --a-border: #e2e8f0;
-  --a-border-soft: #eef2f7;
-  --a-primary: #2563eb;
-  --a-primary-soft: rgba(37, 99, 235, 0.1);
-  --a-primary-fg: #ffffff;
-  --a-success: #059669;
-  --a-success-soft: rgba(5, 150, 105, 0.1);
-  --a-danger: #dc2626;
-  --a-danger-soft: rgba(220, 38, 38, 0.1);
-  --a-warning: #d97706;
-  --a-warning-soft: rgba(217, 119, 6, 0.12);
-  --a-neutral-soft: rgba(100, 116, 139, 0.12);
-  --a-text: #0f172a;
-  --a-text-2: #64748b;
-  --a-text-3: #94a3b8;
-  --a-hover: rgba(15, 23, 42, 0.05);
-  --a-active: rgba(37, 99, 235, 0.09);
+/* Light app themes soften the admin shadows (same contract as the app's
+   own light surfaces). */
+:root[data-theme-mode='light'] .admin-scope {
   --a-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
   --a-shadow-pop: 0 12px 40px -12px rgba(15, 23, 42, 0.2);
-  --a-scroll-thumb: #cbd5e1;
-  --a-input-bg: #ffffff;
-  --a-sidebar-text: #475569;
-  --a-skeleton: rgba(100, 116, 139, 0.12);
 }
 
 /* ── scrollbars ─────────────────────────────────────────────────────────── */
-.admin-root ::-webkit-scrollbar {
+.admin-scope ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-.admin-root ::-webkit-scrollbar-track {
+.admin-scope ::-webkit-scrollbar-track {
   background: transparent;
 }
-.admin-root ::-webkit-scrollbar-thumb {
+.admin-scope ::-webkit-scrollbar-thumb {
   background: var(--a-scroll-thumb);
   border-radius: 8px;
 }
-.admin-root ::-webkit-scrollbar-thumb:hover {
+.admin-scope ::-webkit-scrollbar-thumb:hover {
   filter: brightness(1.15);
 }
 
@@ -381,13 +361,13 @@
 }
 
 /* Recharts polish — minimal grid lines per spec */
-.admin-root .recharts-cartesian-grid line {
+.admin-scope .recharts-cartesian-grid line {
   stroke: var(--a-border-soft);
 }
-.admin-root .recharts-text {
+.admin-scope .recharts-text {
   fill: var(--a-text-3);
   font-size: 11px;
 }
-.admin-root .recharts-default-tooltip {
+.admin-scope .recharts-default-tooltip {
   border-radius: 10px !important;
 }

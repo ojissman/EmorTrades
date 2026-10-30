@@ -49,10 +49,14 @@ export async function GET(req: NextRequest) {
       : undefined
     const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1)
     const pageSize = Math.min(100, Math.max(1, parseInt(sp.get('pageSize') ?? '20', 10) || 20))
+    // ADMIN-3 — free-text search for the admin global search (title contains,
+    // case-insensitive; additive, ignored when empty).
+    const search = (sp.get('search') ?? '').trim()
 
     const where = {
       ...(status ? { status } : {}),
       ...(type ? { type } : {}),
+      ...(search ? { title: { contains: search } } : {}),
     }
 
     const [rows, total, draft, scheduled, published] = await Promise.all([

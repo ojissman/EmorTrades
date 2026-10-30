@@ -5219,3 +5219,36 @@ lint 0; tsc --noEmit 0 (whole repo); vitest 130/130; every module API curl-teste
 3. The old basic console components remain in the tree (unreachable dead code) — candidate for deletion in a later tidy pass.
 4. Support "avg first response" and churn are honest nulls until real history exists.
 5. DB snapshot in this commit = production pull + this session's auditable test history (AdminActionLog rows from agent verification remain as anonymous honest history, same convention as LAND-1).
+
+---
+
+## Task ID: ADMIN-3 (admin page: unified app shell + theme + nav design + global search)
+Agent: orchestrator (Z.ai Code main session)
+Date: 2026-10-30/31 (session continuation)
+
+### Owner direction (verbatim intent)
+1. Opinion on what the admin page needs (fixing/expanding/upgrading/adding) — answered: the #1 issue was shell/theme fragmentation (admin built as its own platform in ADMIN-2), which this task removes; ranked follow-ups below.
+2. Admin page shares and uses the SAME theme as the App.
+3. Admin page uses the App's navigation UI structure design.
+4. Admin page uses the same app shell (global bar #1 + global action bar #2 stay; ONLY the navigation swaps to the admin nav; the admin global search lives in bar #2).
+
+### Implementation
+- **One shell for the whole app** (`app-shell.tsx`): the ADMIN-2 early-return (own platform replacing the shell) is gone. Every route renders the same 5-region frame; #/admin routes swap region 3 → `AdminSidebar` and region 4 → `AdminContent` only. Bars, overlays (⌘K, peek, trade modal, price alerts), scroll isolation: unchanged for both experiences. Main drops the trader p-4/p-6 on admin (pages self-pad).
+- **Theme unification**: admin no longer owns a theme. `admin.css` re-points every `--a-*` token onto the app's shell tokens (`--bg-content/--bg-card/--bg-inset/--border-strong/--shell-accent/--shell-success…`), so all `.a-*` classes AND Recharts SVG fills follow `html[data-theme]` — all 6 registry themes, dark+light, dark-lift, accent-hue — with zero page-level changes. Scope renamed `.admin-root` → `.admin-scope` (the AdminContent wrapper); separate light block + `admin/theme.ts` + topbar theme toggle deleted (the app top bar's toggle governs everything now). Light-mode shadow softening via `:root[data-theme-mode='light']`.
+- **Navigation in the App's design language** (new `admin/sidebar.tsx` + `config/admin-navigation.ts`): same `shell-bar` surface, same w-60 ↔ w-[52px] rail driven by the SAME top-bar hamburger (app-store `sidebarCollapsed`), same chevron groups with persisted open-groups (`admin.nav.openGroups.v1`) + active-chain auto-expand, same mobile overlay+backdrop below 1024px (top-[88px], same breakpoint/mechanics as the trader sidebar), same pinned bottom utility row (Back to App · Platform Settings · Admin Profile). Tree = Dashboard leaf + People/Trading/Growth/System groups, permission-filtered (`filterAdminNav`); rendered by the REAL shell `NavGroup` (zero new nav CSS). Shared `NavGroup` gained an opt-in `matchRoute` prop (additive; trader nav byte-identical when omitted) so deep admin routes ('/admin/users/<id>') keep their owning leaf + group lit.
+- **Admin global search** (new `admin/global-search.tsx`): lives in the GLOBAL ACTION BAR (#2) middle zone on admin routes. Debounced 250ms, permission-gated per module, queries the four real list APIs in parallel (users name/email; trades symbol/trader; tickets subject/email; announcements title — `search` param added to the announcements route, additive). Grouped dropdown; rows deep-link (users → /admin/users/<id>; trades → /admin/journals; tickets → /admin/support; announcements → /admin/announcements); Enter → Users with the query pre-filled (same destination as the old topbar search). Stale-response guard via per-call sequence.
+- **Bar #2 admin zones** (`global-action-bar.tsx`): fixed-left anchor becomes "Back to App" (one-click back to /overview, same anchor grammar as Custom Dashboards); the trader fixed-right cluster (Filters · Account · Date-range — dashboard-scoped trader controls) is honestly absent on admin pages instead of silently mutating trader filter state from an admin context. Trader path byte-identical when not on /admin.
+- Old admin topbar (mobile menu, page title, search, theme toggle, account menu) deleted — every function has an equivalent in the shared bars (hamburger, page headers, #2 search, app theme toggle, top bar avatar menu).
+
+### Verification (all on the sandbox DB = last real production pull)
+lint 0; tsc --noEmit 0; vitest 130/130. Browser E2E as admin@ (SUPER_ADMIN) via minted session cookie: /#/admin renders the unified shell (all 5 regions, VLM pass, no defects); theme toggle → Obsidian Amber: computed admin card color `rgb(24,21,20)` = Obsidian's `--bg-card`, accent `#d97706` (CSS-level proof admin follows the app registry); Porcelain White (light) VLM pass on Users page; rail mode measured 52px with pure-CSS flyout `display:block` on group hover; mobile 390px: scrollWidth==viewport (no overflow), hamburger opens the drawer (`position:fixed`, 240px, top:88px) over a `bg-black/55` backdrop; global search "emor" → live grouped results (3 users, NQ=F trades by trader match, the published announcement by title; zero ticket hits — honest), result click deep-links to /admin/users/<id> with People group + Users leaf lit and auto-expanded; Back to App → /overview with the trader sidebar + Custom Dashboards bar fully intact; placeholder clip at 390px found by VLM → shortened, re-verified. No console/page errors.
+
+### Incident — .env truncated by the platform restart (18:52), DB_EXPORT_TOKEN regenerated
+The 18:52 sandbox restart left `.env` with ONLY `DATABASE_URL` (all other keys lost). Restored from session records: PUBLIC_ORIGIN, PROD_ORIGIN, DEV_ORIGIN, AUTH_SECRET, GOOGLE_CLIENT_ID/SECRET. `DB_EXPORT_TOKEN` (64-hex, generated in an earlier session) was NOT recorded anywhere on the machine (swept: git objects, /tmp, histories, running processes — all restarted at 18:52) → regenerated fresh. Effect: `bun run sync:prod` now correctly REFUSES with 401 "token has drifted" until the next publish ships the new .env to production (the sync tripwire working as designed; the pull failed BEFORE any swap — sandbox DB untouched, dev restarted, exit 1). Production's own admin-console backup button is unaffected (admin-session path, no token). This task therefore ran on the last real production pull (ADMIN-2 era; 3 users, 381 trades) — the correct substrate for a UI rework; schema unchanged (announcements `search` is code-only).
+
+### Notes / follow-ups
+1. After the NEXT publish, `bun run sync:prod` works again (new token on both sides) — first publish after this commit re-couples the loop.
+2. Ctrl+K command palette still only knows trader pages — add admin destinations in a later pass.
+3. Trade search results land on the journals trades tab (module-level); exact-entry deep-link is a later enhancement.
+4. Old basic-console components remain dead code (unchanged from ADMIN-2 note).
+5. Announcement/notification email delivery still needs RESEND_API_KEY (unchanged).

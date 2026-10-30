@@ -2,26 +2,35 @@
 
 /**
  * ============================================================================
- * APP SHELL — 5 global regions (spec §1)
+ * APP SHELL — 5 global regions (spec §1). ADMIN-3: ONE shell for the whole
+ * app — trader pages AND admin pages.
  * ============================================================================
  *   1. TopBar            — FIXED, full width, always visible
  *   2. GlobalActionBar   — full width, PINNED under the top bar (Fix 1)
- *   3. Sidebar           — collapsible + rail; starts BELOW the action bar
- *   4. Main content      — page body from the PageRouter
- *   5. Global overlays   — ⌘K palette · peak popups · AI panel · trade modal
+ *   3. Sidebar           — collapsible + rail; starts BELOW the action bar.
+ *                          ADMIN ROUTES swap in the AdminSidebar (same design
+ *                          language, admin nav tree) — the ONLY region that
+ *                          changes between the trader app and the admin pages.
+ *   4. Main content      — PageRouter (trader) / AdminContent (admin). Admin
+ *                          pages self-pad, so main drops the trader padding
+ *                          on admin routes.
+ *   5. Global overlays   — ⌘K palette · peak popups · AI panel · trade modal.
+ *                          Shared by both experiences (same app, same shell).
  *
- * Regions 1 and 2 span the full window width; the sidebar only occupies
- * region 3 (exactly as in the sample images).
+ * The admin experience therefore shares the app's top bar, global action bar
+ * (which carries the admin global search in its middle zone on admin routes),
+ * theme (all 6 registry themes + dark-lift + accent-hue — admin pages alias
+ * the same tokens), overlays and navigation design language.
  *
  * SCROLL ISOLATION (user request): the shell is a FIXED viewport frame
  * (h-screen, overflow hidden) — the window itself NEVER scrolls. <main> and
- * the sidebar nav each own an independent scrollport with
- * `overscroll-behavior: contain`, so scrolling one can never chain into or
- * move the other.
+ * each sidebar own independent scrollports with
+ * `overscroll-behavior: contain`.
  *
  * Routing: the sandbox exposes only the `/` route, so nav paths live in the
- * URL hash (`#/tools/challenges`) — reloads and deep links survive, and the
- * browser's native back/forward stack drives the top-bar history arrows.
+ * URL hash (`#/tools/challenges`, `#/admin/users/<id>`) — reloads and deep
+ * links survive, and the browser's native back/forward stack drives the
+ * top-bar history arrows.
  */
 
 import { useEffect } from 'react'
@@ -41,9 +50,10 @@ import { ShortcutsOverlay } from './shell/shortcuts-overlay'
 import { TradeModalDeepLinkWatcher } from './shell/trade-modal-deeplink'
 import { useQuery } from '@tanstack/react-query'
 import { PriceAlertsMonitor } from '@/components/watchlist/price-alerts-monitor'
-import { AdminPlatform } from '@/components/admin/admin-platform'
-// ADMIN-2 — the administration platform replaces the trader shell entirely
-// when the SPA route lives under /admin (own sidebar/topbar/theme).
+// ADMIN-3 — the admin experience lives in THIS shell: same bars, same theme,
+// same overlays; only region 3 (navigation) and region 4 (content) swap.
+import { AdminSidebar } from '@/components/admin/sidebar'
+import { AdminContent } from '@/components/admin/admin-platform'
 
 interface Account {
   id: string
@@ -81,18 +91,10 @@ function ShellContent() {
 
   const { commandPaletteOpen } = useAppStore()
 
-  // ADMIN-2 — admin routes get the dedicated administration platform (own
-  // 240px sidebar, topbar, light/dark theme). The hash→store sync above still
-  // applies; deep links like #/admin/users/<id> work, and navigating back to
-  // any trader route remounts this shell unchanged.
-  if (route.startsWith('/admin')) {
-    return (
-      <div className="shell-root h-screen flex flex-col overflow-hidden">
-        <SettingsPrefsApplier />
-        <AdminPlatform />
-      </div>
-    )
-  }
+  // ADMIN-3 — one frame for every route. Deep links like #/admin/users/<id>
+  // work, and navigating between trader and admin routes remounts only
+  // regions 3 and 4; the bars, theme and overlays persist untouched.
+  const onAdmin = route.startsWith('/admin')
 
   return (
     <div className="shell-root h-screen flex flex-col overflow-hidden">
@@ -104,9 +106,16 @@ function ShellContent() {
       <TopBar />
       <GlobalActionBar accounts={accounts} />
       <div className="flex flex-1 items-stretch min-h-0">
-        <Sidebar />
-        <main className="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto overflow-x-hidden overscroll-contain shell-scroll shell-content-bg" id="main-content">
-          <PageRouter />
+        {onAdmin ? <AdminSidebar /> : <Sidebar />}
+        <main
+          className={
+            onAdmin
+              ? 'flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain shell-scroll shell-content-bg'
+              : 'flex-1 min-w-0 p-4 md:p-6 overflow-y-auto overflow-x-hidden overscroll-contain shell-scroll shell-content-bg'
+          }
+          id="main-content"
+        >
+          {onAdmin ? <AdminContent /> : <PageRouter />}
         </main>
       </div>
 
