@@ -21,10 +21,21 @@
 # v3 (SWEEP-1): the keepalive watchdog was removed at the owner's request.
 # Restore now relaunches `bun run dev` directly (no watchdog anywhere).
 #
+# v4 (P1 / Option 2): PUBLISH-TIME FRESHNESS PULL. After stopping dev and
+# BEFORE building, scripts/sync-prod-db.ts pulls production's database and
+# swaps it into db/custom.db — so the platform's database-runtime-build.sh
+# (which copies db/custom.db into the deploy AFTER this build) ships
+# production's data + the new code: an upgrade, not a replacement.
+#   · pull says BOOTSTRAP-SKIP (404 — route not yet on production, i.e. the
+#     very first publish after P1) → build continues with the current DB.
+#   · pull FAILS (bad token, corrupt payload, destructive-drift tripwire)
+#     → build ABORTS (exit 1) rather than shipping stale or damaged data.
+#
 # Sequence:
 #   1. stop the dev server — the compiler gets the whole cgroup to itself
-#   2. next build (unchanged semantics), then assemble the standalone bundle
-#   3. RESTORE: relaunch dev, wait for :3000 to answer 200, exit.
+#   2. SYNC: pull production DB → swap → strict schema push (Option 2)
+#   3. next build (unchanged semantics), then assemble the standalone bundle
+#   4. RESTORE: relaunch dev, wait for :3000 to answer 200, exit.
 #      The EXIT trap runs the same idempotent restore on failure paths.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -53,7 +64,16 @@ for _ in $(seq 1 10); do
 done
 log "dev stopped — free: $(free -m | awk '/^Mem:/{print $4"MB used:"$3"MB"}')"
 
-# 2 · build with the whole cgroup available
+# 2 · Option 2 freshness pull: production DB → workspace DB, strict schema.
+#     Exit 1 from the sync ABORTS the publish (EXIT trap restores dev).
+if bun scripts/sync-prod-db.ts --no-dev; then
+  log "sync step finished"
+else
+  log "SYNC FAILED — aborting publish (nothing stale ships; dev restored via EXIT trap)"
+  exit 1
+fi
+
+# 3 · build with the whole cgroup available
 STATUS=0
 ./node_modules/.bin/next build || STATUS=$?
 if [ "$STATUS" -ne 0 ]; then
@@ -61,7 +81,7 @@ if [ "$STATUS" -ne 0 ]; then
   exit "$STATUS"
 fi
 
-# 3 · assemble the standalone bundle (same steps the original script had)
+# 4 · assemble the standalone bundle (same steps the original script had)
 cp -r .next/static .next/standalone/.next/ || STATUS=$?
 cp -r public .next/standalone/ || STATUS=$?
 if [ "$STATUS" -ne 0 ]; then
@@ -70,7 +90,7 @@ if [ "$STATUS" -ne 0 ]; then
 fi
 log "standalone assembled"
 
-# 4 · bring the app back BEFORE this script returns — the platform may
+# 5 · bring the app back BEFORE this script returns — the platform may
 #     health-check the preview the moment `bun run build` exits.
 restore_services
 for _ in $(seq 1 30); do
@@ -80,5 +100,6 @@ for _ in $(seq 1 30); do
   fi
   sleep 2
 done
-log "WARNING: app not answering after 60s — the watchdog keeps retrying; the build itself succeeded"
+log "WARNING: app not answering after 60s — restore once more, then report; the build itself succeeded"
+restore_services
 exit 0

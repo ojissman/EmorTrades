@@ -86,6 +86,7 @@ import {
   X,
 } from 'lucide-react'
 import { AdminSecuritySection } from './admin-security-section'
+import { AdminBackupSection } from './admin-backup-section'
 
 // ---------------------------------------------------------------------------
 // Types (mirror the API response shapes exactly)
@@ -919,6 +920,7 @@ export function AdminPage() {
       </header>
       <StatsSection />
       <AdminSecuritySection />
+      <AdminBackupSection />
       <UsersSection />
     </div>
   )
