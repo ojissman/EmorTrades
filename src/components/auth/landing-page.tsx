@@ -21,7 +21,7 @@ import { FinalCta, LandingFooter } from './landing/cta-footer'
  * Structure (pattern survey: TradesViz, Edgewonk, TraderSync, TradeZeller):
  *   [brand intro film — once per session] → glass nav → announcement pill +
  *   two-tone hero + browser mockup with floating annotation cards → the
- *   institute brand-motion band (official logo loop in a viewfinder frame) →
+ *   institute brand mark as a small self-playing card (purely decorative) →
  *   honest stat counters + import-format marquee → auto-playing product tour
  *   (slides) → live AI desk (typing coach review, briefing, insight chips) →
  *   bento feature grid → security section → how-it-works → testimonials →

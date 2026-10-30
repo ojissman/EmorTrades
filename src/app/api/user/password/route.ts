@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
-import { requireUser } from '@/lib/server/auth'
+import { requireUser, sessionEpochNow, withSessionCookie } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,10 +54,16 @@ export async function PATCH(req: NextRequest) {
     const derived = scryptSync(newPassword, salt, 64).toString('hex')
     await db.user.update({
       where: { id: user.id },
-      data: { passwordHash: `${salt}:${derived}` },
+      data: {
+        passwordHash: `${salt}:${derived}`,
+        // LAND-1: revoke every other session issued before this change; the
+        // fresh cookie below keeps THIS browser signed in.
+        sessionsValidFrom: sessionEpochNow(),
+      },
     })
 
-    return NextResponse.json({ ok: true })
+    // Re-issue this browser's session so the changer isn't logged out.
+    return withSessionCookie(NextResponse.json({ ok: true }), user.id)
   } catch (e: any) {
     console.error('PATCH /api/user/password error:', e?.message, e?.code)
     return NextResponse.json({ error: 'Failed', message: e?.message }, { status: 500 })

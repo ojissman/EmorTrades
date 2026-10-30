@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
  * than 30 days opportunistically so the table stays small.
  */
 
-export type AuthLogKind = 'REGISTER' | 'LOGIN' | 'GOOGLE' | 'VERIFY' | 'RESEND' | 'EXPORT'
+export type AuthLogKind = 'REGISTER' | 'LOGIN' | 'GOOGLE' | 'VERIFY' | 'RESEND' | 'EXPORT' | 'RESET'
 export type AuthLogOutcome = 'OK' | 'FAIL' | 'BLOCKED'
 
 export interface AuthLogInput {

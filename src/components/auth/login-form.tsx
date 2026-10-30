@@ -149,6 +149,13 @@ export function LoginForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="login-password" className="text-slate-300">Password</Label>
+              <button
+                type="button"
+                onClick={() => go('/forgot')}
+                className="text-xs font-medium text-slate-400 transition-colors hover:text-emerald-300 min-h-[36px]"
+              >
+                Forgot password?
+              </button>
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" aria-hidden />

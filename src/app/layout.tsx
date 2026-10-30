@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EmorTrades Trading Journal",
+  title: "EmorTrades — Trading Journal",
   description:
     "A professional-grade trading journal with deep analytics, AI insights, multi-account management, risk tools, and comprehensive performance reporting. All features included, no subscription tiers.",
   keywords: [

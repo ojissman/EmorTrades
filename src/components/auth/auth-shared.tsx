@@ -224,11 +224,16 @@ export function AuthShell({
           <a href="#/" className="inline-flex items-center gap-3 group" aria-label="EmorTrades home">
             <img
               src="/logo.png"
-              alt="EmorTrades logo — institute of trading"
+              alt="EmorTrades logo — trading journal"
               className="h-11 w-11 drop-shadow-[0_0_14px_rgba(16,185,129,0.35)]"
             />
-            <span className="text-lg font-semibold tracking-tight">
-              Emor<span className="text-emerald-400">Trades</span>
+            <span className="flex flex-col items-start">
+              <span className="text-lg font-semibold tracking-tight leading-none">
+                Emor<span className="text-emerald-400">Trades</span>
+              </span>
+              <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.24em] text-slate-500">
+                Trading Journal
+              </span>
             </span>
           </a>
         </div>

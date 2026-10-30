@@ -26,9 +26,9 @@
  * header → req.url.
  */
 
-export type OriginEnv = Pick<
-  NodeJS.ProcessEnv,
-  'NODE_ENV' | 'PUBLIC_ORIGIN' | 'DEV_ORIGIN'
+/** The three env keys the pin reads (all optional — unset means unset). */
+export type OriginEnv = Partial<
+  Record<'NODE_ENV' | 'PUBLIC_ORIGIN' | 'DEV_ORIGIN', string | undefined>
 >
 
 /**

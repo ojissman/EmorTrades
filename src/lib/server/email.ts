@@ -85,3 +85,68 @@ export async function sendVerificationEmail(toEmail: string, link: string): Prom
     return { delivered: false, error: 'Could not reach the email provider.' }
   }
 }
+
+/* ── Password reset (LAND-1) — single-use, 60-minute links ──────────────── */
+
+function passwordResetHtml(link: string): string {
+  return `<!doctype html>
+<html><body style="margin:0;background:#0b1220;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:520px;margin:0 auto;padding:40px 24px;color:#e2e8f0;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:inline-block;width:56px;height:56px;line-height:56px;border-radius:50%;
+                  background:#065f46;color:#34d399;font-weight:bold;font-size:20px;margin-bottom:14px;">ET</div>
+      <h1 style="margin:0;font-size:22px;color:#f8fafc;">Reset your password</h1>
+    </div>
+    <p style="font-size:15px;line-height:1.6;color:#94a3b8;">
+      Someone asked to reset the password for this <strong style="color:#34d399;">EmorTrades</strong>
+      account. Click the button below to choose a new one. This link expires in 60 minutes
+      and can be used only once.
+    </p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="${link}"
+         style="display:inline-block;background:#059669;color:#ffffff;text-decoration:none;
+                font-weight:bold;font-size:15px;padding:14px 36px;border-radius:10px;">
+        Choose a new password
+      </a>
+    </div>
+    <p style="font-size:12px;line-height:1.6;color:#64748b;word-break:break-all;">
+      If the button doesn't work, paste this link into your browser:<br>${link}
+    </p>
+    <p style="font-size:12px;color:#64748b;">
+      Setting a new password signs out every active session on your account.
+      If you didn't request this, ignore this email — your password stays unchanged.
+    </p>
+  </div>
+</body></html>`
+}
+
+export async function sendPasswordResetEmail(toEmail: string, link: string): Promise<DeliveryResult> {
+  if (!emailDeliveryConfigured()) {
+    console.log(`[email:dev-delivery] password-reset link for ${toEmail} → ${link}`)
+    return { delivered: false, devLink: link }
+  }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM || 'EmorTrades <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: 'Reset your password — EmorTrades',
+        html: passwordResetHtml(link),
+      }),
+    })
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText)
+      console.error(`[email] Resend error ${res.status}:`, errText)
+      return { delivered: false, error: `Email provider rejected the send (${res.status}).` }
+    }
+    return { delivered: true }
+  } catch (e: any) {
+    console.error('[email] send failed:', e?.message)
+    return { delivered: false, error: 'Could not reach the email provider.' }
+  }
+}

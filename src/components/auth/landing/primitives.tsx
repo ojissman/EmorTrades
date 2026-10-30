@@ -98,17 +98,21 @@ export function BrandLockup({
 }) {
   const img = size === 'sm' ? 'h-8 w-8' : size === 'lg' ? 'h-14 w-14' : 'h-10 w-10'
   const text = size === 'sm' ? 'text-base' : size === 'lg' ? 'text-2xl' : 'text-lg'
+  const sub = size === 'sm' ? 'text-[8px] tracking-[0.2em]' : size === 'lg' ? 'text-[11px] tracking-[0.26em]' : 'text-[9px] tracking-[0.24em]'
   const inner = (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
       <img
         src="/logo.png"
-        alt="EmorTrades — Institute of Trading logo"
+        alt="EmorTrades — Trading Journal logo"
         className={cn(img, 'drop-shadow-[0_0_16px_rgba(16,185,129,0.35)]')}
         width={size === 'lg' ? 56 : size === 'sm' ? 32 : 40}
         height={size === 'lg' ? 56 : size === 'sm' ? 32 : 40}
       />
-      <span className={cn('font-semibold tracking-tight text-slate-100', text)}>
-        Emor<span className="text-emerald-400">Trades</span>
+      <span className="flex flex-col items-start">
+        <span className={cn('font-semibold tracking-tight text-slate-100 leading-none', text)}>
+          Emor<span className="text-emerald-400">Trades</span>
+        </span>
+        <span className={cn('mt-1 font-medium uppercase text-slate-500', sub)}>Trading Journal</span>
       </span>
     </span>
   )

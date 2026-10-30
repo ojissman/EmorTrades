@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, User } from '@prisma/client'
 import { db } from '@/lib/db'
 
 /**
@@ -58,7 +58,7 @@ export function verifyPassword(password: string, stored: string | null | undefin
 
 /* ── Session tokens (HMAC-SHA256, stateless) ────────────────────────────── */
 
-interface TokenPayload {
+export interface SessionPayload {
   uid: string
   iat: number
   exp: number
@@ -74,12 +74,13 @@ function sign(data: string): string {
 
 export function createSessionToken(userId: string): string {
   const now = Math.floor(Date.now() / 1000)
-  const payload: TokenPayload = { uid: userId, iat: now, exp: now + SESSION_TTL_DAYS * 86400 }
+  const payload: SessionPayload = { uid: userId, iat: now, exp: now + SESSION_TTL_DAYS * 86400 }
   const body = b64url(JSON.stringify(payload))
   return `${TOKEN_VERSION}.${body}.${sign(body)}`
 }
 
-export function verifySessionToken(token: string | undefined | null): string | null {
+/** Full-payload verification — the guard needs `iat` for the epoch check. */
+export function verifySessionTokenPayload(token: string | undefined | null): SessionPayload | null {
   if (!token) return null
   const parts = token.split('.')
   if (parts.length !== 3 || parts[0] !== TOKEN_VERSION) return null
@@ -90,13 +91,37 @@ export function verifySessionToken(token: string | undefined | null): string | n
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   try {
-    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as TokenPayload
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as SessionPayload
     if (!payload?.uid || typeof payload.exp !== 'number') return null
     if (payload.exp < Math.floor(Date.now() / 1000)) return null
-    return payload.uid
+    return payload
   } catch {
     return null
   }
+}
+
+export function verifySessionToken(token: string | undefined | null): string | null {
+  return verifySessionTokenPayload(token)?.uid ?? null
+}
+
+/* ── Session epoch (LAND-1) — password changes revoke old sessions ──────── */
+
+/**
+ * Second-floored "now" for User.sessionsValidFrom. Session `iat` is
+ * second-granular; flooring keeps a same-second re-issued cookie (e.g. the
+ * change-password response) valid — the guard rejects strictly-older tokens.
+ */
+export function sessionEpochNow(): Date {
+  return new Date(Math.floor(Date.now() / 1000) * 1000)
+}
+
+/** True when the token was issued BEFORE the user's password epoch. */
+export function sessionInvalidatedBy(
+  iatSeconds: number,
+  epoch: Date | null | undefined
+): boolean {
+  if (!epoch) return false
+  return iatSeconds * 1000 < epoch.getTime()
 }
 
 /* ── Cookie helpers ─────────────────────────────────────────────────────── */
@@ -141,12 +166,34 @@ async function loadSessionUser<S extends Prisma.UserDefaultArgs | undefined>(
   args?: S
 ): Promise<{ ok: true; user: Prisma.UserGetPayload<S> } | { ok: false; response: NextResponse }> {
   const jar = await cookies()
-  const uid = verifySessionToken(jar.get(SESSION_COOKIE)?.value)
-  if (!uid) return { ok: false, response: unauthorized() }
-  const user = await db.user.findUnique(args ? { where: { id: uid }, ...args } : { where: { id: uid } })
-  if (!user) return { ok: false, response: unauthorized('Account not found.') }
+  const payload = verifySessionTokenPayload(jar.get(SESSION_COOKIE)?.value)
+  if (!payload) return { ok: false, response: unauthorized() }
+
+  // LAND-1: the session epoch rides along in the SAME query as the caller's
+  // shape. · no args / include → the full scalar row already carries it.
+  // · select → the column is merged in, read, then stripped before the row
+  //   is returned (it is reserved for this guard — no caller selects it).
+  let row: User | null
+  if (args && 'select' in args && args.select) {
+    row = await db.user.findUnique({
+      where: { id: payload.uid },
+      select: { ...args.select, sessionsValidFrom: true },
+    } as Prisma.UserFindUniqueArgs)
+  } else {
+    row = await db.user.findUnique(
+      args ? { where: { id: payload.uid }, ...args } : { where: { id: payload.uid } }
+    )
+  }
+  if (!row) return { ok: false, response: unauthorized('Account not found.') }
+  const epoch = row.sessionsValidFrom
+  const { sessionsValidFrom: _guardEpoch, ...user } = row
+
   if (user.status === 'SUSPENDED') {
     return { ok: false, response: forbidden('This account has been suspended. Contact an administrator.') }
+  }
+  // Password changed/reset after this token was issued → the token is dead.
+  if (sessionInvalidatedBy(payload.iat, epoch)) {
+    return { ok: false, response: unauthorized('Your session ended — please sign in again.') }
   }
   return { ok: true, user: user as Prisma.UserGetPayload<S> }
 }
