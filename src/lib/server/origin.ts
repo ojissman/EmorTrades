@@ -6,18 +6,45 @@
  * This sandbox is double-proxied: the outer platform rewrites Host to an
  * internal container name (observed: ws-*.fcapp.run, x-forwarded-proto http),
  * so header-based reconstruction yields an origin real browsers can never
- * reach. PUBLIC_ORIGIN pins the true public origin explicitly — it must be
- * kept in sync with the OAuth redirect URI registered in Google Cloud Console.
+ * reach. The pin below is therefore authoritative when set.
  *
- * Priority: PUBLIC_ORIGIN env → x-forwarded-host + x-forwarded-proto → host
+ * TWO DOORS, TWO PINS (AUTH-9). The app is reachable on two public origins:
+ *   · production  — https://emortrade.space-z.ai   (the published runtime)
+ *   · preview     — the preview-chat-*.space-z.ai URL (this dev sandbox)
+ * They are DIFFERENT DOMAINS with different cookies, so an OAuth flow must
+ * return to the door it started from (the state cookie cannot cross domains).
+ * One single pin cannot serve both — that bounced preview-panel Google
+ * sign-ins to the production callback and failed the state check.
+ * resolvePinnedOrigin() picks per runtime:
+ *   · dev server  (NODE_ENV=development): DEV_ORIGIN (the preview URL),
+ *                  falling back to PUBLIC_ORIGIN when unset.
+ *   · published   (NODE_ENV=production):  PUBLIC_ORIGIN, full stop.
+ * Both must stay in sync with the redirect URIs registered in Google Cloud
+ * Console (Google allows up to 20 per client; both are registered).
+ *
+ * Priority: resolved pin → x-forwarded-host + x-forwarded-proto → host
  * header → req.url.
  */
+
+export type OriginEnv = Pick<
+  NodeJS.ProcessEnv,
+  'NODE_ENV' | 'PUBLIC_ORIGIN' | 'DEV_ORIGIN'
+>
+
+/**
+ * The authoritative pinned origin for the CURRENT runtime, or '' when unset.
+ * Trailing slashes are normalized away.
+ */
+export function resolvePinnedOrigin(env: OriginEnv = process.env): string {
+  const prod = (env.PUBLIC_ORIGIN ?? '').trim().replace(/\/+$/, '')
+  const dev = (env.DEV_ORIGIN ?? '').trim().replace(/\/+$/, '')
+  if (env.NODE_ENV === 'development') return dev || prod
+  return prod
+}
+
 export function originFromReq(req: Request): string {
-  const pinned = process.env.PUBLIC_ORIGIN
-  if (pinned) {
-    const origin = pinned.trim().replace(/\/+$/, '')
-    if (origin) return origin
-  }
+  const pinned = resolvePinnedOrigin()
+  if (pinned) return pinned
   const fwdHost = req.headers.get('x-forwarded-host')
   const fwdProto = req.headers.get('x-forwarded-proto')
   if (fwdHost) {

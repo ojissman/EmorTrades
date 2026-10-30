@@ -259,4 +259,32 @@ describe('google auth — account linking matrix', () => {
     if (savedPin === undefined) delete process.env.PUBLIC_ORIGIN
     else process.env.PUBLIC_ORIGIN = savedPin
   })
+
+  /* ── Two-door origin pins (AUTH-9) ──────────────────────────────────── */
+
+  it('origin · resolvePinnedOrigin serves each door its own callback origin', async () => {
+    const { resolvePinnedOrigin } = await import('@/lib/server/origin')
+    const base = {
+      PUBLIC_ORIGIN: 'https://emortrade.space-z.ai/',
+      DEV_ORIGIN: 'https://preview-chat-x.space-z.ai/',
+    }
+    // dev server (preview panel): DEV_ORIGIN wins, trailing slash normalized
+    expect(
+      resolvePinnedOrigin({ ...base, NODE_ENV: 'development' })
+    ).toBe('https://preview-chat-x.space-z.ai')
+    // published runtime: PUBLIC_ORIGIN always, DEV_ORIGIN ignored
+    expect(
+      resolvePinnedOrigin({ ...base, NODE_ENV: 'production' })
+    ).toBe('https://emortrade.space-z.ai')
+    // any non-development runtime (test/build) behaves like production
+    expect(
+      resolvePinnedOrigin({ ...base, NODE_ENV: 'test' })
+    ).toBe('https://emortrade.space-z.ai')
+    // DEV_ORIGIN unset → dev falls back to PUBLIC_ORIGIN (pre-AUTH-9 behavior)
+    expect(
+      resolvePinnedOrigin({ PUBLIC_ORIGIN: base.PUBLIC_ORIGIN, NODE_ENV: 'development' })
+    ).toBe('https://emortrade.space-z.ai')
+    // nothing set → empty pin, header-derived mode
+    expect(resolvePinnedOrigin({ NODE_ENV: 'production' })).toBe('')
+  })
 })
