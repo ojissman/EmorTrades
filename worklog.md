@@ -5131,3 +5131,19 @@ E2E REHEARSAL (all live, zero mocks of our code): route — no token 401 + audit
 ACTIVATION SEQUENCE (owner): click Publish ONE more time — build-guarded v4 will BOOTSTRAP-SKIP (route not yet on production) and ship the current sandbox DB + the new route + token. Every publish AFTER that syncs production's data first (the loop goes live). THE TASK-START RITUAL from then on: bun run sync:prod → implement → worklog → commit → push.
 
 Notes / follow-ups: (1) Publish-time abort semantics: if a future sync exits 1 (token drift, corrupt payload, destructive tripwire) the publish ABORTS with dev restored — deliberate: better a failed publish than a data-destroying one. (2) The destructive-drift tripwire was not live-fired in E2E (would need a deliberately destructive schema); its failure mode is Prisma's documented non-interactive refusal — the exact behavior the discipline requires. (3) Rate limit 6/10min/IP: the sync uses 1 pull per publish/task — ample headroom. (4) db/custom.db travels with this commit per GIT-1 (current state: 3 users / 381 trades / 0 uncommitted drift — the E2E swaps were no-ops content-wise). (5) After the sacrificial publish, the FIRST real sync lands production's post-test data (your Gmail login rows) — that moment is the proof the loop works end-to-end.
+
+---
+Task ID: P1-ACTIVATE (Option 2 loop live — first real pull verified)
+Agent: orchestrator (Z.ai Code main session)
+Task: Owner clicked the sacrificial publish. The export route + DB_EXPORT_TOKEN shipped to production. Activated the loop: first real `bun run sync:prod` against live production.
+
+Activation evidence (all verified, zero issues):
+1. Route live on production: GET /api/admin/export without credentials → 401 JSON (was 200 HTML-fallback pre-publish). Token guard + rate limit active.
+2. First real sync: stopped dev → preserved → pulled 1,294,336 bytes (users=3, trades=381, generated fresh) → validated (SQLite magic, integrity ok, header-vs-actual counts match) → WAL-hygienic swap → strict schema push (in sync) → verified → dev back in 15s → exit 0.
+3. LOOP PROVEN END-TO-END: production-only activity (owner's post-publish testing) is now IN the sandbox DB — 12:19:25 LOGIN OK admin@emortrades.com (password login on emortrade), 12:19:43 + 12:19:55 EXPORT OK 'admin console backup' ×2 (owner exercised the new Admin Console backup button on production — both snapshots served), 12:27:06 GOOGLE OK 'returning user' emorjefefx@gmail.com (owner's Google sign-in on emortrade), 12:29:23 EXPORT BLOCKED 'not admin' (my unauthenticated probe — correctly blocked), 12:29:28 EXPORT OK 'token sync pull' (the activation pull itself, audited on production and pulled back home).
+4. Bonus closure: 10:42:41 GOOGLE OK 'returning user' (baked in from the sandbox at publish) = the owner completing the full Google flow ON THE PREVIEW PANEL — closes AUTH-9's open follow-up note (2): the preview-door consent→code→token leg is now confirmed end-to-end by a real account holder. Both doors' Google flows are now fully verified live.
+
+False alarm documented: an apparent "audit bug" (successful events recorded ok=false) was my own ad-hoc query reading a nonexistent `ok` field — AuthLog's real field is `outcome` ('OK'/'FAIL'/'BLOCKED'); the audit data was always correct.
+
+The ritual from now on (owner-designed): task start → `bun run sync:prod` → implement on real data → verify → worklog → commit → push (GitHub = code + production data together). Publish = upgrade: build-guarded v4 freshness-pulls production first (abort-on-failure), never ships stale-or-damaged data. Stale rehearsal preserves cleaned from /tmp.
+
