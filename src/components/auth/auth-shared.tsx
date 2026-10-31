@@ -332,7 +332,8 @@ export function UrlParamToaster() {
 
     if (googleError) {
       const messages: Record<string, string> = {
-        cancelled: 'Google sign-in was cancelled.',
+        cancelled:
+          'Google sign-in was cancelled — or Google blocked the app because it is still in testing mode and this account is not an approved tester. Add the account under OAuth consent screen ▸ Test users (or publish the app) in Google Cloud Console, then retry.',
         state: 'Google sign-in failed a security check — please try again.',
         suspended: 'That account has been suspended. Contact an administrator.',
         'not-configured': 'Google sign-in is not configured on this server yet.',
@@ -362,7 +363,8 @@ export function UrlParamToaster() {
 
     if (gmailError) {
       const messages: Record<string, string> = {
-        access_denied: 'Gmail connect was cancelled — nothing changed.',
+        access_denied:
+          'Google blocked the connection: either it was cancelled, or the app is still in Google\'s testing mode and this account is not an approved tester — add the account under OAuth consent screen ▸ Test users (or publish the app) in Google Cloud Console, then retry.',
         invalid_request: 'That Gmail connect link was incomplete. Start again from Admin ▸ Settings ▸ Integrations.',
         state_expired: 'The Gmail connect session expired (10 minutes). Start again.',
         not_admin: 'Only an administrator can connect the platform Gmail account.',
