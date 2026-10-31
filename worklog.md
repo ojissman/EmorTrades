@@ -5252,3 +5252,73 @@ The 18:52 sandbox restart left `.env` with ONLY `DATABASE_URL` (all other keys l
 3. Trade search results land on the journals trades tab (module-level); exact-entry deep-link is a later enhancement.
 4. Old basic-console components remain dead code (unchanged from ADMIN-2 note).
 5. Announcement/notification email delivery still needs RESEND_API_KEY (unchanged).
+
+---
+Task ID: RESTART-RECOVERY
+Agent: Z.ai Code
+Task: Answer the owner's question about why the Oct 31 06:58 platform restart
+did not restore .env from GitHub (answer: secrets are deliberately gitignored
+— code+data DID come back from GitHub, the keys file was never in any backup,
+by design), then close the design gap the restart exposed, with owner approval
+("alright" = Option A + B): encrypted secrets backup inside the private repo
++ owner-held copy, plus a publish-time env gate. Also: .env had been truncated
+AGAIN by this restart (1 line, DATABASE_URL only) — rebuilt it before the Q&A.
+
+Work Log:
+- Facts verified before answering: 48-commit git history — .env in zero
+  commits, no secret values in any blob; code+data fully restored from GitHub
+  (ADMIN-3 commit 0474a1c intact, 3 users / 381 trades / 119 admin actions);
+  machine-wide sweep found no surviving secret values; production healthy
+  (emortrade 200, its .env untouched on its own server).
+- .env rebuilt: fresh AUTH_SECRET (64-hex) + fresh DB_EXPORT_TOKEN (64-hex);
+  GOOGLE_CLIENT_ID recovered from production's public OAuth redirect header
+  (303 → accounts.google.com client_id); GOOGLE_CLIENT_SECRET left empty —
+  only the owner can supply it (Google Cloud Console). Dev restarted; session
+  sign→verify roundtrip proven against the fresh AUTH_SECRET.
+- scripts/build-guarded.sh v5 ENV GATE: publish ships the workspace .env to
+  production, so the gate refuses to publish while any of the 7 required keys
+  (DATABASE_URL PUBLIC_ORIGIN DEV_ORIGIN AUTH_SECRET GOOGLE_CLIENT_ID
+  GOOGLE_CLIENT_SECRET DB_EXPORT_TOKEN) is missing/empty — runs BEFORE
+  anything is stopped, so an abort costs nothing. Verified both directions:
+  incomplete env → exit 1 naming GOOGLE_CLIENT_SECRET, preview untouched
+  (200); complete env (isolated harness) → pass, all 7 present.
+- scripts/secrets-backup.ts NEW (Option A tooling): AES-256-GCM, scrypt
+  N=32768 r=8 p=1 (explicit maxmem 128MB — Bun rejects boundary params at the
+  32MB default), fresh salt+IV per backup, versioned binary payload
+  [v1|salt32|iv12|tag16|ct]. Passphrase via stdin only, never CLI arg, never
+  stored. Subcommands: backup (refuses incomplete env by default — names the
+  key; --allow-incomplete for testing), restore (refuses to clobber a
+  complete env without --force; truncated/missing env restores freely),
+  verify (passphrase check, no writes), status (key names + presence only).
+- backups/README.md NEW — documents the scheme; backups/secrets.enc is meant
+  to be committed when created (NOT gitignored — the .env* glob doesn't match
+  it). No .enc committed yet: the real one gets created with the OWNER's
+  passphrase once the Google secret arrives (a backup made now would cement
+  the empty GOOGLE_CLIENT_SECRET — the refusal default enforces this).
+- Full test matrix on the REAL .env (safety copy held in /tmp, shredded
+  after): status ✓; backup refuses incomplete ✓ (names GOOGLE_CLIENT_SECRET);
+  backup --allow-incomplete ✓ (loud warning); disaster replay — .env truncated
+  to DATABASE_URL-only (exact restart signature) → restore → byte-identical
+  sha256 ✓; wrong passphrase → clean exit-1 failure ✓; verify honest 6/7 ✓;
+  healthy-env guard refuses restore without --force ✓; --force overrides ✓;
+  final .env sha256-verified back to pre-test state.
+- sync:prod intentionally NOT run: DB_EXPORT_TOKEN was regenerated after the
+  last restart (old token unrecoverable, documented in ADMIN-3), so the pull
+  401-refuses until the next publish ships the new token to production —
+  known, documented state; task ran on the last real production pull
+  (schema untouched, no DB writes).
+
+Stage Summary:
+- The restart failure mode is now closed at three layers: (1) recovery —
+  encrypted .env in the private repo restores every key exactly with one
+  passphrase from the owner; (2) prevention — publish env gate refuses to
+  ship a truncated env to production; (3) triage — `secrets-backup.ts status`
+  shows post-restart damage in one command (names only, never values).
+- PENDING OWNER INPUT (the only remaining gaps): (a) GOOGLE_CLIENT_SECRET →
+  placed in .env, then (b) passphrase of the owner's choosing (or "generate
+  one") → real `backups/secrets.enc` created + committed + pushed, and the
+  full .env shown once for the owner's password manager (Option B). Until
+  then: preview Google login honestly 503s "not configured"; production
+  Google login unaffected; sync:prod 401-refuses (expected) until next
+  publish.
+- Gates: lint 0, tsc 0, vitest 130/130. No schema change, no app-code change.
