@@ -97,32 +97,32 @@ export function LandingFooter({ onLogin, onRegister }: { onLogin: () => void; on
 
           <nav aria-label="Product">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Product</h3>
-            <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><button type="button" onClick={() => scrollToSection('tour')} className="hover:text-emerald-400 transition-colors">Take the tour</button></li>
-              <li><button type="button" onClick={() => scrollToSection('ai-desk')} className="hover:text-emerald-400 transition-colors">AI desk</button></li>
-              <li><Link href="/features" className="hover:text-emerald-400 transition-colors">All features</Link></li>
-              <li><Link href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
-              <li><Link href="/blog" className="hover:text-emerald-400 transition-colors">Blog</Link></li>
+            <ul className="mt-4 space-y-1 text-sm text-slate-500">
+              <li><button type="button" onClick={() => scrollToSection('tour')} className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Take the tour</button></li>
+              <li><button type="button" onClick={() => scrollToSection('ai-desk')} className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">AI desk</button></li>
+              <li><Link href="/features" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">All features</Link></li>
+              <li><Link href="/pricing" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Pricing</Link></li>
+              <li><Link href="/blog" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Blog</Link></li>
             </ul>
           </nav>
 
           <nav aria-label="Account">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Account</h3>
-            <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><button type="button" onClick={onRegister} className="hover:text-emerald-400 transition-colors">Create account</button></li>
-              <li><button type="button" onClick={onLogin} className="hover:text-emerald-400 transition-colors">Sign in</button></li>
-              <li><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-emerald-400 transition-colors">Back to top</button></li>
+            <ul className="mt-4 space-y-1 text-sm text-slate-500">
+              <li><button type="button" onClick={onRegister} className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Create account</button></li>
+              <li><button type="button" onClick={onLogin} className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Sign in</button></li>
+              <li><button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Back to top</button></li>
             </ul>
           </nav>
 
           <nav aria-label="Company">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Company</h3>
-            <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About</Link></li>
-              <li><Link href="/faq" className="hover:text-emerald-400 transition-colors">FAQ</Link></li>
-              <li><Link href="/contact" className="hover:text-emerald-400 transition-colors">Contact</Link></li>
-              <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms of Service</Link></li>
+            <ul className="mt-4 space-y-1 text-sm text-slate-500">
+              <li><Link href="/about" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">About</Link></li>
+              <li><Link href="/faq" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">FAQ</Link></li>
+              <li><Link href="/contact" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Contact</Link></li>
+              <li><Link href="/privacy" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="inline-flex min-h-[44px] items-center hover:text-emerald-400 transition-colors">Terms of Service</Link></li>
             </ul>
           </nav>
         </div>

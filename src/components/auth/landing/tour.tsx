@@ -441,9 +441,10 @@ export function Tour() {
                     ))}
                   </ul>
 
-                  {/* dots */}
+                  {/* dots — P8-FIX: 44×44 hit areas (touch minimum); the visual
+                      dot is the inner span so the design stays identical */}
                   <div className="mt-7 flex items-center gap-3">
-                    <div className="flex gap-1.5" role="tablist" aria-label="Slide position">
+                    <div className="-m-3 flex gap-0" role="tablist" aria-label="Slide position">
                       {STOPS.map((s, i) => (
                         <button
                           key={s.id}
@@ -451,11 +452,15 @@ export function Tour() {
                           aria-selected={i === active}
                           aria-label={`Go to ${s.label}`}
                           onClick={() => goTo(i)}
-                          className={cn(
-                            'h-2 rounded-full transition-all',
-                            i === active ? 'w-7 bg-emerald-400' : 'w-2 bg-slate-700 hover:bg-slate-600'
-                          )}
-                        />
+                          className="group flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                        >
+                          <span
+                            className={cn(
+                              'h-2 rounded-full transition-all',
+                              i === active ? 'w-7 bg-emerald-400' : 'w-2 bg-slate-700 group-hover:bg-slate-600'
+                            )}
+                          />
+                        </button>
                       ))}
                     </div>
                     <span className="text-[11px] text-slate-600">

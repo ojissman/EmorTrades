@@ -86,18 +86,25 @@ export function Testimonials() {
             </div>
 
             <div className="mt-6 flex items-center justify-center gap-4">
-              <div className="flex gap-1.5" aria-hidden>
+              {/* P8-FIX: 44×44 hit areas; also removed aria-hidden from the
+                  wrapper (focusable buttons must stay exposed to AT) */}
+              <div className="-m-2 flex gap-0" role="group" aria-label="Choose testimonial">
                 {TESTIMONIALS.map((x, i) => (
                   <button
                     key={x.name}
                     type="button"
                     aria-label={`Show testimonial from ${x.name}`}
+                    aria-current={i === idx}
                     onClick={() => setIdx(i)}
-                    className={cn(
-                      'h-2 rounded-full transition-all',
-                      i === idx ? 'w-7 bg-emerald-400' : 'w-2 bg-slate-700 hover:bg-slate-600'
-                    )}
-                  />
+                    className="group flex h-11 w-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  >
+                    <span
+                      className={cn(
+                        'h-2 rounded-full transition-all',
+                        i === idx ? 'w-7 bg-emerald-400' : 'w-2 bg-slate-700 group-hover:bg-slate-600'
+                      )}
+                    />
+                  </button>
                 ))}
               </div>
               <span className="flex gap-0.5" aria-label="5 star rating">

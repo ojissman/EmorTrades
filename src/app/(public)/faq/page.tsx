@@ -61,7 +61,7 @@ export default function FaqPage() {
         <div className="space-y-3">
           {all.map((f) => (
             <details key={f.q} className="group rounded-2xl border border-slate-800/70 bg-slate-900/30 px-5 py-4 transition-colors open:border-emerald-500/30 open:bg-emerald-500/[0.04]">
-              <summary className="min-h-[32px] cursor-pointer list-none text-sm font-semibold text-slate-200 marker:content-none sm:text-base">
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center text-sm font-semibold text-slate-200 marker:content-none sm:text-base">
                 <span className="flex items-center justify-between gap-4">
                   {f.q}
                   <span aria-hidden className="shrink-0 text-slate-500 transition-transform group-open:rotate-180">⌄</span>

@@ -56,10 +56,13 @@ export const metadata: Metadata = {
     description: SITE.description,
     images: [SITE.ogImage],
   },
+  // P8-FIX: no explicit index/follow here — omitting it means crawlers default
+  // to index,follow WITHOUT emitting a <meta name="robots"> tag. That keeps
+  // notFound() pages clean (Next injects its own noindex meta there, and an
+  // explicit "index, follow" from this layout used to conflict with it).
+  // googleBot keeps only the preview controls; unspecified = unrestricted.
   robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+    googleBot: { "max-image-preview": "large", "max-snippet": -1 },
   },
   // SEO-UPGRADE · PHASE 9 — Google Search Console verification meta tag
   // (set GOOGLE_SITE_VERIFICATION in .env; emitted only when configured).
