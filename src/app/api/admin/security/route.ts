@@ -8,7 +8,7 @@ import {
   requireEmailVerification,
   setFlag,
 } from '@/lib/server/system-flags'
-import { emailDeliveryConfigured } from '@/lib/server/email'
+import { emailDeliveryStatus } from '@/lib/server/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +56,8 @@ export async function GET() {
       verifications: weekRows.filter((r) => r.kind === 'VERIFY' && r.outcome === 'OK').length,
     }
 
+    const emailStatus = await emailDeliveryStatus()
+
     return NextResponse.json({
       events,
       week,
@@ -64,7 +66,7 @@ export async function GET() {
         protectionMode: botProtectionMode(),
         turnstile: turnstileConfigured(),
         googleSignIn: googleConfigured(),
-        emailDelivery: emailDeliveryConfigured() ? 'resend' : 'dev',
+        emailDelivery: emailStatus.provider,
         requireEmailVerification: await requireEmailVerification(),
       },
     })

@@ -5453,3 +5453,86 @@ Stage Summary:
   encryption), publish carries them, and all three flows (register verify,
   resend, forgot/reset) deliver real email.
 - Gates: lint 0, tsc 0, vitest 131/131.
+
+---
+Task ID: GCI-FINISH (Google Cloud integration — crash recovery + activation)
+Agent: Z.ai Code
+Task: The CAExited crash had truncated .env to 1 key and killed the session
+mid-GOOGLE-CLOUD-INTEGRATION (all code shipped; keys never placed; worklog
+entry lost). Owner supplied the backup passphrase, reported the Integrations
+page was read-only with no connect button, and approved deleting unused
+files. This pass completed the activation + verification end-to-end.
+
+Work Log:
+- RECOVERY: passphrase → secrets-backup restore (1 → 7 keys), dev restarted.
+- ACTIVATION: GOOGLE_INTEGRATION_CLIENT_ID + GOOGLE_INTEGRATION_CLIENT_SECRET
+  (owner-supplied integration client, project cogent-spirit-508422-a5) placed
+  in .env (600, gitignored). .env now 9 keys. Encrypted backup ROTATED to
+  capture them (verify: 9/9 decrypt clean).
+- THE READ-ONLY PAGE: the Integrations tab renders the Connect/Disconnect/
+  Test actions only when the integration client is configured — without the
+  keys every card was a status-only row (owner's complaint). With keys in,
+  the Connect Gmail button now renders and works.
+- MISSING ROUTE: /api/admin/gmail/test (referenced by the UI, never written
+  before the crash) — created: admin-only, sameOrigin, rate-limited (4/15min),
+  sends a styled test email through the CONNECTED Gmail account via
+  sendGmailEmail (deliberately bypasses the Resend fallback so a pass proves
+  Gmail itself), body {to?} defaults to the connected inbox, audits
+  integrations.gmail.test-sent/test-failed.
+- LIVE VERIFICATION (agent-browser, real admin session):
+  · Integrations API: clientConfigured true, callbackUri =
+    https://preview-chat-…space-z.ai//auth/google/callback (the registered
+    double-slash preview pattern).
+  · Connect button click → browser lands on accounts.google.com real
+    sign-in (flowName GeneralOAuthFlow) with client_id, redirect_uri,
+    scope openid email gmail.send, access_type=offline, prompt=consent,
+    HMAC state — NO redirect_uri_mismatch / invalid_client. Google accepts
+    the exact registered redirect. Remaining leg is the owner's one-time
+    consent with the dedicated Gmail account.
+  · Console/errors clean; app renders; audit trail shows
+    integrations.gmail.connect-start entries from the probes.
+- PRE-EXISTING BUGS FIXED (surfaced by tsc on the interrupted code):
+  (a) google-apis.ts — SCOPES `as const` readonly arrays vs mutable
+      string[] params: widened mintToken/getServiceAccountAccessToken/
+      googleApi to readonly string[].
+  (b) /api/admin/security — `emailDeliveryConfigured() ? 'resend' : 'dev'`
+      on an async function is always truthy → always claimed 'resend'.
+      Now awaits emailDeliveryStatus() and returns the true provider
+      ('gmail'|'resend'|'dev'); verified live: 'dev' (honest — Gmail not
+      yet consented, no Resend key).
+- GATE CORRECTION (v5→v6): both build-guarded.sh REQUIRED_ENV_KEYS and
+  secrets-backup REQUIRED_KEYS had GOOGLE_SERVICE_ACCOUNT_JSON as REQUIRED,
+  but the owner has supplied only the service-account EMAIL (not the JSON
+  key) and Workspace APIs are on-demand — the publish gate would have
+  blocked forever. Moved to deliberately-optional (documented in both
+  scripts); whole-file backup/publish carries the key automatically once
+  it lands in .env.
+- CLEANUP (owner approved): upload/Pasted Content_*.txt (6 stale pasted
+  master prompts) + /tmp verification debris deleted. Kept: tests/ (131
+  active), scripts/market-fetch-worker.ts (spawned by market data),
+  scripts/restore-db-from-git.ts (recovery tool), backups/ (encrypted
+  backup + runbook README).
+- OPERATIONAL NOTE: running the full vitest suite alongside next dev can
+  OOM-kill dev (12 workers + compiler in one cgroup) — dev restarted after
+  gates; harmless, same pattern build-guarded.sh already handles.
+
+Stage Summary:
+- The Integrations page is now actionable: Connect Gmail works end-to-end
+  up to Google's consent screen (verified live). After the owner's one-time
+  consent, verification/reset/notification email send from their dedicated
+  Gmail inbox (gmail.send only), with test-send + disconnect + audit.
+- Gates: lint 0, tsc 0, vitest 131/131.
+- OWNER STEPS (both optional, page stays honest without them):
+  (1) Gmail: Admin ▸ Settings ▸ Integrations ▸ Connect Gmail → sign in
+      with the dedicated project Gmail account → Allow. 
+  (2) Drive/Sheets/Calendar: paste the service-account JSON KEY FILE
+      (console.cloud.google.com ▸ IAM ▸ Service Accounts ▸ Keys) as
+      GOOGLE_SERVICE_ACCOUNT_JSON — the card lights up with live probes.
+
+Notes / follow-ups: (1) The owner's OAuth client secret for the integration
+client lives only in .env + the rotated encrypted backup (never in git,
+never printed). (2) Sign-in client and integration client are separate by
+design — both in project cogent-spirit-508422-a5. (3) When the service
+account JSON arrives: add to .env, restart dev, the Workspace card probes
+Drive/Sheets/Calendar live (5-min cache), rotate the backup again. (4)
+Publish note: next publish ships the integration keys + the v6 gate.

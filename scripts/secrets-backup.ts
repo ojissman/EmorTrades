@@ -53,9 +53,16 @@ const REQUIRED_KEYS = [
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_INTEGRATION_CLIENT_ID',
   'GOOGLE_INTEGRATION_CLIENT_SECRET',
-  'GOOGLE_SERVICE_ACCOUNT_JSON',
   'DB_EXPORT_TOKEN',
 ] as const
+
+/**
+ * GOOGLE_SERVICE_ACCOUNT_JSON (Drive · Sheets · Calendar) is deliberately
+ * NOT required: those Workspace APIs are on-demand features and the owner
+ * has not yet supplied the key file. Backup/restore is whole-file, so the
+ * key is captured automatically the moment it lands in .env — only the
+ * required-missing refusal and the publish gate skip it until then.
+ */
 
 const SCRYPT_N = 1 << 15 // 32768
 const SCRYPT_R = 8

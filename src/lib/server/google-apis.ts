@@ -70,7 +70,7 @@ const TOKEN_URI = 'https://oauth2.googleapis.com/token'
 const tokenCache = new Map<string, { token: string; exp: number }>()
 const minting = new Map<string, Promise<{ token: string; exp: number } | null>>()
 
-async function mintToken(scopes: string[]): Promise<{ token: string; exp: number } | null> {
+async function mintToken(scopes: readonly string[]): Promise<{ token: string; exp: number } | null> {
   const sa = getServiceAccount()
   if (!sa) return null
   const now = Math.floor(Date.now() / 1000)
@@ -101,7 +101,7 @@ async function mintToken(scopes: string[]): Promise<{ token: string; exp: number
 
 /** A valid service-account access token for the given scopes (refreshes at
  *  <120s remaining). Null when no key is configured or the mint failed. */
-export async function getServiceAccountAccessToken(scopes: string[]): Promise<string | null> {
+export async function getServiceAccountAccessToken(scopes: readonly string[]): Promise<string | null> {
   const key = scopes.slice().sort().join(' ')
   const hit = tokenCache.get(key)
   if (hit && hit.exp > Math.floor(Date.now() / 1000) + 120) return hit.token
@@ -127,7 +127,7 @@ export interface GoogleApiResult<T> {
 }
 
 export async function googleApi<T>(
-  scopes: string[],
+  scopes: readonly string[],
   url: string,
   init: RequestInit = {}
 ): Promise<GoogleApiResult<T>> {
