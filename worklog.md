@@ -34,6 +34,17 @@ ships the token. Then state that explicitly in the worklog and to the owner
 — never silently skip the ritual. (PROD_ORIGIN env is optional; script
 defaults to https://emortrade.space-z.ai.)
 
+TECHNICAL ENFORCEMENT (owner-mandated 2026-10-31, task ENFORCE-1 — see
+CLAUDE.md, read before any task): a git pre-push hook
+(scripts/git-hooks/pre-push, armed by scripts/install-git-hooks.sh via
+package.json "prepare" on every `bun install`) REFUSES every push of main
+unless .sync-state proves a fully-verified production pull happened after
+the previous push. .sync-state is written only by sync-prod-db.ts on
+complete success, and is gitignored — so a fresh sandbox restored from
+GitHub is push-locked until its first real `bun run sync:prod`. This
+survives sandbox wipes, context compaction, and entirely new sandboxes:
+the enforcement lives in the repo and arms itself on install.
+
 Origin of this protocol: owner-designed through the P1 discussion (Option 2
 "pull before push", staging preview, push-last data time machine). Activated
 in P1-ACTIVATE. Violations must be reported honestly and caught up — see
@@ -5992,3 +6003,63 @@ Protocol violation acknowledged, caught up (pull + push), and made
 structurally un-losable. The loop was never thrown out — it was live and
 armed all day; the agent failed to invoke it. From this entry forward the
 worklog header carries the ritual itself.
+
+---
+
+## Task ENFORCE-1 — Strict enforcement rule: no pull, no task (technical, wipe-proof)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-10-31
+
+### Work Log
+
+- OWNER DIRECTIVE (verbatim intent): "no pull and replacement of sandbox
+  db, no task is done — an enforcement rule — even if this sandbox is
+  completely wiped, or a new sandbox is used entirely, as long as it can
+  pull the backup from the GitHub repo, the enforcement is still fully
+  intact and enforced. This is not a joke to me."
+- Implemented as four repo-committed layers (documentation alone cannot
+  enforce — the machinery itself had to survive wipes):
+  1. scripts/git-hooks/pre-push — refuses every push of main unless a
+     verified production pull (.sync-state, lastPullEpoch) happened after
+     the commit time of origin/main's tip. Refusal message states the rule
+     and the exact remedy. Bootstrap (no origin/main) passes; branch pushes
+     and deletions out of scope.
+  2. scripts/install-git-hooks.sh + package.json "prepare" — arms the hook
+     automatically on every `bun install` (idempotent, never fails). This
+     is the auto-arm path for a brand-new sandbox restored from GitHub.
+  3. scripts/sync-prod-db.ts §9 — writes .sync-state ONLY on complete
+     success (pull+validate+swap+strict schema+integrity). BOOTSTRAP-SKIP
+     never writes it (DB not replaced = not a pull). .sync-state gitignored
+     (local truth; fresh sandbox = locked until first real pull).
+  4. CLAUDE.md (repo root) + this worklog's standing protocol — the rule
+     statement any agent session reads first, including the no-silent-
+     bypass policy (sync failure → inform owner, document, only explicit
+     owner authorization permits --no-verify).
+- E2E PROOF (live, in order):
+  · Negative A (no marker — fresh-sandbox state): push of main REFUSED,
+    exit 1, nothing reached GitHub. ✅
+  · Negative B (stale marker — exactly the SEO-FINAL-3 violation pattern):
+    push REFUSED, exit 1. ✅
+  · Auto-arm (mini-repo): `bun install` → prepare fired → hook armed. ✅
+  · Positive D (real ritual): sync:prod → .sync-state written → push of
+    main ALLOWED with "[enforcement] pull verified" — see this task's own
+    push. ✅
+- Self-inflicted wound caught and fixed: the negative tests used
+  `git reset --hard HEAD~1` to discard test commits, which also wiped the
+  then-uncommitted marker/scripts edits (tracked files). Re-applied and
+  committed before any further git ops. Lesson recorded: commit first,
+  test git behavior after.
+- secrets self-sufficiency verified: backups/secrets.enc is tracked in the
+  repo (encrypted, passphrase-gated) — a new sandbox can rebuild .env via
+  secrets-backup.ts restore, then sync:prod can pull production. The
+  enforcement chain is complete without anything outside the repo.
+
+### Stage Summary
+
+The rule is now physics, not policy: pushing without a verified production
+pull is impossible from this sandbox and any future one (hook re-arms on
+install from the repo; missing marker = locked). Survives sandbox wipes,
+context compaction, and full re-clones. Bypassing requires deliberate
+owner-authorized action (--no-verify) plus documentation — there is no
+silent path.

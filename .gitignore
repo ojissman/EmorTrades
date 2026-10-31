@@ -77,3 +77,9 @@ libraries/
 # files stay ignored and the -wal is force-added only if a checkpoint is busy.
 db/custom.db-shm
 db/custom.db-wal
+
+# ENFORCEMENT (owner-mandated 2026-10-31): local proof of the last verified
+# production pull. Written only by scripts/sync-prod-db.ts on full success;
+# read by scripts/git-hooks/pre-push. Local truth — a fresh sandbox starts
+# without it and stays push-locked until the first real `bun run sync:prod`.
+.sync-state

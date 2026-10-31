@@ -1,0 +1,85 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# ENFORCEMENT PRE-PUSH HOOK — owner-mandated strict rule (2026-10-31)
+#
+#   "No pull and replacement of the sandbox DB → no task is done."
+#
+# The Option-2 ritual requires EVERY task cycle to start with
+# `bun run sync:prod` (fresh production export → replaces the sandbox DB).
+# A task is only "done" when its commit is PUSHED — so this hook makes the
+# push itself physically impossible unless a verified production pull
+# happened after the last push.
+#
+# HOW IT DECIDES:
+#   · origin/main tip = the last state that successfully reached GitHub.
+#   · .sync-state (written ONLY by sync-prod-db.ts on a fully verified
+#     pull+swap) carries lastPullEpoch.
+#   · Push is allowed ⇔ lastPullEpoch > commit time of origin/main's tip.
+#     i.e. the sandbox DB was refreshed from production AFTER the previous
+#     push and BEFORE this one — exactly one pull per task cycle.
+#
+# SURVIVES EVERYTHING: this file is committed to the repo. A brand-new
+# sandbox cloned/restored from GitHub re-arms it automatically via the
+# `prepare` script in package.json (bun install → install-git-hooks.sh).
+# A fresh sandbox has no .sync-state → the first push is REFUSED until the
+# first real `bun run sync:prod` runs. That is by design.
+#
+# IF sync:prod CANNOT PULL (production down, token drift after a sandbox
+# restart): DO NOT bypass silently. Inform the owner explicitly, get their
+# instruction, document it in worklog.md, and only then (owner-authorized)
+# use `git push --no-verify`. Silent bypass is a protocol violation.
+# ─────────────────────────────────────────────────────────────────────────────
+set -u
+
+TOP="$(git rev-parse --show-toplevel 2>/dev/null)" || TOP="$(pwd)"
+
+# Only enforce pushes of main (task completions). Branch pushes and ref
+# deletions are out of scope.
+ENFORCE=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" = "refs/heads/main" ] || continue
+  [ "$local_sha" != "0000000000000000000000000000000000000000" ] || continue
+  ENFORCE=1
+done
+[ "$ENFORCE" = "1" ] || exit 0
+
+# Bootstrap: no origin/main ref locally yet (first ever push) — nothing to
+# compare against. Every push after the first is enforced.
+TIP="$(git rev-parse --verify -q origin/main 2>/dev/null)" || exit 0
+[ -n "$TIP" ] || exit 0
+TIP_CT="$(git show -s --format=%ct "$TIP" 2>/dev/null)" || TIP_CT=0
+
+LAST_PULL=0
+if [ -f "$TOP/.sync-state" ]; then
+  LAST_PULL="$(grep -m1 -oE 'lastPullEpoch=[0-9]+' "$TOP/.sync-state" | cut -d= -f2)"
+  LAST_PULL="${LAST_PULL:-0}"
+fi
+
+if [ "$LAST_PULL" -le "$TIP_CT" ]; then
+  cat >&2 <<EOF
+
+════════════════════════════════════════════════════════════════
+  ENFORCEMENT RULE — PUSH REFUSED  (owner-mandated, non-negotiable)
+
+  "No pull and replacement of the sandbox DB, no task is done."
+
+  The sandbox DB has NOT been refreshed from production since the last
+  push (last pull epoch: ${LAST_PULL}; last pushed commit: ${TIP_CT}).
+
+  REQUIRED before this push can succeed:
+    1. bun run sync:prod     ← pull + replace + verify (writes .sync-state)
+    2. then re-run this push
+
+  If sync:prod FAILS (production unreachable, token drift):
+    · DO NOT bypass silently — that is a protocol violation.
+    · Inform the owner explicitly and follow their instruction.
+    · Document the failure in worklog.md.
+    · Only an explicit owner authorization permits \`git push --no-verify\`.
+════════════════════════════════════════════════════════════════
+
+EOF
+  exit 1
+fi
+
+echo "[enforcement] pull verified (epoch ${LAST_PULL} > pushed-tip ${TIP_CT}) — push allowed."
+exit 0

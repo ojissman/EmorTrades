@@ -218,4 +218,31 @@ if (!NO_DEV) {
 }
 
 rmSync(PRESERVE, { force: true })
+
+/* ── 9 · ENFORCEMENT MARKER (owner-mandated strict rule, 2026-10-31)
+ *
+ * The git pre-push hook (scripts/git-hooks/pre-push, armed by
+ * install-git-hooks.sh via package.json "prepare") refuses every push of
+ * main unless this marker proves a verified production pull happened
+ * after the previous push. Written ONLY here — after pull + validation +
+ * swap + strict schema push + integrity verify. BOOTSTRAP-SKIP paths never
+ * reach this line (the DB was NOT replaced), so they do not count as a
+ * pull. Gitignored: it is local truth, and its absence in a fresh sandbox
+ * correctly locks pushes until the first real pull. */
+try {
+  writeFileSync(
+    `${ROOT}/.sync-state`,
+    [
+      `lastPullEpoch=${Math.floor(Date.now() / 1000)}`,
+      `lastPullIso=${new Date().toISOString()}`,
+      `origin=${ORIGIN}`,
+      `users=${fUsers}`,
+      `trades=${fTrades}`,
+      '',
+    ].join('\n'),
+  )
+} catch {
+  /* marker write failure must not fail an otherwise-verified sync */
+}
+
 console.log(`✓ SYNC COMPLETE — sandbox now mirrors production (users=${fUsers}, trades=${fTrades}).`)
