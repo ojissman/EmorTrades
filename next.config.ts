@@ -24,14 +24,27 @@ const nextConfig: NextConfig = {
      blocks from component libraries and dynamic inline scripts (theme
      bootstrap); a nonce-based CSP would require instrumenting every third-
      party component — tracked as a follow-up. The set below is the safe
-     high-value baseline (OWASP secure headers minus CSP). */
+     high-value baseline (OWASP secure headers minus a resource CSP).
+
+     FRAME-ANCESTORS FIX (SEO-FINAL follow-up): X-Frame-Options DENY broke
+     the platform's embedded Preview Panel (an iframe) while direct "Open in
+     New Tab" kept working. frame-ancestors allows the platform's own domain
+     family (space-z.ai / z.ai — the chat UI that hosts the preview iframe)
+     and 'self'; every other site is still refused (clickjacking protection
+     retained). Modern browsers ignore XFO when frame-ancestors is present,
+     so SAMEORIGIN only acts as the legacy fallback. */
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'self' https://space-z.ai https://*.space-z.ai https://z.ai https://*.z.ai",
+          },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-DNS-Prefetch-Control", value: "off" },
           {
