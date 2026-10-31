@@ -5584,3 +5584,37 @@ Stage Summary:
   green), Weather (keyless open-meteo, live).
 - Remaining owner steps, all optional: (1) Gmail consent via the Connect
   button; (2) nothing else — Workspace needs no further configuration.
+
+---
+Task ID: GCI-VERIFY-1 (Google testing-mode gate — access_denied)
+Agent: Z.ai Code
+Task: Owner hit "Access blocked: space-z.ai has not completed the Google
+verification process / Error 403: access_denied" while consenting with
+emorjefefx@gmail.com. Diagnosed and made the app's error copy honest.
+
+Diagnosis:
+- The project's OAuth consent screen (cogent-spirit-508422-a5) is in
+  TESTING status. Google only lets accounts on the consent screen's TEST
+  USERS list consent; everyone else gets 403 access_denied. Both flows are
+  affected: Gmail connect (sensitive gmail.send scope) and Google sign-in
+  for any NEW platform user (prior sign-ins predate the gate or were under
+  grants made when the account could consent).
+- Fix is console-side (owner-only): add the consenting Gmail accounts as
+  test users, or publish the app to production. Console steps handed to
+  the owner in chat.
+- CRITICAL caveat documented for the owner: in TESTING mode Google issues
+  refresh tokens that EXPIRE AFTER 7 DAYS — a Gmail connection made under
+  testing status would silently die weekly and need re-consent. For a
+  permanent Gmail sender, the consent screen must be published to
+  production (gmail.send is sensitive-but-not-restricted: consenters see
+  the "unverified app" Advanced→continue interstitial, no fee/review
+  needed to function; sign-in scopes are non-sensitive and show nothing).
+  Publishing also unblocks Google sign-in for all platform users.
+
+Code changes:
+- access_denied copy (both gmailError and googleError maps in
+  auth-shared.tsx) now names the testing-mode/test-user cause and the
+  console fix instead of the old misleading "was cancelled — nothing
+  changed."
+
+Gates: lint 0, tsc 0. Committed 67a262e.
