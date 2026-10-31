@@ -6142,3 +6142,29 @@ pushed state is confirmed local AND production's live data has replaced
 the sandbox DB. A complete wipe recovers in one runbook (AGENTS.md):
 clone → install (hook auto-arms) → passphrase restore → day:start → dev.
 Nothing durable depends on what any particular sandbox happens to contain.
+
+---
+Task ID: ENFORCE-2b (follow-up, same session)
+Agent: Z.ai Code
+Task: day:start false-refusal fix + live coverage of two more gate branches.
+
+Work Log:
+- Found: after a day's final sync:prod, db/custom.db sits dirty overnight
+  (every production pull rewrites it) → next morning's gate would refuse a
+  clean-CODE tree. Fix: the dirty-check now exempts db/custom.db + sidecars
+  (the sync replaces it moments later; it rides to GitHub with the next
+  task commit, by design). Any other dirty file still refuses.
+- Live coverage gained (both branches exercised for real):
+  · db-only-dirty tree → gate PASSED into the full run. ✅
+  · unpushed-commit detection → "⚠ UNPUSHED: 1 commit(s) — push them now"
+    fired for real (the ENFORCE-2b commit itself, pre-push). ✅
+- Final task-cycle data snapshot committed with this entry (users=3,
+  trades=381, 15:42Z verified pull) — the tree ends the day fully clean.
+
+### Stage Summary
+
+day:start now handles every morning-after state: clean tree (pass), DB-only
+dirty (pass — exempt by design), real leftover work (refuse), unpushed
+previous cycle (warn + instruct), stale sandbox (pull N commits), diverged
+(refuse, escalate to owner). Next new day: owner provides key+repo → one
+command → CLEARED TO WORK.
