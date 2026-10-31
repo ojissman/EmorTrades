@@ -1,5 +1,10 @@
 # CLAUDE.md — READ THIS FILE FIRST, BEFORE ANY TASK
 
+> **Canonical runbook: `AGENTS.md`** (same repo root). It contains the strict
+> rule, the 5-step ritual, the NEW-DAY PROTOCOL (owner provides GitHub key +
+> repo name → `bun run day:start` → CLEARED TO WORK) and the complete
+> WIPE-RECOVERY RUNBOOK for a brand-new sandbox. This file is the short card.
+
 ## ⛔ THE STRICT RULE (owner-mandated 2026-10-31 — "this is not a joke to me")
 
 > **No pull and replacement of the sandbox DB → NO task is done.**

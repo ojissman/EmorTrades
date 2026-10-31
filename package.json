@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sync:prod": "bun scripts/sync-prod-db.ts",
+    "day:start": "bun scripts/day-start.ts",
     "hooks:install": "bash scripts/install-git-hooks.sh",
     "prepare": "bash scripts/install-git-hooks.sh"
   },

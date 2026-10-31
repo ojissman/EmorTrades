@@ -45,6 +45,19 @@ GitHub is push-locked until its first real `bun run sync:prod`. This
 survives sandbox wipes, context compaction, and entirely new sandboxes:
 the enforcement lives in the repo and arms itself on install.
 
+NEW-DAY PROTOCOL (owner arrangement, 2026-10-31, task ENFORCE-2): on a new
+day the owner says "Pull GitHub latest" and personally provides the GitHub
+key (token) + repo name BEFORE any task. The agent then runs
+`bun run day:start` (scripts/day-start.ts; add -- --repo <o>/<r> --token
+<t> to repair the remote; passphrase on stdin restores .env). It: repairs
+origin → refuses a dirty tree → git pull --ff-only → bun install (re-arms
+the hook) → verifies .env (9/9) → runs sync:prod → prints DAY START STATE +
+CLEARED TO WORK and writes .day-state (gitignored). Work is NEVER built on
+what the sandbox happens to contain that day — only on the last completed,
+committed and PUSHED state, refreshed from live production. Complete-wipe
+recovery runbook (clone → install → secrets restore → day:start) is in
+AGENTS.md §WIPE-RECOVERY RUNBOOK — the canonical read-first file.
+
 Origin of this protocol: owner-designed through the P1 discussion (Option 2
 "pull before push", staging preview, push-last data time machine). Activated
 in P1-ACTIVATE. Violations must be reported honestly and caught up — see
@@ -6063,3 +6076,69 @@ install from the repo; missing marker = locked). Survives sandbox wipes,
 context compaction, and full re-clones. Bypassing requires deliberate
 owner-authorized action (--no-verify) plus documentation — there is no
 silent path.
+
+---
+Task ID: ENFORCE-2
+Agent: Z.ai Code
+Task: Owner's new-day arrangement — "on a new day I will first tell you to
+Pull GitHub latest, and I will personally provide the GitHub key and repo
+name." Make that instruction executable, wipe-proof, and self-documenting:
+canonical AGENTS.md runbook + `bun run day:start` gate + complete-wipe
+recovery rehearsal. Work must NEVER build on what the sandbox happens to
+contain on a given day — only on the last completed, committed, PUSHED
+state, refreshed from live production.
+
+Work Log:
+- RITUAL PULL first (15:32Z): sync:prod → production export replaced the
+  sandbox DB (users=3, trades=381), dev restarted, .sync-state fresh.
+- AGENTS.md (new, repo root — canonical read-first file, cross-agent
+  standard): the strict rule, the 5-step ritual, the NEW-DAY PROTOCOL
+  (owner provides key+repo → `bun run day:start` → CLEARED TO WORK), the
+  complete WIPE-RECOVERY RUNBOOK (clone → bun install → secrets restore →
+  day:start → dev → E2E), the enforcement map, environment notes, file
+  map. CLAUDE.md now points to it as the canonical source (no drift).
+- scripts/day-start.ts (new) — the executable new-day gate, no bypass flag
+  by design: repairs origin from `--repo/--token` (token redacted in all
+  output) → refuses dirty tree ("a new day starts from the last PUSHED
+  state") → git fetch + pull --ff-only (refuses divergence; warns on
+  unpushed commits from a previous cycle) → bun install (re-arms the
+  pre-push hook) → .env completeness check (9/9; passphrase on stdin
+  restores from backups/secrets.enc via secrets-backup.ts) → DB check
+  (informational) → `bun run sync:prod` (THE pull) → writes .day-state
+  (gitignored) → prints DAY START STATE + CLEARED TO WORK.
+  package.json: "day:start". .gitignore: .day-state.
+- worklog header: NEW-DAY PROTOCOL block pinned next to the ENFORCE-1
+  technical-enforcement block.
+- WIPE REHEARSAL (live, scratch clone /tmp/wipe-rehearsal, then removed):
+  · `git clone` with the embedded token → repo restored at origin tip
+    (8da35ae): code + worklog + scripts + backups/secrets.enc + tracked
+    db/custom.db. ✅
+  · `bun install` (909 packages, 6.7s) → pre-push enforcement hook ARMED
+    automatically via prepare. ✅ (Enforcement survives the wipe.)
+  · `echo "<passphrase>" | bun scripts/secrets-backup.ts restore` → .env
+    0 → 9 required keys. ✅
+  · Clone's DB (from GitHub): users=3, trades=381 — the data time machine
+    delivers the last pushed production snapshot. ✅
+- day:start partial test (pre-commit, dirty tree): correctly REFUSED with
+  the dirty-file list + "commit + push the leftover work first." ✅
+- Gates: lint 0 · tsc 0 · vitest 131/131 (12 files) · dev 200 (tsc
+  OOM-killed dev once — restarted, known cgroup behavior).
+- Honest coverage note: the behind>0 git-pull branch inside day:start was
+  verified by command-sequence (fetch → rev-list counts → pull --ff-only
+  fast-forward) rather than a full scratch-clone day:start run, because
+  sync:prod's dev-server management targets port 3000 globally (singleton)
+  — running the full gate from a clone would have displaced the main dev
+  server mid-task. Every constituent mechanic was proven live: clone,
+  install+arm, secrets restore, data presence, sync:prod, push hook. The
+  first real new-day cycle (origin ahead of a reset sandbox) exercises the
+  pull branch end-to-end naturally.
+
+### Stage Summary
+
+The owner's arrangement is now executable physics: on a new day the agent
+runs `bun run day:start` (with the owner-provided key/repo when the remote
+needs repair), which refuses to clear anyone to work until GitHub's last
+pushed state is confirmed local AND production's live data has replaced
+the sandbox DB. A complete wipe recovers in one runbook (AGENTS.md):
+clone → install (hook auto-arms) → passphrase restore → day:start → dev.
+Nothing durable depends on what any particular sandbox happens to contain.

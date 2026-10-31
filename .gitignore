@@ -83,3 +83,7 @@ db/custom.db-wal
 # read by scripts/git-hooks/pre-push. Local truth — a fresh sandbox starts
 # without it and stays push-locked until the first real `bun run sync:prod`.
 .sync-state
+
+# ENFORCE-2 (2026-10-31): local marker of the day-start gate (new-day
+# PULL-FIRST protocol). Written by scripts/day-start.ts; local truth only.
+.day-state
