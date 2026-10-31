@@ -5880,3 +5880,38 @@ gates green, publish path verified. Owner-side pending (non-blocking):
 Resend DNS records in Cloudflare (exact values above) → verify → set
 EMAIL_FROM; optional one-time Gmail consent click-through. scripts/
 mint-session.ts added (dev-only session minter for E2E; reads .env).
+
+---
+
+## Task SEO-FINAL-2 — Preview Panel iframe fix (X-Frame-Options regression)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-10-31
+
+### Work Log
+
+- SYMPTOM (owner report): platform Preview Panel blank, "Open in New Tab"
+  works perfectly. Panel is an IFRAME → classic X-Frame-Options: DENY
+  behavior (browser fetches the URL, gets DENY, refuses to render inside
+  a frame; direct navigation unaffected).
+- ROOT CAUSE: SEO-UPGRADE PHASE 7 (commit fa3cf2f) added
+  X-Frame-Options: DENY to every response via next.config.ts headers().
+  Correct hardening, wrong value for a platform that embeds previews.
+- FIX (commit 92877e5): X-Frame-Options DENY → SAMEORIGIN (legacy
+  fallback only) + Content-Security-Policy: frame-ancestors 'self'
+  https://space-z.ai https://*.space-z.ai https://z.ai https://*.z.ai.
+  Modern browsers honor frame-ancestors OVER XFO (MDN/spec), so the
+  Z.ai chat UI (parent of the preview iframe) can embed again while
+  arbitrary third-party sites stay refused — clickjacking protection
+  retained. frame-ancestors is a response-embedding control only; it
+  does not restrict the page's own scripts/styles (full resource CSP
+  still deliberately deferred).
+- VERIFIED: headers on /, /blog, /api/* (SAMEORIGIN + frame-ancestors);
+  live same-origin iframe test in agent-browser now RENDERS app content
+  (was refused under DENY); dev restarted; lint 0, tsc 0.
+
+### Stage Summary
+
+Preview Panel unblocked. Security posture: same as Phase 7 except
+framing is now allowlisted to the platform's own domain family instead
+of denied outright.
