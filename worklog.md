@@ -7,6 +7,42 @@ Stage Summary template. This file is the ONLY coordination record — it was
 recreated fresh on 2026-10-18 after the user-directed total sweep and history
 purge (everything before it is intentionally unrecoverable).
 
+## ⚠️ STANDING TASK PROTOCOL — READ BEFORE ANY TASK (owner-designed, P1)
+
+The Option-2 canonical workflow. EVERY task, no exceptions, in this order:
+
+  1. PULL FIRST: `bun run sync:prod` — fresh production export replaces the
+     sandbox DB (start from truth; the preview/staging always shows real data)
+  2. IMPLEMENT the task on the pulled production data
+  3. VERIFY — preview shows the task working on live data (E2E, browser)
+  4. WORKLOG entry (append below, never overwrite)
+  5. COMMIT + `git push` TO GITHUB — ALWAYS THE LAST STEP
+     (GitHub = code + production data together; the data time machine)
+
+Publish (owner's manual action): build-guarded v4 auto-pulls production's
+data first — publishes are upgrades, never demolitions.
+
+Disciplines: sandbox preview is a sandcastle (nothing durable lives in
+sandbox rows) · production is the keeper of real data · additive-first
+schema (destructive changes ONLY with a written migration note + verified
+data-carrying step + before/after row counts) · repo stays PRIVATE (it
+carries user-data history in every commit).
+
+If `sync:prod` 401-refuses (token drift, e.g. after a sandbox restart
+regenerated DB_EXPORT_TOKEN): the loop is decoupled until the next publish
+ships the token. Then state that explicitly in the worklog and to the owner
+— never silently skip the ritual. (PROD_ORIGIN env is optional; script
+defaults to https://emortrade.space-z.ai.)
+
+Origin of this protocol: owner-designed through the P1 discussion (Option 2
+"pull before push", staging preview, push-last data time machine). Activated
+in P1-ACTIVATE. Violations must be reported honestly and caught up — see
+task SEO-FINAL-3 for the first (and to-be-last) enforcement gap.
+
+---
+
+# Task history (append below, newest at bottom)
+
 ---
 Task ID: 1
 Agent: Z.ai Code
@@ -5915,3 +5951,44 @@ mint-session.ts added (dev-only session minter for E2E; reads .env).
 Preview Panel unblocked. Security posture: same as Phase 7 except
 framing is now allowlisted to the platform's own domain family instead
 of denied outright.
+
+---
+
+## Task SEO-FINAL-3 — Protocol enforcement gap: caught up + made permanent
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-10-31
+
+### Work Log
+
+- OWNER AUDIT (correct call): the P1 Option-2 ritual was NOT followed for
+  today's tasks (SEO-FINAL e125bdd, SEO-FINAL-2 92877e5/65bb755). No task-
+  start `bun run sync:prod`, and the end-of-task GitHub push was skipped —
+  the three commits sat local-only.
+- WHY (honest, not an excuse): today's session continued from compacted
+  context; the standing protocol lives in this worklog (P1-ACTIVATE lines)
+  but only the recent tail was re-read before starting. The ritual was
+  missed silently — exactly the failure mode the owner designed the
+  protocol to prevent.
+- LOOP STATUS VERIFIED LIVE: production export route answered 200 with a
+  valid 1.5MB SQLite snapshot under the current DB_EXPORT_TOKEN (the Oct-30
+  token-drift concern is resolved — .env restore from encrypted backup
+  recovered the original token both sides share). PROD_ORIGIN missing from
+  .env is harmless (script defaults to https://emortrade.space-z.ai).
+- CATCH-UP EXECUTED: `bun run sync:prod` ran clean — pulled production
+  (users=3, trades=381 — no new production activity since the last pull),
+  strict additive schema push, integrity verified, dev back in 21s.
+- PERMANENT FIX: the canonical workflow is now a STANDING PROTOCOL section
+  at the TOP of this worklog (first thing any session reads, immune to
+  context compaction). Includes the 401-drift rule: never silently skip;
+  state it explicitly.
+- Missed step completed NOW: all three commits + this one pushed to GitHub
+  together with the freshly pulled production DB (the data time machine
+  snapshot for today).
+
+### Stage Summary
+
+Protocol violation acknowledged, caught up (pull + push), and made
+structurally un-losable. The loop was never thrown out — it was live and
+armed all day; the agent failed to invoke it. From this entry forward the
+worklog header carries the ritual itself.
