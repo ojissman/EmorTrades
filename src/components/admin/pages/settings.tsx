@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Bell,
   Check,
+  CloudSun,
   CreditCard,
   Database,
   Download,
@@ -23,6 +24,7 @@ import {
   Mail,
   NotebookPen,
   Plug,
+  Send,
   Server,
   ShieldCheck,
   SlidersHorizontal,
@@ -50,9 +52,9 @@ interface AdminSettings {
     botProtection: string
     turnstileConfigured: boolean
     googleSignIn: boolean
-    emailDelivery: 'resend' | 'dev'
+    emailDelivery: 'gmail' | 'resend' | 'dev'
   }
-  notifications: { emailDelivery: 'resend' | 'dev'; inAppEnabled: boolean }
+  notifications: { emailDelivery: 'gmail' | 'resend' | 'dev'; inAppEnabled: boolean }
   subscriptions: { billingMode: string; gatewayConnected: boolean }
   privacy: { dataRetentionDays: number | null; accountDeletionPolicy: string }
   system: {
@@ -330,8 +332,12 @@ function SecurityTab({ security }: { security: AdminSettings['security'] }) {
       <FieldRow
         label="Email delivery"
         value={
-          <span className={cn('a-badge', security.emailDelivery === 'resend' ? 'a-badge-success' : 'a-badge-warning')}>
-            {security.emailDelivery === 'resend' ? 'Resend (live)' : 'Development mode'}
+          <span className={cn('a-badge', security.emailDelivery !== 'dev' ? 'a-badge-success' : 'a-badge-warning')}>
+            {security.emailDelivery === 'gmail'
+              ? 'Gmail (live)'
+              : security.emailDelivery === 'resend'
+                ? 'Resend (live)'
+                : 'Development mode'}
           </span>
         }
       />
@@ -355,7 +361,7 @@ function SecurityTab({ security }: { security: AdminSettings['security'] }) {
 /* ── Tab 3 · Notifications ────────────────────────────────────────────────── */
 
 function NotificationsTab({ notifications }: { notifications: AdminSettings['notifications'] }) {
-  const live = notifications.emailDelivery === 'resend'
+  const live = notifications.emailDelivery !== 'dev'
   return (
     <section className="a-card p-4 sm:p-5" aria-label="Notification settings">
       <CardTitle title="Notifications" hint="How the platform reaches your users." />
@@ -701,7 +707,28 @@ function RolesTab() {
   )
 }
 
-/* ── Tab 6 · Integrations ─────────────────────────────────────────────────── */
+/* ── Tab 6 · Integrations (GOOGLE-CLOUD-INTEGRATION) ────────────── */
+
+interface IntegrationsPayload {
+  signIn: { configured: boolean; note: string }
+  gmail: {
+    clientConfigured: boolean
+    connected: boolean
+    email: string | null
+    connectedAt: string | null
+    callbackUri: string | null
+  }
+  workspace: {
+    configured: boolean
+    serviceAccountEmail: string | null
+    drive: { enabled: boolean; ok: boolean; detail: string }
+    sheets: { enabled: boolean; ok: boolean; detail: string }
+    calendar: { enabled: boolean; ok: boolean; detail: string }
+    probedAt: string | null
+  }
+  weather: { provider: string; configured: boolean; note: string }
+  fallbacks: { resendConfigured: boolean; turnstileConfigured: boolean }
+}
 
 function IntegrationCard({
   icon: Icon,
@@ -709,12 +736,14 @@ function IntegrationCard({
   description,
   configured,
   envHint,
+  children,
 }: {
   icon: typeof Mail
   name: string
   description: string
   configured: boolean
-  envHint: string
+  envHint?: string
+  children?: React.ReactNode
 }) {
   return (
     <div className="a-card p-4 sm:p-5">
@@ -731,40 +760,286 @@ function IntegrationCard({
       </div>
       <p className="mt-3 text-[0.9375rem] font-semibold">{name}</p>
       <p className="mt-0.5 text-[0.8125rem] a-muted">{description}</p>
-      <p className="mt-3 text-[0.6875rem] a-faint">Configure via environment variables: {envHint}</p>
+      {children}
+      {envHint && <p className="mt-3 text-[0.6875rem] a-faint">Configure via environment variables: {envHint}</p>}
     </div>
   )
 }
 
-function IntegrationsTab({ security }: { security: AdminSettings['security'] }) {
+/** Small status chip for one Workspace API probe. */
+function ApiChip({ label, probe }: { label: string; probe: { enabled: boolean; ok: boolean; detail: string } }) {
+  return (
+    <span
+      className={cn('a-badge', probe.ok ? 'a-badge-success' : probe.enabled ? 'a-badge-warning' : 'a-badge-neutral')}
+      title={probe.detail}
+    >
+      {label}: {probe.ok ? 'live' : probe.enabled ? 'reachable' : 'disabled'}
+    </span>
+  )
+}
+
+function IntegrationsTab() {
+  const qc = useQueryClient()
+  const { data, isLoading } = useQuery<IntegrationsPayload>({
+    queryKey: ['admin-integrations'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/integrations')
+      if (!res.ok) throw new Error('Failed to load integration status.')
+      return (await res.json()) as IntegrationsPayload
+    },
+  })
+
+  const [testOpen, setTestOpen] = useState(false)
+  const [testTo, setTestTo] = useState('')
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/admin/gmail/connect', { method: 'POST' })
+      const json = (await res.json().catch(() => ({}))) as { consentUrl?: string; message?: string }
+      if (!res.ok || !json.consentUrl) throw new Error(json.message ?? 'Could not start the Gmail connect flow.')
+      return json.consentUrl
+    },
+    onSuccess: (consentUrl) => {
+      window.location.href = consentUrl
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const disconnect = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/admin/gmail/disconnect', { method: 'POST' })
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(json.error ?? 'Disconnect failed.')
+      return json as { ok: boolean; revokedAtGoogle: boolean }
+    },
+    onSuccess: (r) => {
+      toast.success('Gmail disconnected', {
+        description: r.revokedAtGoogle
+          ? 'The authorization was revoked at Google. Delivery falls back to the next provider.'
+          : 'Local connection cleared. Delivery falls back to the next provider.',
+      })
+      void qc.invalidateQueries({ queryKey: ['admin-integrations'] })
+      void qc.invalidateQueries({ queryKey: ['admin-settings'] })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const testSend = useMutation({
+    mutationFn: async (to: string) => {
+      const res = await fetch('/api/admin/gmail/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: to || undefined }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { error?: string; to?: string }
+      if (!res.ok) throw new Error(json.error ?? 'Test send failed.')
+      return json as { ok: boolean; to: string }
+    },
+    onSuccess: (r) => {
+      toast.success(`Test email sent to ${r.to}`, {
+        description: 'Check the inbox (and spam folder) to confirm end-to-end delivery.',
+      })
+      setTestOpen(false)
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  if (isLoading || !data) {
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="a-card p-5">
+            <div className="h-20 animate-pulse rounded" style={{ background: 'var(--a-neutral-soft)' }} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const gmail = data.gmail
+  const ws = data.workspace
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {/* Google sign-in */}
         <IntegrationCard
           icon={KeyRound}
-          name="Google OAuth"
-          description="One-click sign-in with Google accounts."
-          configured={security.googleSignIn}
+          name="Google sign-in"
+          description="One-click registration and login with Google accounts (openid email profile only)."
+          configured={data.signIn.configured}
           envHint="GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET"
         />
+
+        {/* Gmail — the platform sender */}
+        <div className="a-card p-4 sm:p-5 md:col-span-2 xl:col-span-1">
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: 'var(--a-neutral-soft)', color: 'var(--a-text-2)' }}
+            >
+              <Mail className="h-[18px] w-[18px]" aria-hidden />
+            </div>
+            <span
+              className={cn(
+                'a-badge',
+                gmail.connected ? 'a-badge-success' : gmail.clientConfigured ? 'a-badge-warning' : 'a-badge-neutral'
+              )}
+            >
+              {gmail.connected ? 'Connected' : gmail.clientConfigured ? 'Not connected' : 'Client not configured'}
+            </span>
+          </div>
+          <p className="mt-3 text-[0.9375rem] font-semibold">Gmail — platform sender</p>
+          <p className="mt-0.5 text-[0.8125rem] a-muted">
+            {gmail.connected
+              ? `Sending verification, password-reset and notification email from ${gmail.email}.`
+              : 'Connect the dedicated project Gmail account once — it becomes the sender for verification, password-reset and notification email.'}
+          </p>
+
+          {gmail.connected && (
+            <p className="mt-2 text-[0.6875rem] a-faint">
+              Connected {gmail.connectedAt ? new Date(gmail.connectedAt).toLocaleString() : ''} · gmail.send scope
+              only (no inbox reading)
+            </p>
+          )}
+          {gmail.callbackUri && (
+            <p className="mt-1 break-all text-[0.6875rem] a-faint">OAuth callback: {gmail.callbackUri}</p>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {gmail.clientConfigured && (
+              <button
+                className="a-btn a-btn-primary"
+                disabled={connect.isPending}
+                onClick={() => connect.mutate()}
+              >
+                {connect.isPending ? 'Opening Google…' : gmail.connected ? 'Reconnect' : 'Connect Gmail'}
+              </button>
+            )}
+            {gmail.connected && (
+              <>
+                <button
+                  className="a-btn"
+                  disabled={testSend.isPending}
+                  onClick={() => {
+                    setTestTo(gmail.email ?? '')
+                    setTestOpen(true)
+                  }}
+                >
+                  {testSend.isPending ? 'Sending…' : 'Send test email'}
+                </button>
+                <button
+                  className="a-btn"
+                  disabled={disconnect.isPending}
+                  onClick={() => disconnect.mutate()}
+                >
+                  {disconnect.isPending ? 'Disconnecting…' : 'Disconnect'}
+                </button>
+              </>
+            )}
+          </div>
+          {!gmail.clientConfigured && (
+            <p className="mt-3 text-[0.6875rem] a-faint">
+              Configure via environment variables: GOOGLE_INTEGRATION_CLIENT_ID + GOOGLE_INTEGRATION_CLIENT_SECRET
+            </p>
+          )}
+        </div>
+
+        {/* Google Workspace APIs (service account) */}
         <IntegrationCard
-          icon={Mail}
-          name="Resend email"
-          description="Transactional email for verification and password-reset links."
-          configured={security.emailDelivery === 'resend'}
+          icon={Server}
+          name="Drive · Sheets · Calendar"
+          description={
+            ws.configured
+              ? `Service account ${ws.serviceAccountEmail} — least-privilege scopes, ready for report storage, data import/export and scheduled reminders.`
+              : 'Service-account foundation for report storage (Drive), trading-data import/export (Sheets) and scheduled reminders (Calendar).'
+          }
+          configured={ws.configured}
+          envHint={ws.configured ? undefined : 'GOOGLE_SERVICE_ACCOUNT_JSON'}
+        >
+          {ws.configured && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <ApiChip label="Drive" probe={ws.drive} />
+              <ApiChip label="Sheets" probe={ws.sheets} />
+              <ApiChip label="Calendar" probe={ws.calendar} />
+            </div>
+          )}
+        </IntegrationCard>
+
+        {/* Weather */}
+        <IntegrationCard
+          icon={CloudSun}
+          name="Weather"
+          description={data.weather.note}
+          configured={data.weather.configured}
+        >
+          <p className="mt-3 text-[0.6875rem] a-faint">
+            Provider: {data.weather.provider} — no API key to manage, nothing to approve.
+          </p>
+        </IntegrationCard>
+
+        {/* Resend — fallback sender */}
+        <IntegrationCard
+          icon={Send}
+          name="Resend email (fallback)"
+          description="Optional secondary sender — used automatically if Gmail is not connected or fails."
+          configured={data.fallbacks.resendConfigured}
           envHint="RESEND_API_KEY"
         />
+
+        {/* Turnstile */}
         <IntegrationCard
           icon={ShieldCheck}
           name="Cloudflare Turnstile"
           description="Bot protection on the public authentication forms."
-          configured={security.turnstileConfigured}
+          configured={data.fallbacks.turnstileConfigured}
           envHint="TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY"
         />
       </div>
+
       <p className="px-1 text-[0.6875rem] a-faint">
-        Secret values are never displayed — configuration is detected from environment variables at runtime.
+        Secret values are never displayed — configuration is detected from environment variables and encrypted
+        server-side storage at runtime. Gmail connections store only a gmail.send refresh token, AES-256-GCM
+        encrypted.
       </p>
+
+      <AdminModal
+        open={testOpen}
+        onClose={() => setTestOpen(false)}
+        title="Send a Gmail test email"
+        description="Verifies end-to-end delivery through the connected Gmail account."
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="a-label" htmlFor="gmail-test-to">
+              Send to
+            </label>
+            <input
+              id="gmail-test-to"
+              className="a-input mt-1 w-full"
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              placeholder={gmail.email ?? 'you@example.com'}
+              type="email"
+            />
+            <p className="mt-1.5 text-[0.6875rem] a-faint">
+              Defaults to the connected inbox ({gmail.email}). Use any address you control to test real delivery.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="a-btn" onClick={() => setTestOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className="a-btn a-btn-primary"
+              disabled={testSend.isPending || (testTo.trim() !== '' && !/^\S+@\S+\.\S+$/.test(testTo.trim()))}
+              onClick={() => testSend.mutate(testTo.trim())}
+            >
+              {testSend.isPending ? 'Sending…' : 'Send test'}
+            </button>
+          </div>
+        </div>
+      </AdminModal>
     </div>
   )
 }
@@ -998,7 +1273,7 @@ export function SettingsPage() {
           {tab === 'notifications' && <NotificationsTab notifications={data.notifications} />}
           {tab === 'subscriptions' && <SubscriptionsTab />}
           {tab === 'roles' && <RolesTab />}
-          {tab === 'integrations' && <IntegrationsTab security={data.security} />}
+          {tab === 'integrations' && <IntegrationsTab />}
           {tab === 'privacy' && <PrivacyTab key={JSON.stringify(data.privacy)} privacy={data.privacy} />}
           {tab === 'system' && <SystemTab key={JSON.stringify(data.system)} system={data.system} />}
         </div>

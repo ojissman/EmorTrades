@@ -2,24 +2,46 @@
  * ============================================================================
  * EMAIL DELIVERY — pluggable, honest about what is configured
  * ============================================================================
- * · RESEND_API_KEY set  → real delivery through the Resend REST API.
- · not set (dev/sandbox) → DEV DELIVERY: the link is returned to the caller
- *   and logged to the server console, so the whole verification flow is
- *   fully usable without an email provider. The register/pending screens
- *   surface the link with a clear "dev delivery" note.
+ * GOOGLE-CLOUD-INTEGRATION · provider chain (first configured wins):
+ *   1 · GMAIL — the dedicated project Gmail account, connected once via
+ *      Admin ▸ Settings ▸ Integrations (OAuth refresh token, `gmail.send`
+ *      scope only). See lib/server/gmail.ts.
+ *   2 · RESEND — the legacy REST provider, active when RESEND_API_KEY is set.
+ *   3 · DEV DELIVERY (no provider) — the link is returned to the caller and
+ *      logged to the server console, so the whole verification flow stays
+ *      usable without an email provider. The register/pending screens surface
+ *      the link with a clear "dev delivery" note.
  *
  * Swapping providers later = one function; nothing else changes.
  */
+
+import { getGmailConnection, sendGmailEmail } from './gmail'
 
 export interface DeliveryResult {
   delivered: boolean
   /** Present only in dev delivery mode — the raw link, for the UI to show. */
   devLink?: string
   error?: string
+  /** Which provider handled (or attempted) the send. */
+  provider?: 'gmail' | 'resend' | 'dev'
 }
 
-export function emailDeliveryConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY)
+export type EmailProvider = 'gmail' | 'resend' | 'dev'
+
+export interface EmailDeliveryStatus {
+  provider: EmailProvider
+  configured: boolean
+}
+
+/** The active provider, in priority order (async — Gmail state is DB-backed). */
+export async function emailDeliveryStatus(): Promise<EmailDeliveryStatus> {
+  if (await getGmailConnection()) return { provider: 'gmail', configured: true }
+  if (process.env.RESEND_API_KEY) return { provider: 'resend', configured: true }
+  return { provider: 'dev', configured: false }
+}
+
+export async function emailDeliveryConfigured(): Promise<boolean> {
+  return (await emailDeliveryStatus()).configured
 }
 
 /**
@@ -43,6 +65,64 @@ export function emailDeliveryConfigured(): boolean {
 export function devLinkAllowed(): boolean {
   return process.env.NODE_ENV !== 'production'
 }
+
+/* ── The dispatcher ──────────────────────────────────────────────────────── */
+
+async function deliverEmail(
+  toEmail: string,
+  subject: string,
+  html: string,
+  /** The action link — surfaced only in dev-delivery mode. */
+  devLink: string
+): Promise<DeliveryResult> {
+  // 1 · Gmail — the dedicated project Gmail account.
+  if (await getGmailConnection()) {
+    const r = await sendGmailEmail(toEmail, subject, html)
+    if (r.ok) return { delivered: true, provider: 'gmail' }
+    console.error(`[email] Gmail send failed for ${toEmail}:`, r.error)
+    if (!process.env.RESEND_API_KEY) {
+      return { delivered: false, provider: 'gmail', error: r.error }
+    }
+    // Gmail failed but Resend exists → fall through as a safety net.
+    console.warn('[email] Gmail failed — falling back to Resend.')
+  }
+
+  // 2 · Resend.
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'EmorTrades <onboarding@resend.dev>',
+          to: [toEmail],
+          subject,
+          html,
+        }),
+      })
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText)
+        console.error(`[email] Resend error ${res.status}:`, errText)
+        return { delivered: false, provider: 'resend', error: `Email provider rejected the send (${res.status}).` }
+      }
+      return { delivered: true, provider: 'resend' }
+    } catch (e: unknown) {
+      console.error('[email] send failed:', e instanceof Error ? e.message : e)
+      return { delivered: false, provider: 'resend', error: 'Could not reach the email provider.' }
+    }
+  }
+
+  // 3 · DEV DELIVERY — no provider configured: log it and hand the link back
+  //     so the UI can surface it. Connect Gmail (Admin ▸ Integrations) or add
+  //     RESEND_API_KEY to go live.
+  console.log(`[email:dev-delivery] ${subject} link for ${toEmail} → ${devLink}`)
+  return { delivered: false, devLink, provider: 'dev' }
+}
+
+/* ── Verification email ──────────────────────────────────────────────────── */
 
 function verificationHtml(link: string): string {
   return `<!doctype html>
@@ -76,36 +156,7 @@ function verificationHtml(link: string): string {
 }
 
 export async function sendVerificationEmail(toEmail: string, link: string): Promise<DeliveryResult> {
-  if (!emailDeliveryConfigured()) {
-    // DEV DELIVERY — no provider configured: log it and hand the link back so
-    // the UI can surface it. Add RESEND_API_KEY to .env to go live.
-    console.log(`[email:dev-delivery] verification link for ${toEmail} → ${link}`)
-    return { delivered: false, devLink: link }
-  }
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'EmorTrades <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: 'Verify your email — EmorTrades',
-        html: verificationHtml(link),
-      }),
-    })
-    if (!res.ok) {
-      const errText = await res.text().catch(() => res.statusText)
-      console.error(`[email] Resend error ${res.status}:`, errText)
-      return { delivered: false, error: `Email provider rejected the send (${res.status}).` }
-    }
-    return { delivered: true }
-  } catch (e: any) {
-    console.error('[email] send failed:', e?.message)
-    return { delivered: false, error: 'Could not reach the email provider.' }
-  }
+  return deliverEmail(toEmail, 'Verify your email — EmorTrades', verificationHtml(link), link)
 }
 
 /* ── Password reset (LAND-1) — single-use, 60-minute links ──────────────── */
@@ -143,32 +194,13 @@ function passwordResetHtml(link: string): string {
 }
 
 export async function sendPasswordResetEmail(toEmail: string, link: string): Promise<DeliveryResult> {
-  if (!emailDeliveryConfigured()) {
-    console.log(`[email:dev-delivery] password-reset link for ${toEmail} → ${link}`)
-    return { delivered: false, devLink: link }
-  }
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'EmorTrades <onboarding@resend.dev>',
-        to: [toEmail],
-        subject: 'Reset your password — EmorTrades',
-        html: passwordResetHtml(link),
-      }),
-    })
-    if (!res.ok) {
-      const errText = await res.text().catch(() => res.statusText)
-      console.error(`[email] Resend error ${res.status}:`, errText)
-      return { delivered: false, error: `Email provider rejected the send (${res.status}).` }
-    }
-    return { delivered: true }
-  } catch (e: any) {
-    console.error('[email] send failed:', e?.message)
-    return { delivered: false, error: 'Could not reach the email provider.' }
-  }
+  return deliverEmail(toEmail, 'Reset your password — EmorTrades', passwordResetHtml(link), link)
+}
+
+/* ── Generic send (notifications, admin test sends) ──────────────────────── */
+
+export async function sendNotificationEmail(toEmail: string, subject: string, html: string): Promise<DeliveryResult> {
+  // No dev link to surface for notifications — they simply don't send in
+  // dev-delivery mode (nothing security-critical depends on them).
+  return deliverEmail(toEmail, subject, html, '')
 }

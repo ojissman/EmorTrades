@@ -316,6 +316,8 @@ export function UrlParamToaster() {
     const linked = params.get('linked')
     const googleError = params.get('googleError')
     const linkError = params.get('linkError')
+    const gmailConnected = params.get('gmailConnected')
+    const gmailError = params.get('gmailError')
 
     if (verified === '1') toast.success('Email verified — welcome to EmorTrades!')
     else if (verified === '0')
@@ -352,7 +354,28 @@ export function UrlParamToaster() {
       toast.error(messages[linkError] ?? 'Google linking failed. Please try again.')
     }
 
-    if (verified || welcome || linked || googleError || linkError) {
+    if (gmailConnected) {
+      toast.success('Gmail connected', {
+        description: `Emails now send from ${gmailConnected} (gmail.send only). Send a test from Admin ▸ Settings ▸ Integrations.`,
+      })
+    }
+
+    if (gmailError) {
+      const messages: Record<string, string> = {
+        access_denied: 'Gmail connect was cancelled — nothing changed.',
+        invalid_request: 'That Gmail connect link was incomplete. Start again from Admin ▸ Settings ▸ Integrations.',
+        state_expired: 'The Gmail connect session expired (10 minutes). Start again.',
+        not_admin: 'Only an administrator can connect the platform Gmail account.',
+        not_configured: 'The Google integration client is not configured on this server.',
+        exchange: 'Google rejected the authorization code. Start again.',
+        scope: 'The gmail.send permission was not granted — tick it on the consent screen.',
+        email: 'Google did not return a verified email for that account.',
+        failed: 'Gmail connect failed. Please try again.',
+      }
+      toast.error(messages[gmailError] ?? 'Gmail connect failed. Please try again.')
+    }
+
+    if (verified || welcome || linked || googleError || linkError || gmailConnected || gmailError) {
       // Clean the URL without reloading
       window.history.replaceState({}, '', window.location.pathname + window.location.hash)
     }

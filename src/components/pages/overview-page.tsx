@@ -41,6 +41,7 @@ import {
   PRESET_WIDGET_LAYOUTS, TYPE_ICON, SectionLabel,
 } from '@/components/dashboard/widget-registry'
 import { computeOverviewStats, type OverviewStats, type OverviewTradeRow } from '@/lib/overview-stats'
+import { WeatherChip } from '@/components/weather/weather-chip'
 import { currencyCompactFor, formatCurrency, formatCurrencyIn, pnlColor } from '@/lib/format'
 import { AnimatedNumber } from '@/components/animated-number'
 import { FitValue } from '@/components/fit-value'
@@ -774,6 +775,7 @@ export function OverviewPage() {
   const banner = (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5" data-testid="overview-banner-row">
       <ViewBanner type={overviewType} dashboardName={activeDashboard?.name ?? null} />
+      <WeatherChip />
       {isGridView && hasBriefing && (
         <button
           type="button"

@@ -55,7 +55,7 @@ log() { echo "[build-guarded $(date '+%H:%M:%S')] $*"; }
 # 0 · ENV GATE (v5) — publish ships the workspace .env to production.
 #      A platform restart can truncate it; refuse to publish an incomplete
 #      one. Runs before anything is stopped, so an abort costs nothing.
-REQUIRED_ENV_KEYS=(DATABASE_URL PUBLIC_ORIGIN DEV_ORIGIN AUTH_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET DB_EXPORT_TOKEN)
+REQUIRED_ENV_KEYS=(DATABASE_URL PUBLIC_ORIGIN DEV_ORIGIN AUTH_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_INTEGRATION_CLIENT_ID GOOGLE_INTEGRATION_CLIENT_SECRET GOOGLE_SERVICE_ACCOUNT_JSON DB_EXPORT_TOKEN)
 ENV_GATE_FAILED=0
 for _k in "${REQUIRED_ENV_KEYS[@]}"; do
   _v="$(grep -m1 "^${_k}=" .env 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')"

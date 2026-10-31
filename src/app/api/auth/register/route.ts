@@ -6,7 +6,7 @@ import { rateLimit, clientIp } from '@/lib/server/rate-limit'
 import { screenBotSignals } from '@/lib/server/bot-guard'
 import { logAuthEvent } from '@/lib/server/auth-log'
 import { requireEmailVerification } from '@/lib/server/system-flags'
-import { emailDeliveryConfigured, sendVerificationEmail } from '@/lib/server/email'
+import { sendVerificationEmail } from '@/lib/server/email'
 import { issueVerificationToken, buildVerificationLink } from '@/lib/server/verification'
 import { originFromReq } from '@/lib/server/origin'
 

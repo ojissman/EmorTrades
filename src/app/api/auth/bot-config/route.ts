@@ -24,7 +24,7 @@ export async function GET() {
     google: { enabled: googleConfigured() },
     email: {
       verificationRequired: await requireEmailVerification(),
-      deliveryConfigured: emailDeliveryConfigured(),
+      deliveryConfigured: await emailDeliveryConfigured(),
     },
   })
 }

@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/server/admin-rbac'
 import { logAdminAction, clientIp, userAgentOf } from '@/lib/server/admin-audit'
 import { botProtectionMode, turnstileConfigured } from '@/lib/server/bot-guard'
 import { googleConfigured } from '@/lib/server/google'
-import { emailDeliveryConfigured } from '@/lib/server/email'
+import { emailDeliveryStatus } from '@/lib/server/email'
 import {
   FLAG_REQUIRE_EMAIL_VERIFICATION,
   getFlag,
@@ -103,7 +103,7 @@ async function buildSettings() {
     Number(tradeRows[0]?.n ?? 0),
     Number(journalRows[0]?.n ?? 0),
   ]
-  const emailDelivery = emailDeliveryConfigured() ? ('resend' as const) : ('dev' as const)
+  const { provider: emailDelivery } = await emailDeliveryStatus()
   return {
     general: stored.general,
     security: {

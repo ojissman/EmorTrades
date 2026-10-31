@@ -68,7 +68,7 @@ design; without it the ciphertext is worthless.
 echo "$PASSPHRASE" | bun scripts/secrets-backup.ts restore
 ( setsid bash -c 'exec bun run dev' >>/tmp/next-dev.out 2>&1 </dev/null & )
 ```
-Then verify: `status` 7/7 · `/` → 200 · `/api/auth/google/start` → 303 with
+Then verify: `status` 10/10 · `/` → 200 · `/api/auth/google/start` → 303 with
 the right client_id + door callback · a login roundtrip. The restored `.env`
 is byte-identical (sha256-proven flow), and the same `AUTH_SECRET` returns,
 so existing 30-day session cookies stay valid — **nobody is logged out**.
@@ -84,3 +84,33 @@ untouched · restore over a healthy `.env` refuses without `--force` ·
 publishing with a truncated `.env` is blocked by the build-guarded v5 env
 gate. Uncommitted work still dies at restart (boot purity sweep) — that is
 why every task commits + pushes immediately.
+
+
+---
+
+## GOOGLE-CLOUD-INTEGRATION keys (2026-10-31)
+
+The env now carries three more required keys (10 total — see REQUIRED_KEYS in
+`scripts/secrets-backup.ts`, mirrored in `scripts/build-guarded.sh`):
+
+- `GOOGLE_INTEGRATION_CLIENT_ID` / `GOOGLE_INTEGRATION_CLIENT_SECRET` — the
+  second OAuth client (integration client) used for the ONE-TIME Gmail
+  connect consent (`gmail.send` only) and future admin-facing Google
+  integrations. User sign-in stays on `GOOGLE_CLIENT_ID/_SECRET`.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` — the single-line service-account key for
+  the Drive/Sheets/Calendar foundation (least-privilege scopes, minted
+  per-call, never written to disk; the uploaded plaintext key files were
+  shredded after extraction into `.env`).
+
+**The owner should re-run the encrypted backup once** to capture the three
+new keys:
+
+```bash
+echo "$PASSPHRASE" | bun scripts/secrets-backup.ts backup
+```
+
+Until then, the committed `backups/secrets.enc` still holds the previous
+7-key .env — a restore would need the three Google keys re-pasted by the
+owner. Gmail's OAuth refresh token is NOT in .env by design: it is stored
+AES-256-GCM-encrypted in the database (key derived from AUTH_SECRET), so it
+survives restarts with the DB git lane and never enters git or .env.

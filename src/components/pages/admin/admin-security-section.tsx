@@ -231,12 +231,18 @@ export function AdminSecuritySection() {
                     : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
                 )}
               >
-                {d.config.emailDelivery === 'resend' ? 'Live (Resend)' : 'Dev delivery'}
+                {d.config.emailDelivery === 'gmail'
+                  ? 'Live (Gmail)'
+                  : d.config.emailDelivery === 'resend'
+                    ? 'Live (Resend)'
+                    : 'Dev delivery'}
               </Badge>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {d.config.emailDelivery === 'resend'
-                  ? 'Verification emails are being sent for real.'
-                  : 'Links surface in-app until RESEND_API_KEY is set.'}
+                {d.config.emailDelivery === 'gmail'
+                  ? 'Verification emails are being sent via the connected Gmail account.'
+                  : d.config.emailDelivery === 'resend'
+                    ? 'Verification emails are being sent for real.'
+                    : 'Links surface in-app until Gmail is connected (Integrations tab) or RESEND_API_KEY is set.'}
               </p>
             </div>
           </div>
