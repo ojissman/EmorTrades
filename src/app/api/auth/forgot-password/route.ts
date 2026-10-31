@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { rateLimit, clientIp } from '@/lib/server/rate-limit'
 import { logAuthEvent } from '@/lib/server/auth-log'
-import { sendPasswordResetEmail } from '@/lib/server/email'
+import { sendPasswordResetEmail, devLinkAllowed } from '@/lib/server/email'
 import { issuePasswordResetToken, buildPasswordResetLink } from '@/lib/server/password-reset'
 import { originFromReq } from '@/lib/server/origin'
 
@@ -15,10 +15,11 @@ export const dynamic = 'force-dynamic'
  *
  * Anti-enumeration: unknown addresses, Google-only accounts (no password) and
  * suspended accounts all get the SAME generic response as a real send — the
- * endpoint never reveals whether an account exists. The only case that
- * returns a devLink is a real password account in dev-delivery mode (no
- * email provider configured) — the sandbox needs the link usable, same
- * policy as resend-verification.
+ * endpoint never reveals whether an account exists. Dev links (no email
+ * provider configured) are surfaced ONLY on the dev/preview runtime
+ * (devLinkAllowed) — NEVER in production, where an on-screen reset link for
+ * an existing account would be an account-takeover vector for anyone who
+ * knows the address (SEC-1: this was briefly live; fixed before republish).
  *
  * Rate limited per IP AND per address (3 / 10 min each).
  */
@@ -77,9 +78,14 @@ export async function POST(req: NextRequest) {
     const link = buildPasswordResetLink(originFromReq(req), token)
     const delivery = await sendPasswordResetEmail(email, link)
 
+    // SEC-1: dev link only on the dev runtime. Production without an email
+    // provider returns the generic message with NO link — recovery for
+    // locked-out users is admin-assisted (Users module → set new password).
+    const devLink = delivery.delivered || !devLinkAllowed() ? undefined : delivery.devLink
+
     await logAuthEvent({ kind: 'RESET', outcome: 'OK', email, userId: user.id, reason: 'reset link requested', req })
 
-    return generic(delivery.delivered ? undefined : delivery.devLink)
+    return generic(devLink)
   } catch (e: any) {
     console.error('POST /api/auth/forgot-password error:', e?.message, e?.code)
     return NextResponse.json(

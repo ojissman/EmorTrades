@@ -19,6 +19,9 @@ import {
   BookOpen,
   CheckCircle2,
   Crown,
+  Eye,
+  EyeOff,
+  KeyRound,
   LifeBuoy,
   NotebookPen,
   Pencil,
@@ -218,6 +221,9 @@ export function UserDetailPage({ userId }: { userId: string }) {
   const [planForm, setPlanForm] = useState({ planCode: 'free', expiresAt: '' })
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [suspendReason, setSuspendReason] = useState('')
+  const [pwOpen, setPwOpen] = useState(false)
+  const [pwForm, setPwForm] = useState({ password: '', confirm: '' })
+  const [pwShow, setPwShow] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -256,6 +262,24 @@ export function UserDetailPage({ userId }: { userId: string }) {
     onSuccess: (d) => {
       toast.success(d?.message || 'Plan changed.')
       setPlanOpen(false)
+      invalidate()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const passwordMutation = useMutation({
+    mutationFn: async (newPassword: string) => {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword }),
+      })
+      return jsonOrThrow(res, 'Could not set the new password.')
+    },
+    onSuccess: (d) => {
+      toast.success(d?.message || 'Password set — all previous sessions signed out.')
+      setPwOpen(false)
+      setPwForm({ password: '', confirm: '' })
       invalidate()
     },
     onError: (e: Error) => toast.error(e.message),
@@ -398,6 +422,19 @@ export function UserDetailPage({ userId }: { userId: string }) {
               >
                 <Pencil className="h-3.5 w-3.5" aria-hidden />
                 Edit
+              </button>
+            )}
+            {can('users.edit') && (
+              <button
+                className="a-btn a-btn-sm"
+                onClick={() => {
+                  setPwForm({ password: '', confirm: '' })
+                  setPwShow(false)
+                  setPwOpen(true)
+                }}
+              >
+                <KeyRound className="h-3.5 w-3.5" aria-hidden />
+                Set password
               </button>
             )}
             {can('users.edit') &&
@@ -881,6 +918,83 @@ export function UserDetailPage({ userId }: { userId: string }) {
           <p className="mt-1 text-xs a-faint">Leave empty for a manual assignment with no expiry.</p>
         </div>
       </FormModal>
+
+      {/* ── Set password modal (SEC-1 recovery lane) ── */}
+      <AdminModal
+        open={pwOpen}
+        onClose={() => setPwOpen(false)}
+        title={u.hasPassword ? 'Replace Password' : 'Set Password'}
+        description={
+          u.hasPassword
+            ? `Set a new password for ${u.email}. Their current password stops working and every active session is signed out.`
+            : `Give ${u.email} a password so they can sign in with email + password (Google sign-in keeps working).`
+        }
+        width="max-w-md"
+        footer={
+          <>
+            <button className="a-btn" onClick={() => setPwOpen(false)} disabled={passwordMutation.isPending}>
+              Cancel
+            </button>
+            <button
+              className="a-btn a-btn-danger"
+              onClick={() => passwordMutation.mutate(pwForm.password)}
+              disabled={
+                passwordMutation.isPending ||
+                pwForm.password.length < 8 ||
+                pwForm.password !== pwForm.confirm
+              }
+            >
+              {passwordMutation.isPending ? 'Setting…' : 'Set password'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="a-label" htmlFor="detail-pw-new">New password</label>
+            <div className="relative">
+              <input
+                id="detail-pw-new"
+                className="a-input pr-10"
+                type={pwShow ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={pwForm.password}
+                onChange={(e) => setPwForm((f) => ({ ...f, password: e.target.value }))}
+                placeholder="At least 8 characters"
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center a-faint hover:opacity-80"
+                onClick={() => setPwShow((s) => !s)}
+                aria-label={pwShow ? 'Hide password' : 'Show password'}
+              >
+                {pwShow ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="a-label" htmlFor="detail-pw-confirm">Confirm password</label>
+            <input
+              id="detail-pw-confirm"
+              className="a-input"
+              type={pwShow ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={pwForm.confirm}
+              onChange={(e) => setPwForm((f) => ({ ...f, confirm: e.target.value }))}
+              placeholder="Type it again"
+            />
+            {pwForm.confirm.length > 0 && pwForm.password !== pwForm.confirm && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--a-danger)' }}>
+                Passwords do not match.
+              </p>
+            )}
+          </div>
+          <p className="text-xs a-faint">
+            The password is stored hashed and never appears in the audit log — only the fact
+            that it was changed. Setting it signs out every active session for this user.
+          </p>
+        </div>
+      </AdminModal>
 
       {/* ── Suspend modal ── */}
       <AdminModal

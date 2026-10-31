@@ -171,6 +171,36 @@ describe('password reset — LAND-1', () => {
     expect(audit?.outcome).toBe('OK')
   })
 
+  it('SEC-1: NODE_ENV=production → real account gets the generic answer, NO devLink', async () => {
+    // The account-takeover gate: in production an on-screen reset link for an
+    // existing account must NEVER be returned, even with no email provider.
+    const email = 'prodmode@forgot.dev'
+    await db.user.create({ data: { email, passwordHash: authLib.hashPassword('old-password-1') } })
+    const prevNodeEnv = process.env.NODE_ENV
+    // NODE_ENV is typed read-only; the runtime env is what the route reads.
+    ;(process.env as Record<string, string | undefined>).NODE_ENV = 'production'
+    try {
+      const res = await forgotRoute.POST(jsonReq({ email }, '10.1.0.9') as never)
+      expect(res.status).toBe(200)
+      const data = await res.json()
+      expect(data.message).toContain('If an account exists')
+      expect(data.devLink).toBeUndefined()
+      // The flow itself still works server-side — a real deployment would
+      // email the link; only the in-response exposure is gated.
+      expect(
+        await db.verificationToken.count({
+          where: { user: { email }, purpose: 'PASSWORD_RESET', consumedAt: null },
+        })
+      ).toBe(1)
+      const audit = await db.authLog.findFirst({
+        where: { kind: 'RESET', email }, orderBy: { createdAt: 'desc' },
+      })
+      expect(audit?.outcome).toBe('OK')
+    } finally {
+      ;(process.env as Record<string, string | undefined>).NODE_ENV = prevNodeEnv
+    }
+  })
+
   it('unknown email → same generic answer, NO devLink, no user, no token', async () => {
     const res = await forgotRoute.POST(jsonReq({ email: 'ghost@forgot.dev' }, '10.1.0.2') as never)
     expect(res.status).toBe(200)

@@ -22,6 +22,28 @@ export function emailDeliveryConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY)
 }
 
+/**
+ * May an API route surface a dev-delivery link in its HTTP response?
+ *
+ * Rule: NEVER in production. Production (emortrade, NODE_ENV=production) is
+ * public — an on-screen reset link for an existing account would be an
+ * account-takeover vector for anyone who knows the address (SEC-1: this was
+ * briefly live; fixed before republish). Every non-production runtime
+ * (development preview, test) MAY surface the labeled link — without a
+ * provider it is the only way the flow stays usable in those controlled
+ * environments.
+ *
+ * The register/resend-verification paths keep their labeled dev link under
+ * this same rule: those links only ever activate an account whose password
+ * the requester themselves chose, and hiding them in production would brick
+ * sign-up / pending users until an email provider is configured. The
+ * forgot-password route applies this check because its links grant control
+ * of EXISTING accounts.
+ */
+export function devLinkAllowed(): boolean {
+  return process.env.NODE_ENV !== 'production'
+}
+
 function verificationHtml(link: string): string {
   return `<!doctype html>
 <html><body style="margin:0;background:#0b1220;font-family:Arial,Helvetica,sans-serif;">

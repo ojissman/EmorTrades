@@ -5390,3 +5390,66 @@ Work Log:
 Stage Summary:
 - The restart story is now one page, in the repo: restore command + owner
   passphrase + dev restart ≈ 1 minute to full recovery, one owner message.
+
+---
+Task ID: SEC-1
+Agent: Z.ai Code
+Task: Owner asked why Forgot-password shows "(dev delivery — no email
+provider configured)" and what they need to do. While answering, verification
+surfaced a live vulnerability in the same flow — fixed in this task.
+
+Work Log:
+- WHY the label: RESEND_API_KEY is not set. Email delivery is fully
+  integrated (Resend REST API, styled verification + reset templates,
+  EMAIL_FROM support); without a key the app falls back to dev delivery —
+  the link is returned in the API response and shown on screen with that
+  honest label. The flow itself works end-to-end (real single-use 60-min
+  token).
+- THE FINDING (live on production, verified): POST /api/auth/forgot-password
+  on emortrade returned devLink — the actual working reset link — for any
+  existing password account. Anyone knowing an account email could take over
+  that account (new password + session revocation). Rate limits (3/10min)
+  barely matter — one request suffices. Root cause: LAND-1 shipped with dev
+  delivery enabled unconditionally; production has no RESEND key either.
+  Probe disclosed to owner: one request for emorjefefx@gmail.com, token left
+  to expire unused, logged in production's audit trail.
+- FIX 1 (the gate): email.ts devLinkAllowed() — dev links are NEVER returned
+  in production (NODE_ENV !== 'production'); forgot-password route gates its
+  devLink on it. Register/resend-verification deliberately keep their labeled
+  dev link everywhere: those links only activate an account whose password
+  the requester themselves chose, and hiding them would brick sign-up/pending
+  users until a provider is configured (documented in the helper).
+- FIX 2 (the recovery lane): without email delivery, a locked-out production
+  user would have no path — added admin-set password to the Users module:
+  PATCH /api/admin/users/[id] accepts newPassword (8–128, users.edit
+  permission) → scrypt hash + sessionsValidFrom epoch revocation (identical
+  semantics to the user-side reset), audited as user.password_set (plaintext
+  never logged). UI: "Set password" button in user detail header + modal
+  (new/confirm with show-toggle, mismatch guard, adapts title for Google-only
+  accounts).
+- Regression test: SEC-1 case in tests/password-reset.test.ts — NODE_ENV
+  flipped to production → real account gets the generic answer with NO
+  devLink, while the token row still exists server-side (email would carry it
+  in a real deployment). 131/131 total.
+- E2E on real data (throwaway accounts, both deleted after; zero residue):
+  preview forgot-password still surfaces the labeled dev link (dev runtime);
+  admin Set password E2E — modal mismatch guard blocks submit, PATCH 200,
+  sessionsValidFrom set, audit user.password_set written; old password →
+  LOGIN FAIL bad credentials; new password → signed in. 0 console errors.
+  NOTE for future E2E: the app's bot guard blocks the headless UA — set a
+  normal User-Agent via agent-browser headers before auth flows.
+- sync:prod not run (regenerated DB_EXPORT_TOKEN 401s until next publish —
+  documented); task ran on the last real production pull. No schema change.
+
+Stage Summary:
+- The dev-delivery label is correct behavior for the sandbox and stays; what
+  was wrong was the same behavior on production — now gated.
+- PRODUCTION REMAINS EXPOSED UNTIL THE NEXT PUBLISH (the fix ships then).
+  Recommendation to owner: publish soon; the window is public.
+- Owner's part for real email delivery: Resend account (free 3k/month) →
+  verify emortrades.com domain (DNS records at their DNS provider) → create
+  API key → send it here. Then RESEND_API_KEY + EMAIL_FROM go into .env, the
+  encrypted backup rotates (captures them automatically — whole-file
+  encryption), publish carries them, and all three flows (register verify,
+  resend, forgot/reset) deliver real email.
+- Gates: lint 0, tsc 0, vitest 131/131.

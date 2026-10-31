@@ -5,6 +5,7 @@ import {
   adminRoleOf,
   ADMIN_PERMISSIONS,
 } from '@/lib/server/admin-rbac'
+import { hashPassword, sessionEpochNow } from '@/lib/server/auth'
 import { logAdminAction, clientIp, userAgentOf } from '@/lib/server/admin-audit'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,10 @@ export const dynamic = 'force-dynamic'
  *                         (user.grants = per-user permission codes;
  *                         emailVerified is a bool, emailVerifiedAt keeps the date)
  *  PATCH  (users.edit)    general profile edit, role, status/suspend, manual
- *                         email verification; adminRole/adminPermissions changes
+ *                         email verification, admin-set new password
+ *                         (SEC-1 recovery lane: scrypt hash + sessionsValidFrom
+ *                         epoch revocation, audited, never logged in clear);
+ *                         adminRole/adminPermissions changes
  *                         additionally require callers with admins.manage AND
  *                         SUPER_ADMIN (user.permissions audit trail)
  *  DELETE (users.delete)  removes the account and all cascaded data, audited
@@ -193,6 +197,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       typeof body.defaultCurrency === 'string' ? body.defaultCurrency.trim().toUpperCase() : undefined
     const suspensionReason =
       typeof body.suspensionReason === 'string' ? body.suspensionReason.trim() : undefined
+    // SEC-1 recovery lane: admin sets a new password for a locked-out user
+    // (no email provider configured ⇒ no self-service reset on production).
+    const newPassword = typeof body.newPassword === 'string' ? body.newPassword : undefined
 
     // adminRole / adminPermissions: undefined = not sent; null adminRole = clear.
     let adminRole: string | null | undefined = undefined
@@ -249,11 +256,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (suspensionReason !== undefined && suspensionReason.length > 300) {
       return NextResponse.json({ error: 'Bad request', message: 'Suspension reason is limited to 300 characters.' }, { status: 400 })
     }
+    if (newPassword !== undefined && (newPassword.length < 8 || newPassword.length > 128)) {
+      return NextResponse.json(
+        { error: 'Bad request', message: 'New password must be 8–128 characters.' },
+        { status: 400 },
+      )
+    }
 
     const hasAny =
       role || status || verifyEmail || name !== undefined || timezone !== undefined ||
       defaultCurrency !== undefined || suspensionReason !== undefined ||
-      adminRole !== undefined || adminPermissions !== undefined
+      adminRole !== undefined || adminPermissions !== undefined || newPassword !== undefined
     if (!hasAny) {
       return NextResponse.json(
         { error: 'Bad request', message: 'Provide something to update.' },
@@ -346,6 +359,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       suspensionReason?: string | null
       adminRole?: string | null
       adminPermissions?: string
+      passwordHash?: string
+      sessionsValidFrom?: Date
     } = {}
 
     if (name !== undefined && name !== (target.name ?? '')) data.name = name
@@ -370,6 +385,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     if (adminRole !== undefined && adminRole !== (target.adminRole ?? null)) data.adminRole = adminRole
+
+    // Admin-set password: scrypt hash + epoch revocation — identical semantics
+    // to the user-side reset (reset-password route): every previously issued
+    // session token stops verifying. The plaintext never enters the audit log.
+    if (newPassword !== undefined) {
+      data.passwordHash = hashPassword(newPassword)
+      data.sessionsValidFrom = sessionEpochNow()
+    }
 
     let grantsBefore: string[] = []
     try {
@@ -439,6 +462,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         },
       })
     }
+    if (data.passwordHash) {
+      await logAdminAction(auth.user, {
+        ...auditBase,
+        action: 'user.password_set',
+        details: {
+          sessionsRevoked: true,
+          self: target.id === auth.user.id,
+          note: 'admin-set password; all prior sessions invalidated (epoch)',
+        },
+      })
+    }
     if (data.adminRole !== undefined || data.adminPermissions !== undefined) {
       // `to` must honour an explicit clear (null) — a plain ?? chain would
       // fall through and re-report the old value.
@@ -461,6 +495,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       data.status ? `status → ${data.status}` : null,
       data.adminRole !== undefined ? `admin role → ${data.adminRole ?? 'none'}` : null,
       data.adminPermissions !== undefined ? 'permission grants' : null,
+      data.passwordHash ? 'password set (sessions revoked)' : null,
     ]
       .filter(Boolean)
       .join(', ')
