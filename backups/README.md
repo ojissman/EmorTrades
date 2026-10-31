@@ -44,3 +44,43 @@ bun scripts/secrets-backup.ts status
   refuses to publish while `.env` is incomplete — a truncated env can never
   ship to production.
 - After any `restore`, restart the dev server so the keys load.
+
+## Restart runbook (A–Z) — what happens after a platform restart
+
+**0. AUTOMATIC** (nobody acts): the platform rebuilds the workspace from
+GitHub — code, `db/custom.db` (as of the last auto-backup commit), and this
+`backups/secrets.enc` all come back with it. The platform then truncates
+`.env` to `DATABASE_URL`-only (observed Oct 30 18:52 + Oct 31 06:58). The
+app boots degraded: existing session cookies silently fail (fallback dev
+secret signs new ones), the Google button reads not-configured, `sync:prod`
+would 401. Production (emortrade) is a separate runtime — **zero impact**.
+
+**1. DETECT** (agent, seconds): `bun scripts/secrets-backup.ts status`
+→ shows which keys are EMPTY + backup present. (Or the owner just says
+"it restarted".)
+
+**2. THE ONE HUMAN STEP** (owner): supply the passphrase from the password
+manager. One message. It is stored nowhere on this machine — that is the
+design; without it the ciphertext is worthless.
+
+**3. RECOVER** (agent, ~1 min):
+```bash
+echo "$PASSPHRASE" | bun scripts/secrets-backup.ts restore
+( setsid bash -c 'exec bun run dev' >>/tmp/next-dev.out 2>&1 </dev/null & )
+```
+Then verify: `status` 7/7 · `/` → 200 · `/api/auth/google/start` → 303 with
+the right client_id + door callback · a login roundtrip. The restored `.env`
+is byte-identical (sha256-proven flow), and the same `AUTH_SECRET` returns,
+so existing 30-day session cookies stay valid — **nobody is logged out**.
+
+**4. DATA FRESHNESS** (agent, optional): the restored DB is the last
+auto-backup commit. `bun run sync:prod` pulls production's live DB — note:
+until the next publish ships the regenerated `DB_EXPORT_TOKEN` to
+production, this pull 401-refuses by design (bad token ⇒ abort, never a
+stale swap). After that publish the full pull ritual re-arms.
+
+**Guards active throughout**: wrong passphrase → clean refusal, `.env`
+untouched · restore over a healthy `.env` refuses without `--force` ·
+publishing with a truncated `.env` is blocked by the build-guarded v5 env
+gate. Uncommitted work still dies at restart (boot purity sweep) — that is
+why every task commits + pushes immediately.

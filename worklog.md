@@ -5367,3 +5367,26 @@ Stage Summary:
   sync:prod pull lane).
 - Gates: lint 0, tsc 0, vitest 130/130 (from RESTART-RECOVERY run; no app
   code touched since). No schema change.
+
+---
+Task ID: RESTART-RUNBOOK
+Agent: Z.ai Code
+Task: Owner asked for the A–Z workflow assuming another platform restart.
+Documented it durably in backups/README.md (§ Restart runbook) so the
+workflow itself survives restarts and rides the repo next to the encrypted
+backup. No code or schema changes.
+
+Work Log:
+- Runbook covers all phases: automatic (GitHub rebuild returns code+DB+
+  secrets.enc; platform truncates .env; app degraded; production untouched)
+  → detection (one status command) → the single human step (owner passphrase,
+  stored nowhere by design) → recovery (restore + dev restart + verify,
+  byte-identical, same AUTH_SECRET returns so sessions survive) → data
+  freshness (sync:prod 401s until the next publish ships the regenerated
+  DB_EXPORT_TOKEN, then the full ritual re-arms). Guards listed: wrong
+  passphrase clean-refusal, healthy-env --force guard, publish env gate v5.
+- Gates: untouched (lint 0, tsc 0, vitest 130/130 as of RESTART-RECOVERY).
+
+Stage Summary:
+- The restart story is now one page, in the repo: restore command + owner
+  passphrase + dev restart ≈ 1 minute to full recovery, one owner message.
