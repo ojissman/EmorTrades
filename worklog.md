@@ -5322,3 +5322,48 @@ Stage Summary:
   Google login unaffected; sync:prod 401-refuses (expected) until next
   publish.
 - Gates: lint 0, tsc 0, vitest 130/130. No schema change, no app-code change.
+
+---
+Task ID: RESTART-RECOVERY-CLOSE
+Agent: Z.ai Code
+Task: Close out the two pending owner inputs from RESTART-RECOVERY: (1) new
+Google OAuth credentials — owner supplied a NEW client (not the old
+production one) via chat + Cloud Console JSON upload, with BOTH callbacks
+pre-registered; (2) the backup passphrase — owner-supplied. With both in
+hand: .env completed, encrypted backup created, committed, pushed.
+
+Work Log:
+- Uploaded JSON parsed (then shredded — plain secrets don't linger in
+  upload/): new client 936461639731-6mmcvv….apps.googleusercontent.com with
+  redirect_uris = emortrade callback + preview callback — both doors on one
+  client, so the next publish (which ships this workspace .env to production)
+  transitions production to this client with its callback already registered.
+  Old client (…-64p065…, production-only secret) retires at that publish.
+- .env: GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET placed (sed, 600 kept).
+  First fully-complete env since the Oct 31 06:58 truncation. Dev restarted.
+- Encrypted backup created with the owner's passphrase:
+  backups/secrets.enc (539 bytes, AES-256-GCM, scrypt N=32768, fresh
+  salt+IV) — 7/7 required keys, verify passes. Passphrase used once via
+  stdin, stored NOWHERE on this machine. Committed to the private repo
+  (that's its point); .env itself stays gitignored.
+- Verified preview Google leg end-to-end: /api/auth/google/start → 303 to
+  accounts.google.com with the NEW client_id + PREVIEW callback (AUTH-9
+  per-runtime pin intact); browser E2E — landing Google button enabled
+  after config load, click lands on Google's real identifier page with both
+  parameters accepted (mismatch would error instead); 0 console/page errors.
+  Production Google login untouched until the next publish (old client still
+  valid there).
+
+Stage Summary:
+- The restart failure mode is now FULLY closed: recovery (encrypted backup
+  in repo + passphrase in owner's password manager), prevention (publish env
+  gate v5), triage (secrets-backup.ts status). All 7 keys recoverable in one
+  command after any restart: echo "$PASSPHRASE" | bun scripts/secrets-backup.ts restore.
+- Option B (owner-held copy) delivered: full .env shown to the owner once in
+  chat for their password manager.
+- Note for next publish: it ships the new client to production — callback
+  already registered, so the swap is seamless; production .env replaces old
+  client creds with the new ones (and the new DB_EXPORT_TOKEN restores the
+  sync:prod pull lane).
+- Gates: lint 0, tsc 0, vitest 130/130 (from RESTART-RECOVERY run; no app
+  code touched since). No schema change.
