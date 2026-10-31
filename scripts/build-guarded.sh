@@ -21,6 +21,14 @@
 # v3 (SWEEP-1): the keepalive watchdog was removed at the owner's request.
 # Restore now relaunches `bun run dev` directly (no watchdog anywhere).
 #
+# v5 (RESTART-RECOVERY): ENV GATE — a platform restart truncated the
+#   workspace .env to DATABASE_URL-only (Oct 30 18:52) and again (Oct 31
+#   06:58). .env is deliberately gitignored (secrets never enter git), so
+#   GitHub restore cannot heal it. Publishing a truncated .env would REPLACE
+#   production's complete .env and break auth/OAuth/sync there. The gate
+#   aborts the publish BEFORE stopping dev if any required key is missing
+#   or empty — the failure mode can no longer silently ship.
+#
 # v4 (P1 / Option 2): PUBLISH-TIME FRESHNESS PULL. After stopping dev and
 # BEFORE building, scripts/sync-prod-db.ts pulls production's database and
 # swaps it into db/custom.db — so the platform's database-runtime-build.sh
@@ -32,6 +40,8 @@
 #     → build ABORTS (exit 1) rather than shipping stale or damaged data.
 #
 # Sequence:
+#   0. ENV GATE — all required .env keys present and non-empty (fail fast,
+#      before anything is stopped or touched)
 #   1. stop the dev server — the compiler gets the whole cgroup to itself
 #   2. SYNC: pull production DB → swap → strict schema push (Option 2)
 #   3. next build (unchanged semantics), then assemble the standalone bundle
@@ -41,6 +51,25 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 log() { echo "[build-guarded $(date '+%H:%M:%S')] $*"; }
+
+# 0 · ENV GATE (v5) — publish ships the workspace .env to production.
+#      A platform restart can truncate it; refuse to publish an incomplete
+#      one. Runs before anything is stopped, so an abort costs nothing.
+REQUIRED_ENV_KEYS=(DATABASE_URL PUBLIC_ORIGIN DEV_ORIGIN AUTH_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET DB_EXPORT_TOKEN)
+ENV_GATE_FAILED=0
+for _k in "${REQUIRED_ENV_KEYS[@]}"; do
+  _v="$(grep -m1 "^${_k}=" .env 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')"
+  if [ -z "$_v" ]; then
+    log "ENV GATE: required key ${_k} is missing or empty in .env"
+    ENV_GATE_FAILED=1
+  fi
+done
+if [ "$ENV_GATE_FAILED" -ne 0 ]; then
+  log "ENV GATE FAILED — publish aborted. Heal .env (all keys above, non-empty) and retry."
+  log "This protects production: publish replaces its .env, and a truncated one would break auth there."
+  exit 1
+fi
+log "env gate: all ${#REQUIRED_ENV_KEYS[@]} required keys present"
 
 # Idempotent: safe to call twice (explicit success path + EXIT trap).
 restore_services() {
