@@ -34,6 +34,7 @@ export const ADMIN_PERMISSIONS = [
   'audit_logs.view',
   'settings.manage',
   'admins.manage',
+  'content.manage',
 ] as const
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number]
@@ -60,6 +61,7 @@ export const ROLE_DEFAULTS: Record<AdminRole, readonly AdminPermission[]> = {
     'notifications.manage',
     'audit_logs.view',
     'settings.manage',
+    'content.manage',
   ],
   SUPPORT: ['dashboard.view', 'users.view', 'trades.view', 'support.manage'],
 }

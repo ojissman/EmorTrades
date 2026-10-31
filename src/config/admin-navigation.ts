@@ -21,6 +21,7 @@ import {
   CreditCard,
   Megaphone,
   ScrollText,
+  Globe,
   type LucideIcon,
 } from 'lucide-react'
 import type { NavItem } from './navigation'
@@ -58,6 +59,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     children: [
       { label: 'Subscriptions & Plans', path: '/admin/subscriptions', permission: 'subscriptions.manage' },
       { label: 'Announcements', path: '/admin/announcements', permission: 'announcements.manage' },
+      { label: 'SEO & Content', path: '/admin/seo', permission: 'content.manage' },
     ],
   },
   {

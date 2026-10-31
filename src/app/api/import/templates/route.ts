@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/server/auth'
 import { deleteTemplate, listTemplates, saveTemplate } from '@/lib/import/templates'
 import type { FieldMapping } from '@/lib/import/types'
 
@@ -7,6 +8,8 @@ export const runtime = 'nodejs'
 
 /** GET /api/import/templates — saved, user-confirmed column-mapping templates. */
 export async function GET() {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const templates = await listTemplates()
     return NextResponse.json({ templates })
@@ -24,6 +27,8 @@ export async function GET() {
  * Body: { name, header: string[], mapping: FieldMapping }
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const name: unknown = body?.name
@@ -63,6 +68,8 @@ export async function POST(req: NextRequest) {
 
 /** DELETE /api/import/templates?id=... */
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })

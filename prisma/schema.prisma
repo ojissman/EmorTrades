@@ -84,6 +84,9 @@ model User {
   supportReplies   SupportReply[]
   notificationReads NotificationRead[]
   adminActions     AdminActionLog[]
+  // ── SEO-UPGRADE: alert read-state is per-user; blog authorship ────────
+  alertsRead       AlertRead[]
+  blogPosts       BlogPost[]
 }
 
 model UserSettings {
@@ -706,8 +709,13 @@ model MoneyTransaction {
 // current-drawdown, …); localStorage remains only a pre-fetch hint so the
 // badge is correct even if browser storage is wiped between sessions.
 model AlertRead {
-  alertId String   @id
+  alertId String
+  userId  String
   readAt  DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([alertId, userId])
+  @@index([userId])
 }
 
 // ============================================================================
@@ -1222,4 +1230,49 @@ model AdminActionLog {
   @@index([createdAt])
   @@index([adminId])
   @@index([action])
+}
+
+// ============================================================================
+// SEO-UPGRADE (PHASE 6) — public blog / content management. Posts are PUBLIC
+// marketing content (unlike Announcement, which is in-app). Markdown source,
+// rendered server-side; only staff with `content.manage` may write. SEO
+// fields override the derived defaults; slugs are unique and URL-safe.
+// ============================================================================
+
+model BlogCategory {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  posts     BlogPost[]
+}
+
+model BlogPost {
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  title        String
+  excerpt      String? // listing summary; falls back to derived content snippet
+  content      String // Markdown source (trusted staff input, sanitized at render)
+  status       String       @default("DRAFT") // DRAFT | PUBLISHED
+  categoryId   String?
+  category     BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags         String? // comma-separated display tags
+  authorId     String? // staff user who wrote it (denormalized display fields below)
+  authorName   String
+  authorTitle  String?
+  featuredImage String? // absolute or /public-relative path
+  // ── Per-post SEO overrides (empty = derive from title/excerpt) ─────────
+  seoTitle     String?
+  seoDescription String?
+  canonicalUrl String?
+  ogImage      String?
+  noindex      Boolean      @default(false)
+  // ── Lifecycle ───────────────────────────────────────────────────────────
+  publishedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
 }

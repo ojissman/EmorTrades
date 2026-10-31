@@ -3,6 +3,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { isRateLimitError, withAiRetry, AI_RATE_LIMITED_MESSAGE } from '@/lib/ai/zai-retry'
 import { UPLOADS_DIR, filenameFromUrl, contentTypeForFilename } from '@/lib/library-store'
 
@@ -27,6 +28,10 @@ function rateLimited(ip: string): boolean {
  * caption for the screenshot; result is persisted to Screenshot.caption.
  */
 export async function POST(req: NextRequest) {
+  // SEO-UPGRADE · SECURITY: captioning is a signed-in, own-screenshot action.
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
+
   try {
     const ip = req.headers.get('x-forwarded-for') ?? 'local'
     if (rateLimited(ip)) {
@@ -41,7 +46,7 @@ export async function POST(req: NextRequest) {
       where: { id },
       include: { trade: { select: { symbol: true, side: true, entryTime: true } } },
     })
-    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!row || row.userId !== auth.user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const name = filenameFromUrl(row.url)
     if (!name) return NextResponse.json({ error: 'Unsupported media url' }, { status: 400 })

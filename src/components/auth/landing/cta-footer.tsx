@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowRight, Check } from 'lucide-react'
 import { BrandLockup, Reveal } from './primitives'
 import { GoogleButton } from '../auth-shared'
@@ -99,8 +100,9 @@ export function LandingFooter({ onLogin, onRegister }: { onLogin: () => void; on
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
               <li><button type="button" onClick={() => scrollToSection('tour')} className="hover:text-emerald-400 transition-colors">Take the tour</button></li>
               <li><button type="button" onClick={() => scrollToSection('ai-desk')} className="hover:text-emerald-400 transition-colors">AI desk</button></li>
-              <li><button type="button" onClick={() => scrollToSection('features')} className="hover:text-emerald-400 transition-colors">All features</button></li>
-              <li><button type="button" onClick={() => scrollToSection('faq')} className="hover:text-emerald-400 transition-colors">FAQ</button></li>
+              <li><Link href="/features" className="hover:text-emerald-400 transition-colors">All features</Link></li>
+              <li><Link href="/pricing" className="hover:text-emerald-400 transition-colors">Pricing</Link></li>
+              <li><Link href="/blog" className="hover:text-emerald-400 transition-colors">Blog</Link></li>
             </ul>
           </nav>
 
@@ -113,12 +115,14 @@ export function LandingFooter({ onLogin, onRegister }: { onLogin: () => void; on
             </ul>
           </nav>
 
-          <nav aria-label="Trust">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Trust</h3>
+          <nav aria-label="Company">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Company</h3>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><button type="button" onClick={() => scrollToSection('security')} className="hover:text-emerald-400 transition-colors">Email verification</button></li>
-              <li><button type="button" onClick={() => scrollToSection('security')} className="hover:text-emerald-400 transition-colors">Bot protection</button></li>
-              <li><button type="button" onClick={() => scrollToSection('faq')} className="hover:text-emerald-400 transition-colors">Data privacy</button></li>
+              <li><Link href="/about" className="hover:text-emerald-400 transition-colors">About</Link></li>
+              <li><Link href="/faq" className="hover:text-emerald-400 transition-colors">FAQ</Link></li>
+              <li><Link href="/contact" className="hover:text-emerald-400 transition-colors">Contact</Link></li>
+              <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-emerald-400 transition-colors">Terms of Service</Link></li>
             </ul>
           </nav>
         </div>

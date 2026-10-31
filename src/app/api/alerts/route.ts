@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
 
     // Task 152 — server-backed read registry: the client counts unread rows
     // against these ids, so read state survives browser-storage loss.
-    const readRows = await db.alertRead.findMany({ select: { alertId: true } })
+    const readRows = await db.alertRead.findMany({ where: { userId: user.id }, select: { alertId: true } })
 
     return NextResponse.json({
       alerts,

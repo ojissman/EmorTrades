@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/server/auth'
 import { suggestMappingWithLLM } from '@/lib/import/llm-mapping'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,8 @@ export const runtime = 'nodejs'
  * marked "AI suggestion" — the UI requires explicit user confirmation.
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const header: unknown = body?.header

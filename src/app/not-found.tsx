@@ -1,26 +1,43 @@
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { SearchX, Home } from 'lucide-react'
 import Link from 'next/link'
+import { SITE } from '@/lib/seo'
 
+/**
+ * 404 (SEO-UPGRADE) — served with a real 404 status via notFound() calls
+ * (catch-all + any notFound() in pages). Public, self-indexing-safe,
+ * links to the real public surfaces so crawlers and lost visitors recover.
+ */
 export default function NotFound() {
   return (
-    <div className="flex items-center justify-center min-h-[60vh] p-4">
-      <Card className="p-6 md:p-8 max-w-md w-full text-center">
-        <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-muted mb-4">
-          <SearchX className="h-7 w-7 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-semibold mb-2">Page Not Found</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
+    <div className="flex min-h-[70vh] items-center justify-center bg-[#070b14] p-4 text-slate-100">
+      <div className="w-full max-w-md text-center">
+        <p className="text-[0.8125rem] font-semibold tracking-widest text-emerald-400">404</p>
+        <h1 className="mt-2 text-2xl font-bold text-white">Page not found</h1>
+        <p className="mt-3 text-sm leading-relaxed text-slate-400">
+          The page you&apos;re looking for doesn&apos;t exist or has been moved. It may have been a
+          private app route — <Link href="/" className="text-emerald-400 underline-offset-4 hover:underline">sign in</Link> to
+          reach your journal.
         </p>
-        <Link href="/">
-          <Button className="bg-emerald-600 hover:bg-emerald-700">
-            <Home className="h-4 w-4 mr-1.5" />
-            Back to Dashboard
-          </Button>
-        </Link>
-      </Card>
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+          <Link
+            href="/"
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-[#052014] transition hover:bg-emerald-400"
+          >
+            Go to {SITE.name}
+          </Link>
+          <Link
+            href="/features"
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-emerald-400/50 hover:text-white"
+          >
+            Explore features
+          </Link>
+          <Link
+            href="/blog"
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-emerald-400/50 hover:text-white"
+          >
+            Read the blog
+          </Link>
+        </div>
+      </div>
     </div>
   )
 }

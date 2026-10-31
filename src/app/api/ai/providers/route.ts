@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/server/auth'
 import { rosterView, runHealthCheck, lastHealth, isSelectable } from '@/lib/ai-providers/registry'
 import { AI_ROSTER } from '@/config/ai-roster'
 
@@ -18,10 +19,14 @@ export const dynamic = 'force-dynamic'
  */
 
 export async function GET() {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   return NextResponse.json({ providers: rosterView() })
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const body = (await req.json().catch(() => ({}))) as { id?: string; force?: boolean }
     const targets = body.id ? AI_ROSTER.filter((e) => e.id === body.id) : AI_ROSTER

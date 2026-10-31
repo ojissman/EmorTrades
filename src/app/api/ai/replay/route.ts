@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { fetchCandles, type Candle } from '@/lib/market'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -18,6 +19,8 @@ interface ReplayNarration {
 // AI narration of a trade against its REAL market price action (Yahoo candles).
 // Strict-JSON GLM call with a deterministic fallback so the UI never dead-ends.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const body = await req.json()
     const tradeId = body?.tradeId

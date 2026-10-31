@@ -48,6 +48,10 @@ const SubscriptionsPage = dynamic(
   () => import('./pages/subscriptions').then((m) => ({ default: m.SubscriptionsPage })),
   { loading: () => <PageFallback /> },
 )
+const SeoContentPage = dynamic(
+  () => import('./pages/seo-content').then((m) => ({ default: m.SeoContentPage })),
+  { loading: () => <PageFallback /> },
+)
 const SupportPage = dynamic(() => import('./pages/support').then((m) => ({ default: m.SupportPage })), {
   loading: () => <PageFallback />,
 })
@@ -121,6 +125,11 @@ const ROUTES: Record<string, AdminRouteDef> = {
     title: 'Subscriptions & Plans',
     permission: 'subscriptions.manage',
     render: () => <SubscriptionsPage />,
+  },
+  '/admin/seo': {
+    title: 'SEO & Content',
+    permission: 'content.manage',
+    render: () => <SeoContentPage />,
   },
   '/admin/support': {
     title: 'Feedback & Support',

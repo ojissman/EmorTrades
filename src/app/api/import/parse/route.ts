@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/server/auth'
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
@@ -28,6 +29,8 @@ export const runtime = 'nodejs'
  *   useLlm             string (optional) — "0" disables the AI fallback
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const form = await req.formData()
     const file = form.get('file')

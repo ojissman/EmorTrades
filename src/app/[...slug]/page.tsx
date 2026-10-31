@@ -1,10 +1,13 @@
-import { redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 
 /**
  * Catch-all: this app is a single-route SPA (all navigation is in-app
- * zustand state at `/`). Any unknown URL (e.g. /settings, /trades/123)
- * lands here and is bounced into the app instead of a dead 404 page.
+ * zustand state at `/`). SEO-UPGRADE: unknown URLs now return a REAL 404
+ * (correct status code for crawlers and broken-link detection) instead of a
+ * redirect to `/`, which masked dead links as soft-200s. Real public routes
+ * (/, /blog, /about, /features, …) are matched by their own segments before
+ * this handler ever runs.
  */
 export default function CatchAllPage() {
-  redirect('/')
+  notFound()
 }

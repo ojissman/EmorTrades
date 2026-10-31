@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,8 @@ function parseDateKey(raw: unknown): Date | null {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const body = (await req.json().catch(() => null)) as {
       dayTagId?: unknown
@@ -69,6 +72,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.ok) return auth.response
   try {
     const { searchParams } = new URL(req.url)
     const date = parseDateKey(searchParams.get('date'))

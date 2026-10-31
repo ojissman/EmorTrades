@@ -5664,3 +5664,132 @@ Stage Summary:
   email sends FROM noreply@emortrades.com to any address (until then,
   sends to non-owner addresses are blocked by Resend's domain policy —
   tell users to expect sender onboarding@resend.dev).
+
+---
+Task ID: SEO-UPGRADE (master prompt: complete SEO / public-site / CMS transformation)
+Agent: Z.ai Code
+Task: Owner issued a 12-phase master prompt (audit → SEO → public/private
+separation → admin SEO panel → blog/CMS → security review → analytics →
+testing → deployment readiness). Executed end-to-end on the existing app.
+
+PHASE 1 — AUDIT (Explore agent + verification):
+- Verified all core trading/analytics/psychology/user features EXIST and
+  deep (60 models, 43 indexes, 134 requireUser call sites) — no rebuild.
+- SEO: near-zero before this task (1 metadata block, no sitemap/OG/canonical/
+  JSON-LD, zero real <a> internal links, no content pages, no CMS).
+- Security gaps found: 8 unguarded API routes + no security headers.
+- Full report delivered in chat.
+
+PHASE 7 — SECURITY FIXES (before feature work):
+- Guards added: library/[id] PUT+DELETE (session+ownership), library/caption
+  (session+ownership), library/media/[name] (session + ownership via url
+  lookup — was serving any upload to anyone), alerts/read (session),
+  import/parse + templates + map-columns (session), ai/providers GET+POST
+  (session), ai/replay (session), day-tags/days (session).
+- AlertRead schema: added userId, composite PK (alertId,userId), cascade —
+  read-state is now per-user (was global: one visitor marked alerts read for
+  everyone; 6 stale rows cleared — everyone's badge resets once).
+- next.config.ts: security headers on all responses (nosniff, X-Frame-Options
+  DENY, Referrer-Policy, Permissions-Policy, HSTS, X-DNS-Prefetch-Control),
+  no-store on /api/*, poweredByHeader:false. Verified live via curl.
+- CSRF posture unchanged (SameSite=Lax cookies; sameOrigin on OAuth flows) —
+  CSP deliberately deferred (documented in next.config comment).
+
+PHASE 3 — SEO FOUNDATION:
+- src/lib/seo.ts: SITE constants, STATIC_PAGES registry (9 pages), runtime
+  per-page title/description overrides (SystemSetting seo.pages, 60s cache),
+  JSON-LD builders (Organization, WebSite, SoftwareApplication, FAQPage,
+  Article, BreadcrumbList).
+- layout.tsx: metadataBase, title template, OG (1200x630 image), Twitter
+  card, robots directives, GSC verification hook (metadata.verification).
+- app/robots.ts (replaced static file): allow /, disallow /api/ + /auth/,
+  sitemap ref. app/sitemap.ts: 9 static pages + published non-noindex posts,
+  production origin always.
+- OG image + 3 blog header images generated (z-ai image, cropped 1200x630).
+- Home page: 4 JSON-LD schemas server-rendered; FAQPage mirrors the visible
+  FAQ exactly (shared data module — client-module exports arrive as proxies
+  in server components, caught when SSR threw faqs.map is not a function).
+- LANDING NOW FULLY SSRs: page.tsx reads the session cookie server-side
+  (HMAC verify) and passes initial='public'|'app' to AuthGate — crawlers and
+  first-time visitors get the complete landing HTML (175KB, h1+all sections)
+  instead of a JS-only splash; signed-in flow unchanged (splash → app).
+- Catch-all: notFound() instead of redirect (real 404 in production; dev
+  returns 200 with noindex — Next 16 dev streaming quirk, verified noindex
+  meta injected on both catch-all and bad-slug renders).
+- Landing footer: real <a> links to features/pricing/blog/about/faq/contact/
+  privacy/terms (was all scroll buttons).
+
+PHASE 3E/4 — PUBLIC PAGES (route group (public)/, server components,
+zero client JS in chrome):
+- /features (full audit-verified catalogue), /pricing (honest: free in beta,
+  future tiers without invented prices), /about, /faq (landing FAQS shared +
+  6 operational Q&As, FAQPage schema), /contact (real channels only — no
+  fake form), /privacy (actual practices), /terms (incl. not-financial-advice
+  clause). Shared PublicHeader/PublicFooter/PageHero/Breadcrumbs.
+- Public/private separation: private app stays at / behind auth; public pages
+  render no private data; robots disallows API+auth; all private data remains
+  API-gated (79 routes).
+
+PHASE 6 — BLOG/CMS:
+- Schema: BlogCategory + BlogPost (slug unique, status, category, tags,
+  author denorm, featuredImage, seoTitle/Description, canonicalUrl, ogImage,
+  noindex, publishedAt). Non-destructive db push.
+- Public: /blog (paginated, category chips, reading time) + /blog/[slug]
+  (react-markdown server render with styled component map — raw HTML skipped
+  by default = XSS-safe, Article + BreadcrumbList JSON-LD, related posts by
+  category, share links, CTA).
+- Seeded 3 substantive real articles (psychology-as-data, journaling guide,
+  5 risk rules — ~1200 words each, honest content) + 3 categories + images.
+
+PHASE 5 — ADMIN SEO & CONTENT:
+- content.manage permission (SUPER_ADMIN + ADMIN defaults), nav leaf under
+  Growth, admin-platform route /admin/seo.
+- pages/seo-content.tsx: Posts tab (list w/ status+category+SEO warnings:
+  missing/long/duplicate titles & descriptions, noindex-published; editor
+  modal with markdown, category, tags, SEO panel: char counters, Google-style
+  SERP preview, canonical, OG, noindex; publish/unpublish; delete w/ confirm;
+  live-link) + Pages & site tab (site status: origin/sitemap/robots/GA/GSC
+  state, static-page title/description override editor w/ counters + SERP
+  preview + override badges).
+- APIs: /api/admin/posts (list/create), /api/admin/posts/[id]
+  (patch/publish/delete, slug-unique enforcement), /api/admin/seo (status +
+  override save). All permission-gated + audited (content.post.*,
+  content.seo.pages.update).
+
+PHASE 9 — ANALYTICS:
+- GA4 loads ONLY in the (public) layout (never the journal app — private
+  trade data unmeasured by design), gated on GA_MEASUREMENT_ID, IP
+  anonymized. GSC verification via GOOGLE_SITE_VERIFICATION. Both surface in
+  the admin Pages & site tab with env instructions when unset.
+
+E2E VERIFICATION (agent-browser + curl, all on live dev):
+- All 12 public URLs 200 with correct per-page titles (duplication bug
+  found+fixed: absolute titles vs template), canonical→production, OG/Twitter.
+- Home SSR: 175KB full landing HTML, 4 schemas, footer links.
+- Blog article: Article+Breadcrumb schema, markdown rendered, og:type=article.
+- Sitemap: 9 static + 3 posts, auto-updates on publish (E2E test post
+  appeared) and unpublish/delete (removed). robots.txt correct.
+- Auth guards: unauthenticated media/alerts → 401. Security headers present.
+- Admin E2E: SEO panel renders (3 published), editor loads full content,
+  Pages tab shows status + editors; test post created→published→live→
+  in sitemap→deleted→removed→noindex not-found. Zero console errors.
+- Mobile 390px: no horizontal overflow (features + blog). Desktop landing +
+  signed-in app both intact after AuthGate change.
+- Gates: lint 0, tsc 0, vitest 131/131.
+
+Notes / follow-ups:
+1. 404 STATUS: dev-mode notFound() renders with 200 + noindex meta (Next 16
+   streaming quirk); production builds return real 404s. noindex protects
+   indexing in every environment.
+2. Analytics env keys (GA_MEASUREMENT_ID, GOOGLE_SITE_VERIFICATION) are
+   optional and unset — UI documents them; set + restart to activate; they
+   are not secret-class (public ids) so no backup rotation required.
+3. Blog images live in public/blog/*.png; admins can reference any path in
+   the featured-image field.
+4. Publish note: next publish ships schema + all routes; the strict schema
+   push in build-guarded.sh handles BlogPost/BlogCategory/AlertRead (new
+   models + column) — additive, no destructive migration.
+5. Lighthouse not run in-sandbox (headless Chromium shares the 4GB cgroup
+   with dev; known OOM pattern) — Core Web Vitals addressed structurally:
+   full SSR landing, zero-JS public chrome, next/font, lazy app pages,
+   security headers. Recommend a Lighthouse pass from production.

@@ -6,6 +6,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemePrefsApplier } from "@/components/theme-prefs-applier";
 import { StorageHygiene } from "@/components/storage-hygiene";
+import { SITE } from "@/lib/seo";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -19,9 +20,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EmorTrades — Trading Journal",
-  description:
-    "A professional-grade trading journal with deep analytics, AI insights, multi-account management, risk tools, and comprehensive performance reporting. All features included, no subscription tiers.",
+  metadataBase: new URL(SITE.url),
+  title: {
+    default: "EmorTrades — Trading Journal",
+    template: "%s — EmorTrades",
+  },
+  description: SITE.description,
   keywords: [
     "trading journal",
     "trade tracker",
@@ -35,6 +39,33 @@ export const metadata: Metadata = {
   icons: {
     icon: "/logo.png",
   },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE.name,
+    title: "EmorTrades — Trading Journal",
+    description: SITE.description,
+    url: SITE.url,
+    images: [{ url: SITE.ogImage, width: 1200, height: 630, alt: "EmorTrades — Trading Journal" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "EmorTrades — Trading Journal",
+    description: SITE.description,
+    images: [SITE.ogImage],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  // SEO-UPGRADE · PHASE 9 — Google Search Console verification meta tag
+  // (set GOOGLE_SITE_VERIFICATION in .env; emitted only when configured).
+  ...(process.env.GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export default function RootLayout({

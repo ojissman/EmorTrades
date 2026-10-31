@@ -11,13 +11,19 @@ import { Logo } from '@/components/logo'
 
 /**
  * AUTH GATE — the single entry point at `/`.
- *   loading      → branded splash
+ *   loading      → branded splash (or the SSR-hinted experience)
  *   401 (signed out) → PublicExperience (landing / #/login / #/register)
  *   200 (signed in)  → the app (AppShell), with the user in the auth store
  *
  * Sign-in/sign-out always trigger a full page reload, so this component is
  * the only writer of the auth store and no cache from a previous session
  * can ever leak into the next one.
+ *
+ * SEO-UPGRADE: `initial` is the SERVER-READ session state passed down from
+ * page.tsx (HMAC cookie check). 'public' makes the landing SSR with full
+ * content — crawlers and first-time visitors get real HTML instead of a
+ * JS-only splash; 'app' keeps the classic splash. The query still runs and
+ * reconciles either way (stale cookies self-correct after hydration).
  */
 
 interface MeResponse {
@@ -35,7 +41,7 @@ function AuthSplash() {
   )
 }
 
-function GateContent() {
+function GateContent({ initial }: { initial?: 'public' | 'app' }) {
   const setUser = useAuthStore((s) => s.setUser)
 
   const { data, isLoading, isError } = useQuery<MeResponse>({
@@ -56,7 +62,12 @@ function GateContent() {
     setUser(data?.user ?? null)
   }, [data, setUser])
 
-  if (isLoading) return <AuthSplash />
+  // While the session query is in flight: the server already read the
+  // cookie. Public hint → render the landing NOW (SSR content for crawlers
+  // + instant first paint); app hint or unknown → classic splash.
+  if (isLoading) {
+    return initial === 'public' ? <PublicExperience /> : <AuthSplash />
+  }
 
   // 401 → public experience (landing / login / register)
   if (isError || !data?.user) return <PublicExperience />
@@ -65,14 +76,14 @@ function GateContent() {
   return <AppShell />
 }
 
-export function AuthGate() {
+export function AuthGate({ initial }: { initial?: 'public' | 'app' }) {
   return (
     <QueryProvider>
       {/* surfaces ?verified=1 / ?welcome=google / ?googleError=… outcomes
           from the email-link and Google redirect flows as toasts, then cleans
           the URL. Mounted outside GateContent so it works signed in or out. */}
       <UrlParamToaster />
-      <GateContent />
+      <GateContent initial={initial} />
     </QueryProvider>
   )
 }
