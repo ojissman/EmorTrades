@@ -5536,3 +5536,51 @@ design — both in project cogent-spirit-508422-a5. (3) When the service
 account JSON arrives: add to .env, restart dev, the Workspace card probes
 Drive/Sheets/Calendar live (5-min cache), rotate the backup again. (4)
 Publish note: next publish ships the integration keys + the v6 gate.
+
+---
+Task ID: GCI-WS (service-account key installed — Workspace APIs live)
+Agent: Z.ai Code
+Task: Owner uploaded the service-account JSON key file
+(cogent-spirit-508422-a5-7d130c472573.json). Installed it, probed all three
+Workspace APIs live, rotated the backup, removed the loose key file. This
+completes the GOOGLE-CLOUD-INTEGRATION foundation.
+
+Work Log:
+- TOOL OUTAGE between sessions (every tool call failing, even echo): turned
+  out to be the execution layer only — .env survived intact (9 keys, no
+  truncation), dev kept running. No recovery needed; resumed in place.
+- KEY VERIFIED before install: type=service_account, project
+  cogent-spirit-508422-a5, client_email
+  trading-journal-backend@cogent-spirit-508422-a5.iam.gserviceaccount.com,
+  PEM RSA private_key present, token_uri googleapis.
+- INSTALLED: appended as single-line compact JSON to .env
+  (GOOGLE_SERVICE_ACCOUNT_JSON, 2363 chars, 0600, gitignored, never printed).
+  .env now 10 keys (9 required + the service account).
+- LIVE PROBE RESULTS (real key, real Google):
+  · Drive    — enabled + authenticated call SUCCEEDED (drive.file scope,
+               /about?fields=user)
+  · Sheets   — enabled, auth OK (HTTP 404 on the intentional nonexistent-
+               spreadsheet probe = API live and answering)
+  · Calendar — enabled + authenticated call SUCCEEDED (own calendarList)
+  All three APIs already enabled in the project — no console step remained.
+- BACKUP ROTATED: 3283 bytes (was 806 — the key captured via whole-file
+  encryption); verify 9/9 required keys + SA key inside the blob, decrypts
+  clean with the owner passphrase.
+- LOOSE KEY FILE DELETED: upload/cogent-spirit-*.json removed — the key now
+  lives only in .env + the encrypted backup. /tmp session-mint helpers
+  removed.
+- E2E (agent-browser, real admin session): Integrations tab renders the
+  Workspace card Configured with live chips "Drive: live · Sheets:
+  reachable · Calendar: live" + the service-account email in the
+  description; Connect Gmail button still present; zero console errors.
+- Gates: lint 0, tsc 0, vitest 131/131 (dev OOM'd during the suite — known
+  cgroup contention pattern, restarted, HTTP 200).
+
+Stage Summary:
+- The GOOGLE-CLOUD-INTEGRATION foundation is COMPLETE: Google sign-in (live
+  since AUTH-8), Gmail platform sender (client configured, Connect button
+  verified to Google's consent screen — owner's one-time consent pending),
+  Drive/Sheets/Calendar (service account live, all APIs enabled, probes
+  green), Weather (keyless open-meteo, live).
+- Remaining owner steps, all optional: (1) Gmail consent via the Connect
+  button; (2) nothing else — Workspace needs no further configuration.
