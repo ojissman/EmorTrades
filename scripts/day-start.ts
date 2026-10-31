@@ -139,10 +139,16 @@ if (lsRemote === null) {
 log(`origin reachable (refs/heads/main present).`)
 
 /* ── 2 · clean tree required — a new day starts from the last pushed state ─ */
+/* db/custom.db (+ sidecars) is EXEMPT: every production pull rewrites it, so it
+ * is routinely dirty between cycles — and the sync below replaces it moments
+ * later anyway. It rides to GitHub with the next task commit (by design).
+ * Anything else dirty = leftover work → refuse. */
 const dirty = run('git status --porcelain')
-if (dirty) {
+  .split('\n')
+  .filter((l) => l && !/\sdb\/custom\.db(-wal|-shm|-journal)?$/.test(l))
+if (dirty.length) {
   console.error('✗ working tree is dirty — a new day must start from the last PUSHED state:')
-  console.error(dirty.split('\n').slice(0, 20).join('\n'))
+  console.error(dirty.slice(0, 20).join('\n'))
   die('commit + push the leftover work (ritual steps 4–5) or get the owner’s instruction first.')
 }
 
