@@ -15,6 +15,7 @@ import {
   Mail,
   MailCheck,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react'
 import { AuthShell, GoogleButton, Honeypot, useElapsed } from './auth-shared'
 import { TurnstileWidget } from './turnstile-widget'
@@ -39,6 +40,7 @@ export function LoginForm() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unverified, setUnverified] = useState(false)
+  const [cookieBlocked, setCookieBlocked] = useState(false)
   const [resending, setResending] = useState(false)
   const [devLink, setDevLink] = useState<string | null>(null)
   const [resent, setResent] = useState(false)
@@ -47,6 +49,7 @@ export function LoginForm() {
     e.preventDefault()
     setError(null)
     setUnverified(false)
+    setCookieBlocked(false)
     setDevLink(null)
     setPending(true)
     try {
@@ -69,6 +72,16 @@ export function LoginForm() {
         } else {
           setError(data?.message || 'Could not sign you in. Please try again.')
         }
+        setPending(false)
+        return
+      }
+      // PREVIEW-1: confirm the session cookie actually landed before
+      // reloading — a browser that blocks it (strict third-party cookie
+      // mode) would otherwise bounce straight back to the landing page
+      // and make the successful sign-in look like a failure.
+      const me = await fetch('/api/auth/me', { cache: 'no-store' })
+      if (me.status === 401) {
+        setCookieBlocked(true)
         setPending(false)
         return
       }
@@ -227,6 +240,30 @@ export function LoginForm() {
                 )}
                 {resent ? 'Link sent — check your inbox' : 'Send a fresh link'}
               </Button>
+            </div>
+          )}
+
+          {cookieBlocked && (
+            <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-4 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="mt-0.5 h-4.5 w-4.5 text-amber-300 shrink-0" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold text-amber-200">You&apos;re signed in — but not here</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-200/70">
+                    Your browser won&apos;t let this embedded preview keep the session cookie.
+                    Continue in a full browser tab — your account and password are fine.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                Open EmorTrades in a new tab
+              </a>
             </div>
           )}
 

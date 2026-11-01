@@ -16,6 +16,7 @@ import {
   Mail,
   MailCheck,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   User,
 } from 'lucide-react'
@@ -169,6 +170,7 @@ export function RegisterForm() {
   const [turnstileToken, setTurnstileToken] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cookieBlocked, setCookieBlocked] = useState(false)
   const [verifyScreen, setVerifyScreen] = useState<{ email: string; devLink: string | null } | null>(null)
 
   const strength = useMemo(() => scorePassword(password), [password])
@@ -176,6 +178,7 @@ export function RegisterForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setCookieBlocked(false)
     if (password.length < 8) {
       setError('Password must be at least 8 characters.')
       return
@@ -202,6 +205,14 @@ export function RegisterForm() {
       }
       if (data?.status === 'verify-email') {
         setVerifyScreen({ email: data.email || email, devLink: data.devLink ?? null })
+        setPending(false)
+        return
+      }
+      // PREVIEW-1: confirm the session cookie landed before reloading (see
+      // login-form) — a cookie-blocking browser must not loop back silently.
+      const me = await fetch('/api/auth/me', { cache: 'no-store' })
+      if (me.status === 401) {
+        setCookieBlocked(true)
         setPending(false)
         return
       }
@@ -341,6 +352,30 @@ export function RegisterForm() {
             <p role="alert" className="text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-md px-3 py-2">
               {error}
             </p>
+          )}
+
+          {cookieBlocked && (
+            <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-4 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert className="mt-0.5 h-4.5 w-4.5 text-amber-300 shrink-0" aria-hidden />
+                <div>
+                  <p className="text-sm font-semibold text-amber-200">Account created — but not signed in here</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-200/70">
+                    Your browser won&apos;t let this embedded preview keep the session cookie.
+                    Continue in a full browser tab and sign in — your account was created.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                Open EmorTrades in a new tab
+              </a>
+            </div>
           )}
 
           <Button

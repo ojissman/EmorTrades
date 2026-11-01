@@ -6339,3 +6339,91 @@ cannot push (fear 1), and a new key cannot reach "task done" unprotected
   shell/shell.css · ai/ai-page-layer.tsx
 - M db/custom.db (rides with the ritual pull at task start — users=3,
   trades=381, verified 14:24Z)
+
+## Task PREVIEW-1 — Embedded preview login loop: third-party-iframe session fix
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Work Log
+
+- OWNER REPORT (verbatim intent): "the preview is not working and before now,
+  i cant login in on mobile preview, every time i try after login success it
+  refreshes then takes me back to the landing page... this issue is [now in]
+  both desktop mode and mobile mode preview (and its not only on gmail login
+  [but also] on normal registration login)... but if i open a new tab for
+  preview it works fine the logins etc".
+- STATE AT START (protocol): same workday continuation — HEAD 4129b88 ==
+  origin/main (fetch verified), tree clean, .env 11/11 vs manifest, .sync-state
+  fresh 14:24Z. No re-pull: a full sync:prod DB replace would have destroyed
+  the owner's fresh post-MOBILE-1 activity; "at last pushed state" was proven
+  via fetch instead.
+- "PREVIEW NOT WORKING" = the dev server process had silently died after the
+  MOBILE-1 session ended (dev.log ends clean at 14:36, no crash). Restarted;
+  HTTP 200. Nothing in the app was broken.
+- LOGIN LOOP ROOT CAUSE (the real bug): the platform preview panel embeds the
+  app as a THIRD-PARTY iframe (z.ai-family parent, app origin inside — the
+  frame-ancestors CSP from SEO-FINAL-2 confirms this architecture). Browsers
+  categorically drop SameSite=LAX cookies in third-party contexts: login POST
+  → 200 → Set-Cookie discarded → window.location.reload() → app boots
+  unauthenticated → landing page. New tab = first-party = Lax fine = "works
+  fine the logins etc". Same cookie served Gmail callback too, so Google
+  login looped identically; worse, the Google button did window.location.href
+  to accounts.google.com INSIDE the iframe, which Google refuses to render
+  (frame-busting) — Gmail sign-in could never complete in the preview at all.
+
+- FIX 1 — src/lib/server/auth.ts sessionCookieOptions (single issuance point
+  for login/register/google-callback/link-confirm/verify-email/password
+  change/logout): sameSite 'lax' → 'none', secure → unconditionally true
+  (gateway always fronts HTTPS), + partitioned (CHIPS — survives browsers
+  that block unpartitioned third-party cookies). Verified live header:
+  `emorta_session=…; Path=/; Secure; HttpOnly; SameSite=none; Partitioned`.
+- FIX 2 — src/components/auth/auth-shared.tsx: isEmbedded() (window.top check)
+  + startGoogleFlow(): embedded → Google OAuth opens in a NEW TAB (top-level,
+  as Google requires) and focus/visibilitychange listeners poll /api/auth/me
+  and reload the preview the moment the session appears; top-level → plain
+  navigation as before. GoogleButton label adapts ("Continue in the new
+  tab…"). google-link-confirm.tsx restartGoogle() now uses the same helper.
+- FIX 3 — login-form.tsx + register-form.tsx: after a successful POST, probe
+  /api/auth/me BEFORE reloading; on 401 (browser still refusing third-party
+  storage, e.g. Safari ITP) show an amber panel — "You're signed in — but
+  not here… Open EmorTrades in a new tab" (target=_blank) — instead of the
+  silent refresh-loop that made successful sign-ins look like failures.
+  Only a true 401 triggers it (5xx proceeds with the old behavior).
+
+### E2E PROOF (live, agent-browser; throwaway user created/verified/deleted)
+
+- curl login: Set-Cookie exactly `Secure; HttpOnly; SameSite=none;
+  Partitioned` + 30-day Max-Age.
+- FIRST-PARTY (localhost:3000 top-level): login → authenticated desktop
+  shell → full reload → session persists (cookie in jar) → Sign out →
+  landing → login again → app. Logout clears cleanly.
+- THIRD-PARTY iframe harness (parent http://localhost:3031 embedding
+  http://127.0.0.1:3000 — genuinely cross-site: cross-frame location access
+  throws SecurityError): login form renders in-iframe → submit →
+  AUTHENTICATED app shell renders INSIDE the iframe (account avatar present)
+  → FULL parent reload → STILL authenticated. Mobile 390×844 in-iframe →
+  MOBILE-1 tab bar (Journal · More) with live session. This is the owner's
+  exact scenario, end-to-end, green.
+- Bot guard verified working as designed: 3 scripted-UA login attempts
+  blocked 403 ("user-agent: bot signature", HeadlessChrome) and logged to
+  AuthLog; real-browser UA logins unaffected. (Test browser was given a
+  real Chrome UA at browser level for the 3P pass — the guard itself was
+  never touched.)
+- TEST HYGIENE: temp harness origin added to frame-ancestors for the iframe
+  test and REVERTED (next.config.ts byte-identical to HEAD); harness server
+  + CDP chrome killed; harness files removed; E2E user deleted from DB.
+  bun run lint clean. dev.log during E2E: no runtime/hydration errors.
+
+### Files
+
+- M src/lib/server/auth.ts (session cookie attributes — the core fix)
+- M src/components/auth/auth-shared.tsx (isEmbedded/startGoogleFlow/GoogleButton)
+- M src/components/auth/login-form.tsx · register-form.tsx (me-probe +
+  cookieBlocked panel)
+- M src/components/auth/google-link-confirm.tsx (startGoogleFlow)
+- M db/custom.db (pre-push ritual sync:prod, demanded by the enforcement
+  hook — last-pull 14:24Z predated the 14:41Z MOBILE-1 push. Production
+  snapshot 15:12Z: users=4, trades=381 — one new production user since the
+  morning pull, captured by the ritual. The E2E-residue db was replaced;
+  the E2E test user was already deleted before the sync.)

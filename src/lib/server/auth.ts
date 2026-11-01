@@ -126,11 +126,22 @@ export function sessionInvalidatedBy(
 
 /* ── Cookie helpers ─────────────────────────────────────────────────────── */
 
+/**
+ * PREVIEW-1 — the app is regularly used inside the platform's embedded
+ * preview panel, i.e. a THIRD-PARTY iframe. Browsers categorically drop
+ * SameSite=Lax cookies in that context, so every successful login silently
+ * bounced back to the landing page (while a new tab — first-party — worked
+ * fine). None+Secure is the only combination that works in BOTH contexts,
+ * and Partitioned (CHIPS) keeps it alive even where unpartitioned
+ * third-party cookies are blocked. The gateway always fronts the app with
+ * HTTPS, so `secure: true` is safe unconditionally.
+ */
 export function sessionCookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none' as const,
+    secure: true,
+    partitioned: true,
     path: '/',
     maxAge: maxAgeSeconds,
   }

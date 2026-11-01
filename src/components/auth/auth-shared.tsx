@@ -25,6 +25,47 @@ import { useBotConfig } from './use-bot-config'
  *   · AuthShell — premium split-screen frame for the sign-in / register forms
  */
 
+/* ── Embedded-preview helpers (PREVIEW-1) ─────────────────────────────────── */
+
+/**
+ * True when the app runs inside an iframe (the platform preview panel).
+ * In that context browsers treat the app as a third party: Lax cookies are
+ * dropped and Google refuses to render its consent screen at all.
+ */
+export function isEmbedded(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.top !== window.self
+  } catch {
+    // Cross-origin window.top access can throw — assume embedded.
+    return true
+  }
+}
+
+/**
+ * Google OAuth must run in a TOP-LEVEL window. Embedded → open a new tab
+ * and watch for the session to appear so the preview picks it up without a
+ * manual refresh; normal (new tab / desktop) → plain navigation as before.
+ */
+export function startGoogleFlow(url: string) {
+  if (!isEmbedded()) {
+    window.location.href = url
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
+  const check = async () => {
+    try {
+      const r = await fetch('/api/auth/me', { cache: 'no-store' })
+      if (r.ok) window.location.reload()
+    } catch {
+      /* still waiting — the next focus/visibility will retry */
+    }
+  }
+  window.addEventListener('focus', () => void check())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void check()
+  })
+}
+
 /* ── Google mark (official four-color G) ──────────────────────────────────── */
 
 export function GoogleIcon({ className }: { className?: string }) {
@@ -76,7 +117,7 @@ export function GoogleButton({
     }
     setRedirecting(true)
     onNavigate?.()
-    window.location.href = intent === 'link' ? '/api/auth/google/start?intent=link' : '/api/auth/google/start'
+    startGoogleFlow(intent === 'link' ? '/api/auth/google/start?intent=link' : '/api/auth/google/start')
   }
 
   return (
@@ -97,7 +138,9 @@ export function GoogleButton({
         ) : (
           <GoogleIcon className="h-4.5 w-4.5" />
         )}
-        <span className="ml-1.5">{redirecting ? 'Redirecting to Google…' : label}</span>
+        <span className="ml-1.5">
+          {redirecting ? (isEmbedded() ? 'Continue in the new tab…' : 'Redirecting to Google…') : label}
+        </span>
       </Button>
 
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>

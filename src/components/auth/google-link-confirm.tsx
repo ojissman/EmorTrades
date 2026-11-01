@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { AlertTriangle, Link2, Loader2, Lock, RefreshCw } from 'lucide-react'
-import { AuthShell, GoogleIcon } from './auth-shared'
+import { AuthShell, GoogleIcon, startGoogleFlow } from './auth-shared'
 import { useRouter } from './public-experience'
 
 /**
@@ -117,7 +117,10 @@ export function GoogleLinkConfirm() {
   }
 
   function restartGoogle() {
-    window.location.href = '/api/auth/google/start'
+    // PREVIEW-1: Google's consent screen can't render inside an embedded
+    // iframe — the shared helper opens a new tab there, navigates normally
+    // otherwise, and reloads the preview when the session appears.
+    startGoogleFlow('/api/auth/google/start')
   }
 
   // Nothing pending (expired, wrong tab, direct visit) — honest dead end.
