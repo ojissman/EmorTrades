@@ -9,6 +9,13 @@ the platform truncates `.env` to `DATABASE_URL`-only: `.env` itself is
 gitignored (secrets never enter git in plain form), so without this file a
 restart had NO recovery source for the keys.
 
+`secrets.manifest` — (ENFORCE-3, 2026-11-01) a **plaintext** inventory of
+what `secrets.enc` protects: every key NAME (never values), their count,
+the sha256 of the exact `.env` that was encrypted, and the rotation
+timestamp. The owner can open it on GitHub any day and audit key coverage
+without trusting anyone's memory. The pre-push hook and `day:start` use it
+to prove the live `.env` is fully protected — see “The coverage lock” below.
+
 ## The passphrase is NOT in this repo
 
 It exists in exactly two places: the owner's password manager, and the
@@ -16,17 +23,44 @@ owner's head. Nobody else. The encryption is AES-256-GCM with a
 scrypt-derived key (N=32768) — the repo alone yields nothing without the
 passphrase.
 
+### One passphrase for life (owner mandate, ENFORCE-3)
+
+The system **never** expires, rotates, or asks the owner to change the
+passphrase. Every restore and every rotation uses the same passphrase.
+Changing it is exclusively the owner's personal decision; the procedure:
+
+```bash
+echo "<OLD_PASSPHRASE>" | bun scripts/secrets-backup.ts restore   # .env = protected state
+echo "<NEW_PASSPHRASE>" | bun scripts/secrets-backup.ts backup     # re-encrypt with the new one
+git add backups/ && git commit -m "secrets: passphrase changed by owner" && git push
+```
+
+## The coverage lock (ENFORCE-3 — why a key can never be silently unprotected)
+
+Every push of `main` passes through a pre-push hook that REFUSES unless:
+1. the live `.env` exists (a truncated env cannot complete a task), and
+2. `sha256(live .env)` equals `secrets.manifest`'s `envSha256` (any key
+   added/changed since the last rotation blocks the push until the backup
+   is rotated — with the owner's passphrase), and
+3. the rotation (`secrets.enc` + `secrets.manifest`) is committed (so a
+   wipe-recovery always clones the CURRENT protection, never a stale one).
+
+`bun run day:start` checks the same things at day start and auto-rotates
+when the owner pipes the passphrase. Adding a key therefore ALWAYS involves
+the owner (the passphrase) and ALWAYS reaches GitHub before any task can be
+considered done.
+
 ## Commands (passphrase always on stdin, never a CLI arg)
 
 ```bash
-# after healing .env (all 7 required keys non-empty) — rotate the backup:
+# after healing .env (all required keys non-empty) — rotate the backup:
 echo "$PASSPHRASE" | bun scripts/secrets-backup.ts backup
-git add backups/secrets.enc && git commit -m "secrets: rotate backup" && git push
+git add backups/secrets.enc backups/secrets.manifest && git commit -m "secrets: rotate backup" && git push
 
 # after a restart truncated .env — restore exactly:
 echo "$PASSPHRASE" | bun scripts/secrets-backup.ts restore
 
-# check a saved passphrase against the backup (no writes):
+# check a saved passphrase against the backup (no writes) + coverage state:
 echo "$PASSPHRASE" | bun scripts/secrets-backup.ts verify
 
 # triage after any restart — key names + presence only, values never printed:

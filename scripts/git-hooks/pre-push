@@ -3,12 +3,24 @@
 # ENFORCEMENT PRE-PUSH HOOK — owner-mandated strict rule (2026-10-31)
 #
 #   "No pull and replacement of the sandbox DB → no task is done."
+#   (ENFORCE-3, 2026-11-01: "…and no unprotected .env either.")
 #
 # The Option-2 ritual requires EVERY task cycle to start with
 # `bun run sync:prod` (fresh production export → replaces the sandbox DB).
 # A task is only "done" when its commit is PUSHED — so this hook makes the
 # push itself physically impossible unless a verified production pull
 # happened after the last push.
+#
+# LOCK 1 — ENV-MANIFEST (ENFORCE-3): the live .env must be exactly what the
+#   encrypted backup protects. backups/secrets.manifest (plaintext, committed)
+#   carries the sha256 of the .env that was encrypted into secrets.enc. Push
+#   is refused unless: (a) .env exists, (b) sha256(live .env) == manifest
+#   hash, (c) the rotation (secrets.enc + secrets.manifest) is committed.
+#   Consequence: ANY key added/changed in .env physically requires rotating
+#   the backup (owner passphrase on stdin) and committing it before any task
+#   can complete. A missing/truncated .env cannot push either — restore first.
+#
+# LOCK 2 — SYNC-STATE (ENFORCE-1): see below.
 #
 # HOW IT DECIDES:
 #   · origin/main tip = the last state that successfully reached GitHub.
@@ -42,6 +54,50 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   ENFORCE=1
 done
 [ "$ENFORCE" = "1" ] || exit 0
+
+# ── LOCK 1 · ENV-MANIFEST (ENFORCE-3) ────────────────────────────────────
+refuse_env() {
+  cat >&2 <<EOF
+
+──────────────────────────────────────────────────────────────────
+  ENV-MANIFEST LOCK — PUSH REFUSED  (ENFORCE-3, owner-mandated)
+
+  $1
+
+  REQUIRED before this push can succeed:
+    · restore/rotate the secrets backup (owner passphrase on stdin):
+        echo "<OWNER_PASSPHRASE>" | bun scripts/secrets-backup.ts restore|backup
+    · commit the rotation: git add backups/secrets.enc backups/secrets.manifest
+    · then re-run this push
+
+  One passphrase for life — the system never asks the owner to change it.
+──────────────────────────────────────────────────────────────────
+
+EOF
+  exit 1
+}
+
+ENV_FILE="$TOP/.env"
+MANIFEST="$TOP/backups/secrets.manifest"
+[ -f "$ENV_FILE" ] || refuse_env "Live .env is MISSING — the task is not done on a broken environment. Restore it from the encrypted backup first."
+[ -f "$MANIFEST" ] || refuse_env "backups/secrets.manifest is missing — the secrets-coverage lock cannot verify. Restore it (git checkout -- backups/) or rotate a fresh backup."
+
+file_sha() {
+  sha256sum "$1" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
+}
+LIVE_ENV_HASH="$(file_sha "$ENV_FILE")"
+MANIFEST_HASH="$(grep -m1 '^envSha256=' "$MANIFEST" | cut -d= -f2)"
+[ -n "$LIVE_ENV_HASH" ] || refuse_env "Could not hash the live .env (sha256sum unavailable?) — refusing rather than guessing."
+[ "$LIVE_ENV_HASH" = "$MANIFEST_HASH" ] || refuse_env "Live .env DIFFERS from the protected backup (a key was added/changed since the last rotation). The change is unprotected — rotate first."
+
+# The rotation must also be committed — otherwise a wipe would clone the OLD
+# protection and silently lose the new keys (the exact gap ENFORCE-3 closes).
+if [ -n "$(git status --porcelain -- backups/secrets.enc backups/secrets.manifest 2>/dev/null)" ]; then
+  refuse_env "A secrets rotation is present but NOT committed — commit backups/secrets.enc + backups/secrets.manifest so the GitHub time machine carries it."
+fi
+echo "[enforcement] env verified (live .env fully protected, rotation committed)."
+
+# ── LOCK 2 · SYNC-STATE (ENFORCE-1) ─────────────────────────────────
 
 # Bootstrap: no origin/main ref locally yet (first ever push) — nothing to
 # compare against. Every push after the first is enforced.

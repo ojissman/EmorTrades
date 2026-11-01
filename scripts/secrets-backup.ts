@@ -37,11 +37,15 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const ENV_PATH = path.join(ROOT, '.env')
 const BACKUP_PATH = path.join(ROOT, 'backups', 'secrets.enc')
+/** ENFORCE-3: plaintext inventory of what secrets.enc protects (names only).
+ *  Committed to the repo so the owner can audit key coverage on GitHub and
+ *  the pre-push hook / day-start can prove the live .env is fully protected. */
+const MANIFEST_PATH = path.join(ROOT, 'backups', 'secrets.manifest')
 
 /** Must mirror REQUIRED_ENV_KEYS in scripts/build-guarded.sh (the env gate). */
 const REQUIRED_KEYS = [
@@ -117,6 +121,70 @@ function missingKeys(raw: string): string[] {
     .map((k) => `${k.key} (${k.state})`)
 }
 
+/* ── manifest (ENFORCE-3) ────────────────────────────────────────────── */
+
+/** sha256 hex of the exact .env content that is (or was) encrypted. The
+ *  pre-push hook computes the same digest over the file bytes (sha256sum)
+ *  — utf8 read/write round-trips byte-identically, so they always agree. */
+function sha256Hex(s: string): string {
+  return createHash('sha256').update(s, 'utf8').digest('hex')
+}
+
+/** ALL key names found in an .env body (any value, incl. empty) — sorted. */
+function allKeyNames(raw: string): string[] {
+  return [...parseEnv(raw).keys()].sort()
+}
+
+export interface Manifest {
+  keyCount: number
+  keys: string[]
+  envSha256: string
+  backedUpAt: string
+}
+
+/** Written ONLY on backup rotation — the manifest describes secrets.enc.
+ *  Restore never rewrites it (restoring does not change the protection). */
+function writeManifest(raw: string): Manifest {
+  const keys = allKeyNames(raw)
+  const man: Manifest = {
+    keyCount: keys.length,
+    keys,
+    envSha256: sha256Hex(raw),
+    backedUpAt: new Date().toISOString(),
+  }
+  fs.writeFileSync(
+    MANIFEST_PATH,
+    [
+      '# secrets.manifest — plaintext inventory of backups/secrets.enc (names only, NO VALUES).',
+      '# Written by scripts/secrets-backup.ts on every backup rotation; read by the pre-push',
+      '# hook and scripts/day-start.ts to prove the live .env is fully protected. Committed.',
+      `keyCount=${man.keyCount}`,
+      `keys=${man.keys.join(',')}`,
+      `envSha256=${man.envSha256}`,
+      `backedUpAt=${man.backedUpAt}`,
+      '',
+    ].join('\n'),
+    { mode: 0o644 },
+  )
+  return man
+}
+
+function readManifest(): Manifest | null {
+  if (!fs.existsSync(MANIFEST_PATH)) return null
+  const m: Record<string, string> = {}
+  for (const line of fs.readFileSync(MANIFEST_PATH, 'utf8').split('\n')) {
+    const kv = /^(keyCount|keys|envSha256|backedUpAt)=(.*)$/.exec(line)
+    if (kv) m[kv[1]] = kv[2]
+  }
+  if (!m.envSha256 || !m.keys) return null
+  return {
+    keyCount: parseInt(m.keyCount || '0', 10) || m.keys.split(',').filter(Boolean).length,
+    keys: m.keys.split(',').filter(Boolean),
+    envSha256: m.envSha256,
+    backedUpAt: m.backedUpAt || '?',
+  }
+}
+
 /* ── crypto ──────────────────────────────────────────────────────────── */
 
 function deriveKey(passphrase: string, salt: Buffer): Buffer {
@@ -176,11 +244,17 @@ async function cmdBackup(allowIncomplete: boolean): Promise<void> {
   fs.mkdirSync(path.dirname(BACKUP_PATH), { recursive: true })
   const payload = encryptEnv(passphrase, raw)
   fs.writeFileSync(BACKUP_PATH, payload, { mode: 0o600 })
+  const man = writeManifest(raw)
   info(
     `encrypted ${raw.length} bytes → ${BACKUP_PATH} ` +
       `(AES-256-GCM, scrypt N=${SCRYPT_N}; ${missing.length === 0 ? 'all required keys present' : 'INCOMPLETE — see warning above'}).`,
   )
-  info('commit this file: git add backups/secrets.enc && git commit -m "secrets: rotate backup"')
+  info(
+    `manifest written: backups/secrets.manifest (${man.keyCount} keys, sha256 ${man.envSha256.slice(0, 12)}…).`,
+  )
+  info(
+    'commit BOTH files together: git add backups/secrets.enc backups/secrets.manifest && git commit -m "secrets: rotate backup"',
+  )
 }
 
 async function cmdRestore(force: boolean): Promise<void> {
@@ -208,6 +282,24 @@ async function cmdRestore(force: boolean): Promise<void> {
   fs.writeFileSync(ENV_PATH, plaintext, { mode: 0o600 })
   const after = keyInventory(plaintext).filter((k) => k.state === 'present').length
   info(`restored .env from backup (required keys present: ${before} → ${after}).`)
+  // ENFORCE-3: the restored content must be exactly what the manifest says
+  // secrets.enc protects. A mismatch means the repo's protection artifacts
+  // are out of sync with each other — fail closed, inform the owner.
+  const man = readManifest()
+  if (man) {
+    const restoredHash = sha256Hex(plaintext)
+    if (restoredHash !== man.envSha256) {
+      die(
+        `.env WAS restored, but it does NOT match backups/secrets.manifest ` +
+          `(${restoredHash.slice(0, 12)}… ≠ ${man.envSha256.slice(0, 12)}…) — secrets.enc and ` +
+          'secrets.manifest are out of sync in this repo. Inform the owner; a fresh ' +
+          'rotation (backup with the owner passphrase) is required.',
+      )
+    }
+    info(`manifest check: restored .env is exactly the protected state (${man.keyCount} keys, backed up ${man.backedUpAt}).`)
+  } else {
+    info('note: no manifest in this repo (pre-ENFORCE-3 backup) — rotate once to create it.')
+  }
   info('restart the dev server so the restored keys load: ( setsid bash -c \'exec bun run dev\' >>/tmp/next-dev.out 2>&1 </dev/null & )')
 }
 
@@ -222,6 +314,24 @@ async function cmdVerify(): Promise<void> {
         `${REQUIRED_KEYS.length - missing.length}/${REQUIRED_KEYS.length} present` +
         (missing.length ? ` (missing: ${missing.join(', ')})` : '') +
         '.',
+    )
+    const man = readManifest()
+    if (!man) {
+      info('manifest: NONE (pre-ENFORCE-3 backup) — rotate once to create it.')
+      return
+    }
+    const decHash = sha256Hex(plaintext)
+    const liveHash = fs.existsSync(ENV_PATH) ? sha256Hex(fs.readFileSync(ENV_PATH, 'utf8')) : null
+    info(`manifest: ${man.keyCount} keys, backed up ${man.backedUpAt}.`)
+    info(`  backup == manifest : ${decHash === man.envSha256 ? 'MATCH' : 'MISMATCH — repo protection artifacts out of sync; rotate'}`)
+    info(
+      `  live .env == manifest : ${
+        liveHash === null
+          ? 'n/a (no live .env)'
+          : liveHash === man.envSha256
+            ? 'MATCH — live .env fully protected'
+            : 'DRIFTED — rotate (owner passphrase) to protect the current .env'
+      }`,
     )
   } catch {
     die('wrong passphrase or corrupted backup.')
@@ -241,6 +351,21 @@ function cmdStatus(): void {
       (fs.existsSync(BACKUP_PATH)
         ? `present (${fs.statSync(BACKUP_PATH).size} bytes, ${fs.statSync(BACKUP_PATH).mtime.toISOString()})`
         : 'NONE — run a backup once .env is complete'),
+  )
+  const man = readManifest()
+  if (!man) {
+    console.log('[secrets-backup] manifest: NONE — rotate once to create it (ENFORCE-3).')
+    return
+  }
+  const live = fs.existsSync(ENV_PATH) ? sha256Hex(fs.readFileSync(ENV_PATH, 'utf8')) : null
+  console.log(`[secrets-backup] manifest: ${man.keyCount} keys · ${man.keys.join(', ')}`)
+  console.log(
+    `[secrets-backup] protection: backed up ${man.backedUpAt} · live .env ` +
+      (live === null
+        ? 'MISSING (restore it)'
+        : live === man.envSha256
+          ? 'FULLY PROTECTED (hash match)'
+          : 'DRIFTED from backup — rotate with the owner passphrase'),
   )
 }
 

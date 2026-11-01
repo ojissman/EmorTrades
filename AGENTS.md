@@ -36,7 +36,7 @@ and personally provide **the GitHub key (token) and the repo name**. Then:
 
 ```bash
 # If this sandbox persisted and origin already works:
-bun run day:start                      # pull + verify + sync:prod + state report
+bun run day:start                      # pull + verify + protect .env + sync:prod + state report
 
 # If the remote needs the fresh token / repo the owner just provided:
 bun run day:start -- --repo <owner>/<repo> --token <owner-provided-token>
@@ -44,9 +44,10 @@ bun run day:start -- --repo <owner>/<repo> --token <owner-provided-token>
 
 `day:start` (scripts/day-start.ts) does, in order: repairs `origin` with the
 provided token/repo → refuses a dirty tree → `git pull --ff-only` →
-`bun install` (re-arms the pre-push hook) → checks `.env` completeness
-(passphrase on stdin restores it from `backups/secrets.enc`) → checks the DB →
-runs `bun run sync:prod` → prints the DAY START STATE and writes `.day-state`.
+`bun install` (re-arms the pre-push hook) → checks `.env` completeness and
+coverage (restores missing keys from `backups/secrets.enc`, auto-rotates a
+drifted backup — passphrase on stdin) → checks the DB → runs
+`bun run sync:prod` → prints the DAY START STATE and writes `.day-state`.
 
 After it prints **CLEARED TO WORK**, report the state to the owner (commit
 hash, users/trades counts) and only then begin the day's task — following the
@@ -95,15 +96,33 @@ did not happen: just run `bun run day:start`.
 
 - **Pre-push hook** (`scripts/git-hooks/pre-push`, armed by
   `scripts/install-git-hooks.sh` via the `prepare` script on every
-  `bun install`): REFUSES every push of `main` unless `.sync-state` proves a
-  fully-verified production pull happened AFTER the previous push. It lives in
-  the repo, so a cloned sandbox re-arms it automatically. A fresh sandbox has
-  no `.sync-state` → it is push-locked until the first real `bun run sync:prod`.
+  `bun install`): TWO locks on every push of `main` —
+  - **LOCK 1 · ENV-MANIFEST (ENFORCE-3)**: `backups/secrets.manifest`
+    (plaintext, committed — names only, never values) records every key name
+    protected by `backups/secrets.enc` plus the sha256 of the exact `.env`
+    it encrypts. The push is REFUSED unless (a) the live `.env` exists,
+    (b) `sha256(live .env)` equals the manifest hash, and (c) the rotation
+    (`secrets.enc` + `secrets.manifest`) is committed. Consequence: adding
+    or changing ANY `.env` key physically requires rotating the backup
+    (owner passphrase on stdin) and committing it before any task can be
+    pushed. A truncated `.env` cannot push either — restore first.
+  - **LOCK 2 · SYNC-STATE (ENFORCE-1)**: no push unless `.sync-state` proves
+    a fully-verified production pull happened after the previous push.
+  Both live in the repo, so a cloned sandbox re-arms them automatically. A
+  fresh sandbox has no `.sync-state` → it is push-locked until the first real
+  `bun run sync:prod`.
 - **`.sync-state`** (gitignored, local): written ONLY by
   `scripts/sync-prod-db.ts` on complete success (pull + validate + swap +
   strict schema push + integrity verify).
 - **`bun run day:start`**: the new-day gate — no CLEARED-TO-WORK report
-  without a real `git pull` + `sync:prod`.
+  without a real `git pull` + `sync:prod` + a fully-protected `.env` (it
+  restores missing keys and AUTO-ROTATES a drifted backup when the owner
+  pipes the passphrase).
+- **Passphrase policy (owner mandate, ENFORCE-3): ONE passphrase for life.**
+  The system never expires or asks to change it; every restore and every
+  rotation uses the same owner-held passphrase (stdin only, never stored,
+  never a CLI arg). Changing it is exclusively the owner's decision —
+  procedure in `backups/README.md`.
 - **If `sync:prod` FAILS** (production unreachable, `DB_EXPORT_TOKEN` drift
   after a sandbox restart — restore `.env`:
   `echo "<passphrase>" | bun scripts/secrets-backup.ts restore`):

@@ -29,8 +29,16 @@ restored from the GitHub repo.
 
 - A **git pre-push hook** (`scripts/git-hooks/pre-push`, armed by
   `scripts/install-git-hooks.sh` via the `prepare` script in package.json)
-  physically REFUSES every push of `main` unless `.sync-state` proves a
-  fully-verified production pull happened after the previous push.
+  physically REFUSES every push of `main` on TWO counts: (1) unless
+  `.sync-state` proves a fully-verified production pull happened after the
+  previous push, and (2) unless the live `.env` exactly matches the
+  encrypted backup's manifest (`backups/secrets.manifest` — ENFORCE-3:
+  any added/changed key, or a truncated `.env`, or an uncommitted rotation
+  blocks the push until restored/rotated with the owner's passphrase).
+- **One passphrase for life** (owner mandate): the system never expires or
+  asks to change the secrets passphrase. Restores and rotations always use
+  the same owner-held passphrase; changing it is solely the owner's
+  decision (procedure: backups/README.md).
 - `.sync-state` is written ONLY by `sync-prod-db.ts` on complete success
   (pull + validate + swap + strict schema push + integrity verify).
 - A fresh sandbox has no `.sync-state` → it is push-locked until the first

@@ -35,6 +35,7 @@
  * ============================================================================
  */
 import { execSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { Database } from 'bun:sqlite'
 
@@ -42,7 +43,10 @@ const ROOT = new URL('..', import.meta.url).pathname
 const SYNC_STATE = `${ROOT}.sync-state`
 const DAY_STATE = `${ROOT}.day-state`
 
-/** Must mirror REQUIRED_KEYS in scripts/secrets-backup.ts (the env gate). */
+/** Must mirror REQUIRED_KEYS in scripts/secrets-backup.ts (the env gate).
+ * These are the hard minimum. The FULL inventory comes from
+ * backups/secrets.manifest (ENFORCE-3) — every key name the encrypted
+ * backup protects must also exist in the live .env. */
 const REQUIRED_KEYS = [
   'DATABASE_URL',
   'PUBLIC_ORIGIN',
@@ -54,6 +58,28 @@ const REQUIRED_KEYS = [
   'GOOGLE_INTEGRATION_CLIENT_SECRET',
   'DB_EXPORT_TOKEN',
 ]
+
+/* ENFORCE-3 — minimal mirrors of scripts/secrets-backup.ts manifest helpers
+ * (that script has a side-effectful entrypoint, so it cannot be imported). */
+function sha256Hex(s: string): string {
+  return createHash('sha256').update(s, 'utf8').digest('hex')
+}
+function readManifest(): { keyCount: number; keys: string[]; envSha256: string; backedUpAt: string } | null {
+  const p = `${ROOT}backups/secrets.manifest`
+  if (!existsSync(p)) return null
+  const m: Record<string, string> = {}
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
+    const kv = /^(keyCount|keys|envSha256|backedUpAt)=(.*)$/.exec(line)
+    if (kv) m[kv[1]] = kv[2]
+  }
+  if (!m.envSha256 || !m.keys) return null
+  return {
+    keyCount: parseInt(m.keyCount || '0', 10) || m.keys.split(',').filter(Boolean).length,
+    keys: m.keys.split(',').filter(Boolean),
+    envSha256: m.envSha256,
+    backedUpAt: m.backedUpAt || '?',
+  }
+}
 
 function log(msg: string) {
   console.log(`[day  ${new Date().toISOString().slice(11, 19)}] ${msg}`)
@@ -210,7 +236,13 @@ function envMissing(): string[] {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
     if (m && !line.trimStart().startsWith('#')) kv.set(m[1], m[2].replace(/^["']|["']$/g, ''))
   }
-  return REQUIRED_KEYS.filter((k) => !kv.get(k))
+  const missing = REQUIRED_KEYS.filter((k) => !kv.get(k))
+  // ENFORCE-3: every key the backup protects must exist in the live .env —
+  // catches silent loss of OPTIONAL keys (e.g. RESEND_API_KEY) that the
+  // required-9 check never knew about.
+  const manKeys = readManifest()?.keys ?? []
+  const lost = manKeys.filter((k) => !kv.has(k))
+  return [...missing, ...lost]
 }
 
 let missing = envMissing()
@@ -238,6 +270,49 @@ if (missing.length) {
   log('.env restored from encrypted backup (keys verified).')
 } else {
   log('.env complete (9/9 required keys).')
+}
+
+/* ── 5b · ENFORCE-3 protection lock — live .env must equal the protected state.
+ *
+ * The manifest carries the sha256 of the exact .env that secrets.enc holds.
+ * After a restore it matches by construction. If it does NOT match, the live
+ * .env changed since the last rotation (a key was added/edited — e.g. a new
+ * integration key during a task) and is currently UNPROTECTED: a wipe would
+ * lose it. With the owner's passphrase piped on stdin, rotate automatically
+ * (one passphrase for life — the system never asks the owner to change it). */
+let protection = 'unknown'
+{
+  const man = readManifest()
+  const liveRaw = existsSync(`${ROOT}.env`) ? readFileSync(`${ROOT}.env`, 'utf8') : ''
+  const liveHash = liveRaw ? sha256Hex(liveRaw) : ''
+  if (!man || man.envSha256 !== liveHash) {
+    const why = !man
+      ? 'no manifest in this repo (pre-ENFORCE-3 backup) — baseline rotation needed'
+      : 'live .env differs from the protected backup (a key was added/changed since the last rotation)'
+    log(`secrets protection: ${why} — rotating the backup now.`)
+    if (process.stdin.isTTY) {
+      die(
+        'passphrase needed on stdin (owner-held, one passphrase for life — never stored, never a CLI arg):\n' +
+          '  echo "<OWNER_PASSPHRASE>" | bun run day:start',
+      )
+    }
+    const passphrase = await Bun.stdin.text()
+    const rot = spawnSync('bun', ['scripts/secrets-backup.ts', 'backup'], {
+      cwd: ROOT,
+      input: passphrase,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      timeout: 60_000,
+    })
+    if (rot.status !== 0) die('backup rotation failed — no CLEARED TO WORK with unprotected secrets.')
+    const man2 = readManifest()
+    const live2 = existsSync(`${ROOT}.env`) ? sha256Hex(readFileSync(`${ROOT}.env`, 'utf8')) : ''
+    if (!man2 || man2.envSha256 !== live2) die('rotation did not produce a matching manifest — investigate before working.')
+    protection = `rotated (${man2.keyCount} keys) — COMMIT backups/ with today’s first push`
+    log(`secrets backup rotated: ${man2.keyCount} keys now protected. Commit backups/secrets.enc + backups/secrets.manifest with today’s first push.`)
+  } else {
+    protection = `fully protected (${man.keyCount} keys, hash match)`
+    log(`secrets protection: live .env fully protected (${man.keyCount} keys, backed up ${man.backedUpAt}).`)
+  }
 }
 
 /* ── 6 · local DB check (informational — sync replaces it) ──────────────── */
@@ -285,8 +360,8 @@ console.log('──────────────────────�
 console.log(`DAY START STATE — ${new Date().toISOString()}`)
 console.log(`  GitHub:      ${tip[0]} ${(tip[1] || '').slice(0, 60)}${pulledCommits ? `  (pulled ${pulledCommits} new)` : '  (was current)'}`)
 console.log(`  Production:  synced ${state.get('lastPullIso') || '?'} — users=${state.get('users') || '?'}, trades=${state.get('trades') || '?'}`)
-console.log(`  Secrets:     .env complete (9/9)`)
-console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh (push-allowed for this cycle)`)
+console.log(`  Secrets:     .env complete (9/9 required) · ${protection}`)
+console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live`)
 if (ahead > 0) console.log(`  ⚠ UNPUSHED:  ${ahead} commit(s) from a previous cycle — push them now: git push`)
 console.log('────────────────────────────────────────────────────────────────')
 console.log('✅ CLEARED TO WORK — next: the 5-step ritual (AGENTS.md) for today’s task,')

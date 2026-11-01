@@ -187,6 +187,20 @@ try {
   )
 }
 
+/* ── 6b · regenerate the Prisma client from the (possibly pulled-newer) schema.
+ * OBSERVED 2026-11-01: after a sandbox restore + git pull, schema.prisma gains
+ * models the generated client in node_modules predates (stale from the
+ * snapshot era) — tsc then fails on db.blogPost etc. and runtime calls on
+ * the new models would throw. The client MUST be regenerated from the
+ * current schema on every sync. */
+try {
+  execSync('bunx prisma generate', { cwd: ROOT, stdio: 'pipe' })
+  log('prisma client regenerated from the current schema.')
+} catch (e: any) {
+  console.error(String(e.stdout || '') + String(e.stderr || ''))
+  die('PRISMA GENERATE FAILED after the schema push — the client would be stale. Fix before continuing.')
+}
+
 /* ── 7 · verify the swapped + schema-synced DB */
 
 const verify = new Database(DB, { readonly: true })
