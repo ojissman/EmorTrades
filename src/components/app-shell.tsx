@@ -48,6 +48,10 @@ import { ShortcutsOverlay } from './shell/shortcuts-overlay'
 // Task 12 — global consumer of the ?newTrade / ?editTrade URL params (the
 // trade modal is a global overlay, so its deep link is consumed globally too).
 import { TradeModalDeepLinkWatcher } from './shell/trade-modal-deeplink'
+// MOBILE-1 — the native mobile presentation (< lg): bottom tab bar + the
+// "More" bottom sheet. Renders nothing visible at lg+ (the desktop shell,
+// untouched, stays the only presentation there).
+import { MobileNav } from './shell/mobile-nav'
 import { useQuery } from '@tanstack/react-query'
 import { PriceAlertsMonitor } from '@/components/watchlist/price-alerts-monitor'
 // ADMIN-3 — the admin experience lives in THIS shell: same bars, same theme,
@@ -106,7 +110,13 @@ function ShellContent() {
       <TopBar />
       <GlobalActionBar accounts={accounts} />
       <div className="flex flex-1 items-stretch min-h-0">
-        {onAdmin ? <AdminSidebar /> : <Sidebar />}
+        {/* MOBILE-1 — below lg the sidebars are not rendered at all (display:
+            none also silences their fixed overlay/backdrop paths); mobile
+            navigation is the tab bar + More sheet in <MobileNav/>. At lg+
+            the wrapper is a plain flex row member, geometry unchanged. */}
+        <div className="hidden h-full min-h-0 shrink-0 lg:flex">
+          {onAdmin ? <AdminSidebar /> : <Sidebar />}
+        </div>
         <main
           className={
             onAdmin
@@ -118,6 +128,11 @@ function ShellContent() {
           {onAdmin ? <AdminContent /> : <PageRouter />}
         </main>
       </div>
+
+      {/* MOBILE-1 — region 6 (mobile only): the native bottom tab bar. It is
+          a flex child of the column (NOT fixed), so <main> can never scroll
+          underneath it — no padding hacks, the scroll isolation design holds. */}
+      <MobileNav />
 
       {/* Region 5 — global overlays */}
       {/* Task 12 — deep-link watcher (?newTrade=1 / ?editTrade=<id>) — renders

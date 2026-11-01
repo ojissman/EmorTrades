@@ -56,6 +56,7 @@ import {
   StickyNote,
   Briefcase,
   X,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { PeakPopup, PeakPopupTrigger, PeakPopupContent, PeakPopupClose } from './peak-popup'
 import { useThemePrefs, activeTheme, nextThemeId } from '@/store/theme-prefs-store'
@@ -380,8 +381,10 @@ export function TopBar() {
       role="banner"
       aria-label="Global top bar"
     >
-      {/* ☰ — FIRST element, BEFORE the logo (§1.1) */}
-      <IconBtn label="Toggle sidebar" onClick={toggleSidebar}>
+      {/* ☰ — desktop only (MOBILE-1): below lg the sidebars are not mounted,
+          so the hamburger is dead chrome — mobile navigation is the tab bar
+          + More sheet. Hidden there, first element at lg+ exactly as before. */}
+      <IconBtn label="Toggle sidebar" onClick={toggleSidebar} className="hidden lg:grid">
         <Menu className="h-4 w-4" />
       </IconBtn>
 
@@ -410,28 +413,30 @@ export function TopBar() {
         </span>
       </button>
 
-      {/* History arrows — desktop convenience; hidden on mobile so the
-          essential right cluster (apps · alerts · theme · account) fits. */}
+      {/* History arrows — desktop convenience; hidden below lg so the
+          essential right cluster (alerts · messages · theme · account) fits.
+          (MOBILE-1: was sm:, now lg: — 640–1023 joins the native shell.) */}
       <IconBtn
         label="Go backward"
         onClick={goBack}
-        className={`hidden sm:grid ${backCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
+        className={`hidden lg:grid ${backCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
       >
         <ArrowLeft className="h-4 w-4" />
       </IconBtn>
       <IconBtn
         label="Go forward"
         onClick={goForward}
-        className={`hidden sm:grid ${forwardCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
+        className={`hidden lg:grid ${forwardCount > 0 ? '' : 'opacity-40 pointer-events-none'}`.trim()}
       >
         <ArrowRight className="h-4 w-4" />
       </IconBtn>
 
       {/* Fix 5.2 — Functions grid icon → Functions popup (3 sections, verbatim).
-          Hidden on mobile (duplicated by the sidebar + Ctrl+K palette). */}
+          Desktop only (MOBILE-1): below lg the More sheet + Ctrl+K palette
+          carry the same actions. */}
       <PeakPopup>
         <PeakPopupTrigger asChild>
-          <IconBtn label="Functions" className="hidden sm:grid">
+          <IconBtn label="Functions" className="hidden lg:grid">
             <Grid3x3 className="h-4 w-4" />
           </IconBtn>
         </PeakPopupTrigger>
@@ -467,10 +472,11 @@ export function TopBar() {
       </PeakPopup>
 
       {/* Fix 5.3 — ⊕ Add/Import icon → Add/Import popup (4×2 grid, verbatim).
-          Hidden on mobile (the sidebar + Ctrl+K palette carry the same actions). */}
+          ALWAYS visible (MOBILE-1): on phones there is no sidebar, so this is
+          the one-tap quick-add — Add Trade first, native-app style. */}
       <PeakPopup>
         <PeakPopupTrigger asChild>
-          <IconBtn label="Add / Import" className="hidden sm:grid">
+          <IconBtn label="Add / Import">
             <CirclePlus className="h-4 w-4" />
           </IconBtn>
         </PeakPopupTrigger>
@@ -496,8 +502,8 @@ export function TopBar() {
 
       {/* Fix 6.1 — AI icon is a plain LINK to the AI Suite (Task 74: the
           former AI Q&A hub is now the QA tab inside it). Nothing pops out.
-          Hidden on mobile (the sidebar's AI group links there). */}
-      <IconBtn label="AI Suite" onClick={() => navigate('/ai-suite')} className="hidden sm:grid">
+          Desktop only (MOBILE-1): AI Suite is a top-level More-sheet entry. */}
+      <IconBtn label="AI Suite" onClick={() => navigate('/ai-suite')} className="hidden lg:grid">
         <Sparkles className="h-4 w-4" />
       </IconBtn>
 
@@ -506,7 +512,7 @@ export function TopBar() {
         {!searchHidden && (
           <button
             onClick={openCommandPalette}
-            className="shell-inset group hidden sm:flex h-8 w-full max-w-md items-center gap-2 rounded-md px-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+            className="shell-inset group hidden lg:flex h-8 w-full max-w-md items-center gap-2 rounded-md px-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
             aria-label="Search or ask anything (Ctrl+K)"
           >
             <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-secondary)' }} />
@@ -526,7 +532,7 @@ export function TopBar() {
             </kbd>
           </button>
         )}
-        <IconBtn label="Search or ask anything (Ctrl+K)" onClick={openCommandPalette} className={searchHidden ? '' : 'sm:hidden'}>
+        <IconBtn label="Search or ask anything (Ctrl+K)" onClick={openCommandPalette} className={searchHidden ? '' : 'lg:hidden'}>
           <Search className="h-4 w-4" />
         </IconBtn>
       </div>
@@ -534,7 +540,9 @@ export function TopBar() {
       {/* Right cluster */}
       <PeakPopup>
         <PeakPopupTrigger asChild>
-          <IconBtn label="Apps" dot>
+          {/* Apps grid — desktop only (MOBILE-1): navigation-flavored, so the
+              More sheet owns it below lg. */}
+          <IconBtn label="Apps" dot className="hidden lg:grid">
             <LayoutGrid className="h-4 w-4" />
           </IconBtn>
         </PeakPopupTrigger>
@@ -565,6 +573,19 @@ export function TopBar() {
           click → upcoming-releases popup). Hides honestly when nothing
           high-impact is upcoming in the synced week. */}
       <EconReleaseChip />
+
+      {/* MOBILE-1 — mobile Filters trigger. Below lg the GlobalActionBar (the
+          Filters button's home) is not rendered; this icon reaches the SAME
+          Task-148 drawer via a DOM event the action bar listens for (it stays
+          mounted, just display:none — the drawer mount is inside it). The
+          desktop path is untouched: same button, same local state. */}
+      <IconBtn
+        label="Filters"
+        className="lg:hidden"
+        onClick={() => window.dispatchEvent(new CustomEvent('emortrades:open-filters'))}
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+      </IconBtn>
 
       {/* Alerts — behavior patterns + watchlist price crossings */}
       <AlertsCenter />

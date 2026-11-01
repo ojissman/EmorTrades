@@ -88,7 +88,10 @@ export function EconReleaseChip() {
           aria-label={`Next high-impact release: ${nextHigh.title} (${nextHigh.currency}) in ${countdown} — open upcoming releases`}
           title={`${nextHigh.title} · ${nextHigh.currency}${nextHigh.forecast ? ` · forecast ${nextHigh.forecast}` : ''}`}
           className={cn(
-            'hidden md:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
+            // MOBILE-1 — lg boundary (was md:): 640–1023 portrait tablets are
+            // part of the native mobile shell now; the countdown chip is
+            // desktop-density chrome.
+            'hidden lg:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
             imminent
               ? 'border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20'
               : 'border-border bg-secondary text-muted-foreground hover:border-red-500/40 hover:text-red-400',

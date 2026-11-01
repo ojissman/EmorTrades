@@ -333,3 +333,47 @@ html[data-theme='mist'] {
   border-radius: 8px;
 }
 .shell-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   MOBILE-1 — native bottom tab bar (phones + portrait tablets)
+   Surface/bar tokens shared with the top bar; 56px touch targets
+   with iOS safe-area respect; active slot rides the shell accent.
+   ============================================================ */
+.mobile-tab-bar {
+  /* display/grid come from Tailwind utilities in the JSX (grid grid-cols-5
+     lg:hidden) — an unlayered display here would OUT-CASCADE lg:hidden
+     (Tailwind 4 utilities live in @layer; plain CSS beats any layer). */
+  width: 100%;
+  height: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border-strong);
+  background-color: var(--bg-bar);
+  flex-shrink: 0;
+}
+
+.mobile-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 56px;
+  color: var(--text-secondary);
+  transition: color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab:active {
+  background-color: var(--bg-hover);
+}
+
+.mobile-tab[data-active='true'] {
+  color: var(--shell-accent-hover);
+}
+
+.mobile-tab-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}

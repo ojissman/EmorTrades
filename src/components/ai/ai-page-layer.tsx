@@ -232,7 +232,10 @@ export function AIPageLayer({
             setOpen(true)
             void run('insights')
           }}
-          className="fixed bottom-4 right-4 z-30 flex items-center gap-1.5 rounded-full px-3.5 h-9 text-xs font-medium shell-accent-btn shadow-lg hover:shadow-xl transition-shadow"
+          // MOBILE-1 — below lg the native tab bar owns the bottom edge; the
+          // FAB lifts to sit above it (56px tab + 16px gap + safe area).
+          // Desktop (lg+) keeps the original bottom-4 untouched.
+          className="fixed bottom-4 right-4 max-lg:bottom-[calc(72px+env(safe-area-inset-bottom))] z-30 flex items-center gap-1.5 rounded-full px-3.5 h-9 text-xs font-medium shell-accent-btn shadow-lg hover:shadow-xl transition-shadow"
           aria-label={`Ask AI about ${contextPageName}`}
           title={`Ask AI about ${contextPageName}`}
         >

@@ -182,6 +182,16 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
   // carried forward, nothing dropped).
   const [filtersOpen, setFiltersOpen] = useState(false)
 
+  // MOBILE-1 — the mobile top bar's Filters icon (lg:hidden) opens the SAME
+  // Task-148 drawer: this bar stays MOUNTED below lg (only display:none), so
+  // the drawer mount inside it keeps working; the event just flips the same
+  // local state the desktop Filters button flips. Desktop path untouched.
+  useEffect(() => {
+    const open = () => setFiltersOpen(true)
+    window.addEventListener('emortrades:open-filters', open)
+    return () => window.removeEventListener('emortrades:open-filters', open)
+  }, [])
+
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       setMounted(true)
@@ -412,7 +422,7 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
   if (route.startsWith('/admin')) {
     return (
       <div
-        className="h-11 w-full sticky top-11 z-40 flex items-center gap-2 px-2 border-b shell-bar"
+        className="hidden lg:flex h-11 w-full sticky top-11 z-40 items-center gap-2 px-2 border-b shell-bar"
         role="toolbar"
         aria-label="Global action bar (administration)"
       >
@@ -437,7 +447,7 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
   }
 
   return (
-    <div className="h-11 w-full sticky top-11 z-40 flex items-center gap-2 px-2 border-b shell-bar" role="toolbar" aria-label="Global action bar">
+    <div className="hidden lg:flex h-11 w-full sticky top-11 z-40 items-center gap-2 px-2 border-b shell-bar" role="toolbar" aria-label="Global action bar">
       {/* ---- FIXED LEFT: Custom Dashboards (never swapped, never hidden) ---- */}
       <PeakPopup>
         <PeakPopupTrigger asChild>

@@ -6236,3 +6236,106 @@ match it, and day:start heals drift with the owner's one-for-life
 passphrase. The owner's two fears are physics now: an unrestored .env
 cannot push (fear 1), and a new key cannot reach "task done" unprotected
 (fear 2).
+
+## Task MOBILE-1 — Platform-adaptive shell: native mobile presentation (< lg), desktop untouched (≥ lg)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Work Log
+
+- OWNER DIRECTIVE (verbatim intent): "the Current windows app is okay and
+  good. but the mobile is something else... just as the windows is windows
+  compatible.. i want the mobile to also feel like a native mobile app...
+  same application but platform (windows/tablet/mobile) sensitive."
+- Design settled after the Level 1–4 discussion (this session): Level 2
+  shell fork + selective Level 3 later by real friction, never Level 4
+  (one codebase, one store, one hash-route space; presentation forks only).
+- ONE breakpoint rule: < lg (1024px) = native mobile shell (phones +
+  portrait tablets); ≥ lg = the desktop shell EXACTLY as before (owner:
+  "windows is okay and good" — so desktop is not redesigned, only guarded).
+
+- NEW src/components/shell/mobile-nav.tsx — region 6, mobile only:
+  · Native bottom TAB BAR (56px targets, safe-area aware): trader variant
+    Overview · Trades · Calendar · Journal · More; admin variant (deep admin
+    routes) Back to App · Dashboard · Users · More. Active mapping is
+    bare-route prefix (group-aware); deep non-tab routes light More (iOS
+    pattern).
+  · "More" bottom sheet (vaul, drag-to-dismiss): the REAL nav trees via the
+    REAL NavGroup renderer — trader tree (Simple-Mode aware, same
+    SIMPLE_MODE_NAV/NAV_ITEMS switch as the sidebar) + Simple Mode row +
+    utility row (UTILITY_ITEMS) + Admin Console row for admins; admin tree
+    (filterAdminNav permission-filtered, adminRouteMatches deep matching)
+    with Back to App pinned first.
+  · Sheet and sidebars SHARE open-groups persistence (same localStorage
+    keys: nav.openGroups.v2 / admin.nav.openGroups.v1) — a group opened in
+    the sheet is open on desktop after rotation; active-chain auto-expand
+    (§3.4) parity; every leaf tap navigates AND closes the sheet.
+- app-shell.tsx: sidebars wrapped in `hidden lg:flex` (below lg not
+  rendered at all — display:none also silences their overlay/backdrop
+  paths); <MobileNav/> is a flex child AFTER the main row, so content can
+  never scroll under the tab bar (scroll isolation design holds; no
+  padding hacks).
+- top-bar.tsx: existing phone handling lifted from sm (640) to lg (1023)
+  boundary — 640–1023 portrait tablets join the native shell. Hamburger
+  now desktop-only (dead chrome below lg); Add/Import ALWAYS visible (the
+  one-tap quick-add on phones); mobile-only Filters icon added (right
+  cluster) that opens the SAME Task-148 drawer via a DOM event.
+- global-action-bar.tsx: both roots (trader + admin) `hidden lg:flex`;
+  still MOUNTED below lg (display:none) so the GlobalFiltersDrawer mount
+  inside keeps working; listens for 'emortrades:open-filters'. Desktop
+  path untouched — same button, same local state.
+- econ-release-chip.tsx: md → lg boundary (same tablet-portrait rule).
+- shell.css: .mobile-tab-bar/.mobile-tab styles. CRITICAL cascade lesson:
+  display/grid live in Tailwind utilities in the JSX (grid grid-cols-5
+  lg:hidden) — an UNLAYERED display in plain CSS out-cascades Tailwind 4's
+  layered utilities and silently kills lg:hidden (caught live in E2E:
+  tab bar visible at 1280px; fixed by moving display to the JSX layer).
+- ai-page-layer.tsx: the global AI FAB lifts above the tab bar below lg
+  (max-lg:bottom-[calc(72px+env(safe-area-inset-bottom))]); desktop keeps
+  bottom-4. Caught live in E2E: agent-browser refused the More-tab click —
+  the FAB covered it at the click point.
+
+- Gates: eslint 0 · tsc clean · vitest 131/131 · dev 200. tsc+vitest
+  OOM-killed dev once (known cgroup behavior) — restarted, 200.
+
+### E2E PROOF (live, agent-browser, session cookie via scripts/mint-session.ts)
+
+- DESKTOP 1280×800: sidebar flex w-52 rail, action bar flex, tab bar
+  display:none, Filters icon display:none — desktop byte-identical behavior.
+- MOBILE 390×844: tab bar grid (5 tabs) flush to bottom (bottom=844);
+  sidebar rect width 0; action bar none; hamburger none; standalone search
+  icon visible (chip hidden); Add/Import visible; Filters icon visible;
+  default active tab Overview. main bottom 788 = 844 − 56 (tab height) —
+  zero overlap, scroll isolation intact.
+- More sheet: opens (vaul data-state=open); full tree + Simple Mode row +
+  utility row + Admin Console row all present; shared open-groups verified
+  (Explore group expanded persisted through the session).
+- Golden path: sheet → Explore group → Trade Explore leaf → sheet closed,
+  route #/explore/trade-explore, page rendered, More tab lit (deep route).
+- Tab taps by ref: Trades → #/tables/trades (active Trades, H1 Trades);
+  Calendar → #/calendar (active Calendar, H1 Calendar). (Note: find-by-name
+  "Trades" substring-matched the "EmorTrades" logo → home; locator
+  artifact, not an app bug — retested by ref.)
+- Mobile Filters icon → SAME Task-148 drawer opens (body contains the
+  drawer's "Apply filters" footer) via the DOM event; desktop path intact.
+- Admin on mobile: sheet Admin Console row → #/admin; tabs swap to
+  [Back to App, Dashboard, Users, More], Dashboard active, admin content
+  renders; Users tab → #/admin/users (deep-route Users active); Back to
+  App → #/overview, trader tabs restored, Overview active.
+- Command palette opens from the mobile search icon (dialog visible).
+- Boundary: 900×844 → mobile shell (tab bar grid, sidebar 0); 1024×800 →
+  desktop shell (tab bar none, sidebar 52px rail, action bar flex).
+  Exact split at lg as designed.
+- dev.log during E2E: all API 200s, no runtime/hydration errors. Browser
+  console: only pre-existing warnings (DialogContent description,
+  useSyncExternalStore caching) — nothing added by this task.
+
+### Files
+
+- NEW src/components/shell/mobile-nav.tsx
+- M src/components/app-shell.tsx · shell/top-bar.tsx ·
+  shell/global-action-bar.tsx · shell/econ-release-chip.tsx ·
+  shell/shell.css · ai/ai-page-layer.tsx
+- M db/custom.db (rides with the ritual pull at task start — users=3,
+  trades=381, verified 14:24Z)
