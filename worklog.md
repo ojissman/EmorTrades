@@ -6575,3 +6575,101 @@ cannot push (fear 1), and a new key cannot reach "task done" unprotected
   reconciling from git+worklog (the durable record) instead of the
   handoff is what recovered the truth — the protocol's design premise
   working as intended.
+
+---
+
+## Task ENFORCE-4 — ritual drift guard: the environment enforces the ritual (owner mandate)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Owner report (verbatim intent)
+
+"this same issue happen yesterday and i noticed it and asked you to fix it..
+and you coded but i dont know and tell me its perfectly locked in before i
+sign out yesterday... now today same thing... fix this drifting issue
+permanently before you will cause me what i cant afford to lose. do whatever
+you need to do but is just never repeat again... and i mean it."
+
+### The admission
+
+ENFORCE-1/2/3 guard pushes and day-starts. They are physically unable to act
+when a session dies mid-cycle (no push ever happens, so the pre-push hook
+never fires) or when a cycle skips its opening pull (nothing observes the gap
+until work already exists). Drift stayed invisible unless the owner caught it
+by hand — twice. The fix could not be another promise from me; it had to
+become a property of the environment.
+
+### What was built (drift as environment state)
+
+- `src/lib/ritual-guard.ts` — computeRitualState(): reads only the durable
+  sources (git working tree + origin/main, .sync-state pull marker).
+  DRIFT (locks the app) = task work (changed/untracked files beyond the db
+  sidecars, or commits ahead of origin) while the last verified pull predates
+  the last push — i.e. work began without this cycle's ritual pull; the exact
+  PROFILE-1 signature. WARN (amber banner, non-blocking) = commits ahead of
+  origin (open cycle; GitHub DR copy behind the sandbox). Fail-open by design:
+  no .git / git errors (e.g. the deployed production build) → 'unknown',
+  never locked — a broken guard must never brick the app.
+- `/api/ritual-state` — public, no secrets, no user data, no DB; 10s memo.
+- `src/components/ritual-lock-gate.tsx` wrapping the whole `/` surface
+  (page.tsx): DRIFT → full-screen lock page (owner-visible in the preview,
+  with the exact recovery steps printed on it); WARN → slim amber top banner;
+  20s poll + focus/visibility refetch; children held back only for the first
+  verdict so drift can never flash the app first; fetch failure → fail-open.
+- `day:start` hardened: ahead>0 at the gate (committed-but-unpushed work —
+  the exact shape the PROFILE-1 Auto-Backup commit created) now REFUSES
+  (OPEN CYCLE) instead of logging a note; a new day can never bury an open
+  cycle. Dead "⚠ UNPUSHED" report line removed (unreachable now).
+- AGENTS.md: ENFORCE-4 added to the enforcement map + cycle disciplines
+  (close-out atomic with the work, never parked; reconcile from git + worklog
+  only, never a session handoff; an inherited open cycle is completed before
+  any new work).
+
+### Ritual compliance of THIS cycle (the point of the task)
+
+- Opening pull 16:37:42Z (users=4, trades=381) BEFORE any code — the state
+  the guard itself demands. Worklog = this entry. Commit + push last; the
+  pre-push hook validates on the 16:37 pull.
+
+### Verification (E2E, agent-browser)
+
+- Lawful mid-cycle: 6 WIP files visible in detail, pull 16:37 > push 16:19
+  → level ok, no lock; app renders normally.
+- Incident simulation (PROFILE-1 signature): .sync-state test-mutated to
+  ancient (epoch 1000 / 15:12Z) + untracked scratch file → API level=drift,
+  lock=true, 7 files, plain-language reasons. Browser: the app was REPLACED
+  by the lock page (a11y alertdialog "Ritual drift — sandbox locked",
+  reasons + Re-check present); screenshot /tmp/ritual-lock-e2e.png; zero
+  page errors; console clean (HMR only).
+- Recovery: scratch removed + real .sync-state byte-restored (the 16:37
+  marker never lost) → lock lifted WITHOUT reload (20s poll); landing
+  rendered; API level ok. Lock-lift ≈ one poll interval, by design.
+- WARN + OPEN CYCLE day:start refusal: verified during close-out (the
+  committed-but-unpushed moment) — see the addendum below this entry.
+- Gates: lint 0 errors; tsc --noEmit 0; dev 200 throughout; /api/ritual-state
+  200 (558ms cold / 83ms warm).
+- E2E hygiene: no test users, no DB rows touched (the guard reads git only);
+  .sync-state mutation backed up and byte-restored; scratch file removed;
+  browser closed after verify.
+
+### Files
+
+- A src/lib/ritual-guard.ts · src/app/api/ritual-state/route.ts ·
+  src/components/ritual-lock-gate.tsx
+- M src/app/page.tsx (RitualLockGate wraps the AuthGate surface)
+- M scripts/day-start.ts (OPEN CYCLE refusal; dead report line removed)
+- M AGENTS.md (ENFORCE-4 + cycle disciplines)
+
+### Close-out addendum — WARN + day:start refusal, verified at their natural moment
+
+- After commit, before push (the committed-but-unpushed instant): API
+  level=warn, lock=false, ahead=1 (10s memo initially served the pre-commit
+  verdict — re-verified after expiry, checkedAt 16:45:13Z). Browser: the app
+  renders normally WITH the amber banner on top (role=status, non-blocking) —
+  an open cycle stays usable for verify but is impossible to forget.
+- `bun run day:start` in that state: REFUSED at the gate — "OPEN CYCLE: 1
+  unpushed commit(s)... A new day never buries an open cycle (ENFORCE-4)" —
+  printed the 4-step completion order and died before any side effect
+  (before bun install, before sync:prod). This is the exact burial path that
+  hid the PROFILE-1 incident yesterday/today; it is now closed.

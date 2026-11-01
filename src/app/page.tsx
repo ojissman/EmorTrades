@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { AuthGate } from '@/components/auth/auth-gate'
+import { RitualLockGate } from '@/components/ritual-lock-gate'
 import { FAQS } from '@/config/landing-faqs'
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/server/auth'
 import { faqJsonLd, organizationJsonLd, softwareAppJsonLd, webSiteJsonLd } from '@/lib/seo'
@@ -37,7 +38,11 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <AuthGate initial={initial} />
+      {/* ENFORCE-4: wraps the entire surface (landing + shell). During ritual
+          drift the app is replaced by the lock page — see ritual-lock-gate. */}
+      <RitualLockGate>
+        <AuthGate initial={initial} />
+      </RitualLockGate>
     </>
   )
 }

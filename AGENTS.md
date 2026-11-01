@@ -29,6 +29,17 @@ refreshed from live production.
    code + the current production data snapshot together (the data time
    machine; `db/custom.db` is tracked).
 
+**Cycle disciplines (owner mandate after the PROFILE-1 incident, 2026-11-01):**
+the close-out (worklog → commit → push) is issued IN THE SAME ACTION as the
+work — a finished cycle is never left parked for "later". Sessions die
+without warning; anything parked is drift. If a session inherits a state at
+all (any session, any day): reconcile from **git + worklog.md only** — never
+from a session handoff/summary. If an open cycle is found (unpushed work,
+drifted state): complete it BEFORE any new work — `bun run sync:prod` first,
+then verify, worklog, commit, push. The **ritual lock page** (ENFORCE-4)
+replaces the app until the missing pull lands; it is by design, not an
+outage — run `bun run sync:prod` and it lifts.
+
 ## NEW-DAY PROTOCOL (owner-initiated — current standing arrangement)
 
 On a new day, BEFORE any task, the owner will message: *"Pull GitHub latest"*
@@ -111,6 +122,22 @@ did not happen: just run `bun run day:start`.
   Both live in the repo, so a cloned sandbox re-arms them automatically. A
   fresh sandbox has no `.sync-state` → it is push-locked until the first real
   `bun run sync:prod`.
+- **Ritual guard / drift lock (ENFORCE-4, 2026-11-01)** — the environment-side
+  detector for the failure mode ENFORCE-1/2/3 could not see: a cycle that
+  skipped its opening pull, or a session that died before pushing (no push
+  happens, so the pre-push hook never fires).
+  - `src/lib/ritual-guard.ts` + public `/api/ritual-state` (no secrets, no
+    DB) + `<RitualLockGate>` wrapping the whole `/` surface.
+  - **DRIFT** = task work exists (changed/untracked files beyond the db
+    sidecars, or commits ahead of origin/main) while the last verified pull
+    (`.sync-state`) predates the last push (origin/main tip) → the app is
+    replaced by a **lock page** (owner-visible in the preview) until
+    `bun run sync:prod` lands. A locked app cannot be verified, so no task
+    can complete while drifted.
+  - **WARN** = commits ahead of origin (open cycle, unpushed work) → amber
+    banner; `day:start` refuses to start a new day on it (OPEN CYCLE refusal).
+  - Fail-open by design: no git metadata (e.g. the deployed production
+    build) → never locks.
 - **`.sync-state`** (gitignored, local): written ONLY by
   `scripts/sync-prod-db.ts` on complete success (pull + validate + swap +
   strict schema push + integrity verify).

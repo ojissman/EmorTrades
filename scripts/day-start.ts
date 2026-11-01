@@ -210,8 +210,23 @@ if (behind > 0) {
 } else if (LOCAL === REMOTE) {
   log('local main already matches origin/main (last pushed state).')
 }
+/* ENFORCE-4 (owner mandate, 2026-11-01 — the PROFILE-1 incident): an open
+ * cycle (committed work that never reached GitHub — e.g. a session that died
+ * mid-cycle and got snapshotted by the platform Auto-Backup) must NEVER be
+ * buried by a new day. The GitHub disaster-recovery copy is behind; starting
+ * new work on top of it is exactly how data rot begins. Complete the cycle
+ * first, then re-run this gate. */
 if (ahead > 0) {
-  log(`NOTE: ${ahead} UNPUSHED commit(s) from a previous cycle — after this gate, push them (the fresh sync above satisfies the pre-push hook).`)
+  die(
+    `OPEN CYCLE: ${ahead} unpushed commit(s) from a previous cycle. A new day never buries an open cycle (ENFORCE-4).\n` +
+      '  Complete it first, then re-run: bun run day:start\n' +
+      '    1. bun run sync:prod   — the ritual pull (the pre-push hook requires it)\n' +
+      '    2. verify the task in the app (the ritual-lock page lifts once the pull lands)\n' +
+      '    3. append the worklog entry\n' +
+      '    4. git add -A && git commit && git push\n' +
+      '  If the work is dead-session residue of UNKNOWN intent: reconstruct from\n' +
+      '  git + worklog.md (never from a session handoff), document it, then close.'
+  )
 }
 
 /* ── 4 · bun install (arms the pre-push enforcement hook) ───────────────── */
@@ -361,8 +376,7 @@ console.log(`DAY START STATE — ${new Date().toISOString()}`)
 console.log(`  GitHub:      ${tip[0]} ${(tip[1] || '').slice(0, 60)}${pulledCommits ? `  (pulled ${pulledCommits} new)` : '  (was current)'}`)
 console.log(`  Production:  synced ${state.get('lastPullIso') || '?'} — users=${state.get('users') || '?'}, trades=${state.get('trades') || '?'}`)
 console.log(`  Secrets:     .env complete (9/9 required) · ${protection}`)
-console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live`)
-if (ahead > 0) console.log(`  ⚠ UNPUSHED:  ${ahead} commit(s) from a previous cycle — push them now: git push`)
+console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live · ritual-guard live (ENFORCE-4)`)
 console.log('────────────────────────────────────────────────────────────────')
 console.log('✅ CLEARED TO WORK — next: the 5-step ritual (AGENTS.md) for today’s task,')
 console.log('   starting from this pulled state. Report this block to the owner.')
