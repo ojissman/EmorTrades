@@ -87,6 +87,7 @@ import {
   Compass,
   ExternalLink,
   GitBranch,
+  Download,
 } from 'lucide-react'
 import { formatCurrency, formatCurrencyIn, formatDate, formatDuration, formatNumber, formatRMultiple, formatTimestampL1, pnlColor } from '@/lib/format'
 import { useToast } from '@/hooks/use-toast'
@@ -100,6 +101,14 @@ import {
 // MOBILE-3 — the native mobile card deck (Level 3 page-level polish): below
 // lg this replaces BOTH desktop presentations of the Table sub-view.
 import { TradesMobileDeck } from '@/components/trade/trades-mobile-deck'
+// MOBILE-4 — the native mobile decks for the aggregate sub-views (Symbol /
+// Tags / Day / Exec): below lg they replace the wide desktop tables.
+import {
+  SymbolMobileDeck,
+  TagMobileDeck,
+  DayMobileDeck,
+  ExecMobileDeck,
+} from '@/components/trade/subview-mobile-decks'
 import { CustomColumnsDialog } from '@/components/trade/custom-columns-dialog'
 import type { CustomColumn } from '@/lib/formula'
 import {
@@ -977,13 +986,17 @@ export function TradesPage() {
 
   // ---- Task 153-a — Table Actions menu handlers ---------------------------
   function selectAllCurrent() {
-    if (presentation === 'grid') gridApiRef.current?.selectAll()
+    // MOBILE-4 — the grid path needs the grid to actually be mounted: on a
+    // phone the deck owns the page (gridApiRef stays null), so the store-set
+    // fallback keeps Select All working there instead of silently no-op'ing.
+    if (presentation === 'grid' && gridApiRef.current) gridApiRef.current.selectAll()
     else setSelectedIds(new Set(filtered.map((t: any) => t.id)))
   }
 
   function deselectAllCurrent() {
-    if (presentation === 'grid') gridApiRef.current?.deselectAll()
-    setSelectedIds(new Set())
+    // MOBILE-4 — same mounted-grid guard as selectAllCurrent.
+    if (presentation === 'grid' && gridApiRef.current) gridApiRef.current.deselectAll()
+    else setSelectedIds(new Set())
   }
 
   function handleDeleteSelected() {
@@ -1120,11 +1133,20 @@ export function TradesPage() {
     if (isNarrow) {
       if (panel === 'filters') {
         setFiltersDrawerOpen(true)
+      } else if (panel === 'actions') {
+        // MOBILE-4 — the rail's useful actions are now ROUTED on mobile:
+        // Export / Add Trade / Delete Selected live in this very Actions
+        // menu (lg:hidden items), so the toast points there instead of at a
+        // desktop-only panel.
+        toast({
+          title: 'Use the Actions menu',
+          description:
+            'On this phone, Export to CSV, Add Trade and Delete Selected are items in this Actions menu — the full panel stays a desktop layout.',
+        })
       } else {
         toast({
           title: 'Desktop panel',
-          description:
-            'Columns and Table Actions live in the desktop layout — widen the window to use them.',
+          description: 'Column management lives in the desktop layout — widen the window to use it.',
         })
       }
       return
@@ -1572,6 +1594,27 @@ export function TradesPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
+          {/* MOBILE-4 — mobile-only entry points. Below lg the Global Action
+              Bar (Export / Add Trade) and the tool rail (Table Actions) are
+              not rendered, so this menu carries them instead. Desktop never
+              sees this block (lg:hidden). */}
+          <DropdownMenuItem
+            className="lg:hidden"
+            data-testid="trades-action-export"
+            onClick={handleExport}
+          >
+            <Download className="h-3.5 w-3.5 mr-2" />
+            Export to CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="lg:hidden"
+            data-testid="trades-action-add"
+            onClick={() => openTradeModal(null)}
+          >
+            <Plus className="h-3.5 w-3.5 mr-2" />
+            Add Trade
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="lg:hidden" />
           {/* TP — bulk plan link: versions resolve per trade at ITS entry time */}
           <DropdownMenuItem
             data-testid="trades-action-bulk-link"
@@ -1743,6 +1786,15 @@ export function TradesPage() {
             <DropdownMenuSubContent>
               <DropdownMenuItem onClick={selectAllCurrent}>Select All</DropdownMenuItem>
               <DropdownMenuItem onClick={deselectAllCurrent}>Deselect All</DropdownMenuItem>
+              {/* MOBILE-4 — the rail's Delete Selected, routed for mobile. */}
+              <DropdownMenuItem
+                className="lg:hidden text-red-500 focus:text-red-500"
+                data-testid="trades-action-delete-selected"
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                Delete Selected
+              </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* Same Height Rows — collapse every expanded detail row */}
@@ -2190,6 +2242,30 @@ export function TradesPage() {
             <div className="p-12 text-center">
               <p className="text-sm text-muted-foreground">No executions found</p>
             </div>
+          ) : isNarrow === null ? (
+            /* MOBILE-4 — measurement guard (same pattern as the Table
+                sub-view): the presentation choice resolves before any of the
+                wide tables can paint on a phone. */
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-16" />
+              ))}
+            </div>
+          ) : isNarrow ? (
+            /* MOBILE-4 — the native exec deck: one execution per card row
+                (tap = the row's View button; ⋮ = the row's compass). */
+            <ExecMobileDeck
+              rows={execRows}
+              onView={(e) => {
+                if (e.tradeId && e.trade) openTradeDetail(e.tradeId, e.trade)
+              }}
+              onExplore={(e) => {
+                if (!e.tradeId) return
+                // Task 12 — breadcrumb back to the executions table.
+                markDrillOrigin('/explore/trade-explore')
+                navigate(`/explore/trade-explore?trade=${encodeURIComponent(e.tradeId)}`)
+              }}
+            />
           ) : (
             <>
               <div className="max-h-[560px] overflow-y-auto">
@@ -2543,6 +2619,36 @@ export function TradesPage() {
               </TableBody>
             </Table>
           </div>
+        ) : isNarrow === null ? (
+          /* MOBILE-4 — measurement guard (same pattern as the Table
+              sub-view). */
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        ) : isNarrow ? (
+          /* MOBILE-4 — the native mobile decks for the aggregate sub-views:
+              one aggregate per card row, the same handlers the desktop
+              rows call (tap = the row's primary; ⋮ = the row's compass). */
+          subView === 'symbol' ? (
+            <SymbolMobileDeck
+              rows={symbolRows}
+              onOpen={(key) => navigate(`${PAGE_TO_ROUTE.symbols}?symbol=${encodeURIComponent(key)}`)}
+            />
+          ) : subView === 'tags' ? (
+            <TagMobileDeck
+              rows={tagRows}
+              colorFor={(name) => tagColorByName.get(name) ?? setupColorByName.get(name) ?? '#71717a'}
+              onOpen={(name) => navigate(`${PAGE_TO_ROUTE.setups}?tag=${encodeURIComponent(name)}`)}
+            />
+          ) : (
+            <DayMobileDeck
+              rows={dayRows}
+              onFilter={(date) => filterToDay(date)}
+              onExplore={(date) => drillToDay(date)}
+            />
+          )
         ) : (
           <div className="max-h-[560px] overflow-y-auto">
             {subView === 'symbol' && (

@@ -49,6 +49,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer'
@@ -301,6 +302,16 @@ export function MobileNav() {
                 <X className="h-4 w-4" />
               </button>
             </DrawerTitle>
+            {/* MOBILE-4 — the dialog Description. Without it vaul (Radix
+                Dialog) warns "Missing `Description` or `aria-describedby={
+                undefined}` for {DrawerContent}" on every open and screen
+                readers get no summary; sr-only keeps the sheet visually
+                byte-identical. */}
+            <DrawerDescription className="sr-only">
+              {onAdmin
+                ? 'The full admin navigation tree, the Simple Mode switch and utility destinations.'
+                : 'The full navigation tree, the Simple Mode switch and utility destinations.'}
+            </DrawerDescription>
           </DrawerHeader>
 
           <div className="overflow-y-auto overscroll-contain shell-scroll px-3 pb-4 flex-1 min-h-0">

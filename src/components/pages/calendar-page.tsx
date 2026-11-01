@@ -38,6 +38,9 @@ import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 // shared client-safe econ helpers (countdown formatter, impact ranks/dots)
 import { fmtEconCountdown, ECON_IMPACT_RANK, ECON_DOT_CLS, ECON_IMPACT_BG } from '@/lib/econ-shared'
+// MOBILE-4 — the native phone Week view (stacked per-day agenda). Below lg
+// it replaces the FullCalendar time-grid, which can never mount on a phone.
+import { WeekAgendaMobile } from '@/components/calendar/week-agenda-mobile'
 // honest fetch-failure state (same card the metrics pages use)
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 // the app-wide day deep link (breadcrumb-aware) — every "open this day" on
@@ -140,6 +143,20 @@ export function CalendarPage() {
   // ring-matching every day cell of that weekday, so the eye can trace
   // "where do the Tuesdays actually sit in the month".
   const [hoverWd, setHoverWd] = useState<number | null>(null)
+
+  // MOBILE-4 — Level 3 page-level polish, week-view follow-up. Same measure
+  // as the trades page (MOBILE-3): null = not yet measured → the Week view
+  // and the month FullCalendar engine hold a skeleton, so the FullCalendar
+  // can never mount on a phone (its 7-column time-grid is unreadable at
+  // ~44px columns — the stacked WeekAgendaMobile renders instead).
+  const [isNarrow, setIsNarrow] = useState<boolean | null>(null)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const apply = () => setIsNarrow(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
 
   // ---------- Economic news-release layer (real data from the synced
   // ForexFactory feed — see /api/economic-calendar). Panel + filter prefs
@@ -1044,10 +1061,15 @@ export function CalendarPage() {
                 </button>
               ))}
             </div>
-            {/* month engine toggle (Journal heat grid vs FullCalendar) */}
+            {/* month engine toggle (Journal heat grid vs FullCalendar).
+                MOBILE-4 — hidden below lg: the FullCalendar month engine is a
+                desktop presentation (its chips need width); a phone always
+                gets the Journal heat grid, which IS the native phone month
+                view (MOBILE-3). A persisted 'fullcalendar' choice from desktop
+                simply falls through to the journal grid on a phone. */}
             {view === 'month' && (
               <div
-                className="flex items-center rounded-md border border-[var(--border-strong)] p-0.5"
+                className="hidden items-center rounded-md border border-[var(--border-strong)] p-0.5 lg:flex"
                 role="group"
                 aria-label="Month grid engine"
                 data-testid="calendar-engine-toggle"
@@ -1537,9 +1559,12 @@ export function CalendarPage() {
       {/* ================= WEEK VIEW ================= */}
       {view === 'week' && (
         <>
-          {/* Week strip — the seven days at a glance; click → Day view */}
+          {/* Week strip — the seven days at a glance; click → Day view.
+              MOBILE-4 — phone cells get the DayCell treatment: tighter gap and
+              padding below md, and a number-only compact P&L (the full table
+              format clips in a ~47px cell; color is the sign cue). */}
           <Card className="p-3 md:p-4" data-testid="week-strip">
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1 md:gap-1.5">
               {weekDays.map((d) => {
                 const k = toIsoDate(d)
                 const dd = tradesByDay.get(k)
@@ -1560,7 +1585,7 @@ export function CalendarPage() {
                     aria-pressed={isCursorDay}
                     aria-label={`${d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}${dd ? `, ${dd.trades} trades, P&L ${dd.pnl >= 0 ? '+' : ''}${Math.round(dd.pnl)}` : ', no trades'}${dNews?.length ? `, ${dNews.length} releases` : ''}`}
                     className={cn(
-                      'rounded-md border p-1.5 flex flex-col items-center gap-0.5 min-w-0 transition-[transform,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
+                      'rounded-md border p-1 md:p-1.5 flex flex-col items-center gap-0.5 min-w-0 transition-[transform,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
                       isCursorDay
                         ? 'border-sky-400/40 bg-sky-400/[0.06] cursor-default'
                         : 'border-border bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20',
@@ -1578,9 +1603,19 @@ export function CalendarPage() {
                         'text-[10px] font-bold tnum max-w-full truncate',
                         dd ? pnlColor(dd.pnl) : 'text-muted-foreground/50',
                       )}
-                      title={dd ? `${dd.trades} trades · ${dd.wins}W / ${dd.losses}L` : 'no trades'}
+                      title={dd ? `${dd.trades} trades · ${dd.wins}W / ${dd.losses}L · ${dd.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', dd.pnl)}` : 'no trades'}
                     >
-                      {dd ? `${dd.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', dd.pnl)}` : '·'}
+                      {dd ? (
+                        <>
+                          {/* MOBILE-4 — compact number-only P&L below md (the
+                              month DayCell treatment); exact figure lives in
+                              the title/aria. */}
+                          <span className="md:hidden">{fmtCellPnlCompact(dd.pnl)}</span>
+                          <span className="hidden md:inline">{dd.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', dd.pnl)}</span>
+                        </>
+                      ) : (
+                        '·'
+                      )}
                     </span>
                     <span className="text-[9px] text-muted-foreground tnum leading-none">
                       {dd ? `${dd.trades}t` : ''}
@@ -1594,9 +1629,29 @@ export function CalendarPage() {
             </p>
           </Card>
 
-          {/* Week time-grid (FullCalendar timeGridWeek) */}
+          {/* Week time-grid — MOBILE-4: below lg the FullCalendar never
+              mounts; the week renders as the stacked per-day agenda instead
+              (same information set, reading width). The null-measure frame
+              holds a skeleton so neither presentation can flash on a phone.
+              Desktop (≥ lg) is byte-identical to before. */}
           <Card className="p-3 md:p-4 overflow-hidden" data-testid="week-timegrid">
-            <div className="fc-dark">
+            {isNarrow === null ? (
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12" />
+                ))}
+              </div>
+            ) : isNarrow ? (
+              <WeekAgendaMobile
+                weekDays={weekDays}
+                tradesByDay={tradesByDay}
+                newsByDay={newsByDay}
+                onTradePeek={tradePeek}
+                onDayPeek={openDayPeek}
+                onDayExplore={(d) => drillToDay(toIsoDate(d))}
+              />
+            ) : (
+              <div className="fc-dark">
               <FullCalendar
                 ref={fcRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -1625,11 +1680,13 @@ export function CalendarPage() {
                   const s = arg.view.currentStart
                   setCursor((prev) => (prev.getTime() === s.getTime() ? prev : s))
                 }}
-              />
-            </div>
+                />
+              </div>
+            )}
             <p className="mt-2 text-[10px] text-muted-foreground px-1">
-              FullCalendar 6.1.21 time-grid · green/red chips = your trades (entry → exit span) · tinted chips = releases ·
-              click a chip for its peek · click empty space for Day view · click a day name for Day Explore
+              {isNarrow
+                ? 'week agenda · tap a day for its peek · tap a trade for the trade peek · ⋮ opens Day Explore'
+                : 'FullCalendar 6.1.21 time-grid · green/red chips = your trades (entry → exit span) · tinted chips = releases · click a chip for its peek · click empty space for Day view · click a day name for Day Explore'}
             </p>
           </Card>
 
@@ -1770,9 +1827,22 @@ export function CalendarPage() {
           {/* Month grid — Journal (bespoke P&L heat grid + Week totals column)
               vs FullCalendar engine. The toolbar, quarter map and insights
               strip stay authoritative in both: FullCalendar navigation syncs
-              back into `cursor` via datesSet. */}
-          {calMode === 'fullcalendar' ? (
-            <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
+              back into `cursor` via datesSet.
+              MOBILE-4 — the FullCalendar engine is desktop-only now: on a
+              phone (or before the breakpoint is measured) the journal grid
+              renders, with a one-frame skeleton while measuring so the FC
+              can never mount on a phone. */}
+          {calMode === 'fullcalendar' && isNarrow !== true ? (
+            isNarrow === null ? (
+              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12" />
+                  ))}
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
               <div className="fc-dark">
                 <FullCalendar
                   ref={fcRef}
@@ -1803,7 +1873,8 @@ export function CalendarPage() {
               <p className="mt-2 text-[10px] text-muted-foreground px-1">
                 FullCalendar engine · click a chip or day for the peek · click a day number to open Day Explore
               </p>
-            </Card>
+              </Card>
+            )
           ) : (
             <Card className="p-3 md:p-4 overflow-x-auto" data-testid="journal-grid">
               {/* MOBILE-3 — below md the month grid is the native phone

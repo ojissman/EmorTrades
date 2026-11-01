@@ -7394,6 +7394,133 @@ CLAUDE.md discipline bullet above the block · commit + push last.
 known cgroup OOM; restarted single-instance, Ready 4.1s — an owner
 preview session was live at the time and recovered).
 
+## Task MOBILE-4 — "do all": every open channel from the recorded Level-3 follow-up list, closed
+
+**Owner request (verbatim, 2026-11-01):** "do all" — after MOBILE-3 the
+owner asked what I suggest; the recommendation listed the four recorded
+open channels and the owner approved ALL of them in one word. Scope =
+exactly those four; nothing else was touched.
+
+**The four channels, and what shipped for each:**
+
+1. **vaul More-sheet a11y warning** (the known pre-existing MOBILE-1
+   console warning): root cause confirmed in node_modules — Radix Dialog
+   (which vaul wraps) logs `Warning: Missing \`Description\` or
+   \`aria-describedby={undefined}\` for {DrawerContent}` whenever a
+   drawer opens without a Description. mobile-nav.tsx now carries an
+   sr-only `DrawerDescription` ("The full navigation tree, the Simple
+   Mode switch and utility destinations." / the admin variant) —
+   visually byte-identical, `aria-describedby` resolves, screen readers
+   get a summary, and the warning is GONE (verified by clearing the
+   console, reopening the sheet, and scanning: zero matches).
+2. **Secondary trades sub-views on mobile** (Symbol/Tags/Day/Exec were
+   still desktop wide tables — 9–12 columns in ~50px): NEW
+   src/components/trade/subview-mobile-decks.tsx — the four decks in
+   the TradesMobileDeck grammar (one aggregate per card row, P&L
+   headline, two meta lines, page-scroll native). Every deck calls the
+   SAME handlers the desktop rows call: Symbol tap → Symbols/Sectors/
+   Industries; Tag tap → Tags Analysis; Day tap → filterToDay (table
+   scoped to that day) + ⋮ → Day Explore; Exec tap → the row's View
+   button (trade Peek) + ⋮ → Trade Explore. trades-page.tsx wires them
+   behind the SAME isNarrow measure (null = skeleton guard, so no wide
+   table can ever paint on a phone); the desktop tables are untouched.
+3. **Export/table actions unavailable on mobile** (the honest toast):
+   now ROUTED, not just excused — the Actions dropdown carries three
+   lg:hidden items (desktop never sees them): Export to CSV
+   (handleExport — on a phone the grid api is null so it falls to the
+   client-side exportCSV of the filtered set), Add Trade
+   (openTradeModal(null) — the Global Action Bar's Add Trade is hidden
+   below lg), and Delete Selected inside the Selected Trades submenu
+   (the rail's action). Real bug found and fixed on the way: Select
+   All/Deselect All no-op'ed on mobile whenever the persisted
+   presentation was 'grid' (gridApiRef null → `?.selectAll()` died
+   silently); both now require the grid to actually be MOUNTED before
+   taking the grid path, else the store-set fallback runs. The
+   openRailPanel('actions') toast now points at the menu ("Export to
+   CSV, Add Trade and Delete Selected are items in this Actions menu");
+   'columns' keeps its honest desktop-panel toast.
+4. **Calendar Week view FullCalendar density** (7 columns share ~390px
+   → unreadable): NEW src/components/calendar/week-agenda-mobile.tsx —
+   below lg the FullCalendar NEVER MOUNTS (same discipline as the AG
+   Grid); the week renders as a stacked per-day agenda: header per
+   weekday (weekday · date · P&L · W/L · today chip; tap → the day
+   Peek; ⋮ → Day Explore), then that day's trades and economic releases
+   MERGED chronologically — the exact information set the time-grid
+   draws, at reading width. calendar-page.tsx gained the same isNarrow
+   measure (null = skeleton) for BOTH FC mounts: the Week time-grid and
+   the Month engine. The month engine toggle is hidden below lg (a
+   phone always gets the Journal heat grid — which IS the native phone
+   month view from MOBILE-3; a persisted 'fullcalendar' choice from
+   desktop simply falls through to it on a phone — verified live). The
+   week strip got the DayCell treatment: gap-1/p-1 below md and a
+   number-only compact P&L (md:hidden fmtCellPnlCompact / hidden
+   md:inline full format — "+576" fits a 44px cell where the full table
+   format would clip).
+
+**Also fixed (found by the typecheck gate):** layout.tsx carried a
+pre-existing TS1117 — `icons` declared twice in the metadata object
+(the MOBILE-2 PWA block silently overrode the SEO-era one). Merged to
+the single MOBILE-2 declaration; `bunx tsc --noEmit` is 0/0 now, which
+lets the typecheck be an honest gate for future sessions.
+
+**E2E proof (agent-browser, read-only minted demo cookie, no db writes,
+no login POST; 381-trade demo account, 104 of its executions):**
+
+- MOBILE 390×844: Table deck regression intact (50 cards, .ag-root
+  absent). Symbol deck 35 cards / no wide table; tap → #/trades-analysis/
+  symbols-sector-industries?symbol=NQ=F. Tag deck 12 cards; tap →
+  #/tags-analysis/trade-tags/individual?tag=B%2B setup. Day deck 21
+  cards; tap → table scoped to that day ("1 to 5 of 5"); ⋮ → Day
+  Explore. Exec deck (after Chart History ▸ All Days — the executions
+  are 2024, outside the default 180d envelope, an honest empty state
+  until then): 50 of 104, "1 to 50 of 104 · Page 1 of 3"; tap → trade
+  Peek ("GBPUSD long · 5 @ 1.28 · Net P&L $57.24"); ⋮ → Trade Explore.
+  Actions menu (real-click — Radix triggers ignore synthetic .click()):
+  Export to CSV + Add Trade visible (display flex), absent at 1280; Add
+  Trade → TradeModal "Add New Trade" (viewed only); Export → "CSV
+  exported" toast; Selected Trades ▸ Select All → "· 50 selected" with
+  all 50 cards checked. Calendar Week: [data-testid=week-agenda] 7 day
+  sections, .fc ABSENT; week "Oct 11–17" strip cell "TUE 13 +576 1t"
+  fits (no clip, 44px cells); agenda trade tap → trade Peek; day header
+  tap → day Peek "Tuesday, Oct 20, 2026". Calendar Month: engine toggle
+  display:none; journal grid 31 cells; persisted fullcalendar mode →
+  journal grid on the phone (guard verified). More sheet:
+  aria-describedby set, sr-only DrawerDescription present, console
+  clean after reopen — the vaul warning is gone. Zero page errors, zero
+  console errors/warnings across the whole sweep.
+- DESKTOP 1280×800: AG Grid + rail + wide tables intact (symbol table
+  headers verified; exec table row "GBPUSD sell 5.00 1.28 2024-12-08
+  18:58:00 $0.00 -$6.38 View" after All Days); no decks; Actions menu
+  without the lg:hidden items (the Global Action Bar still owns Export
+  there); tab bar display:none. Calendar Week: .fc-timegrid mounted,
+  no agenda; Month: engine toggle flex, journal default; calMode
+  'fullcalendar' → the FC month engine mounts at 1280 (fc-daygrid
+  present) — then restored to the default state.
+
+**Forensic lessons recorded:**
+
+1. agent-browser `--session <name>` persists AFTER the command —
+   `agent-browser --session m4 set viewport 390 844 || …` silently
+   created a second session and the fallback branch ran on the DEFAULT
+   session at 1280. Symptom: `.mobile-tab-bar` found by querySelector
+   (it matches display:none elements) while the viewport never changed.
+   One session, set the viewport on it, then verify
+   `matchMedia('(max-width: 1023px)').matches` before trusting any
+   isNarrow-dependent assertion.
+2. The filter envelope reverts to the 180d default on a full page
+   reload even after Chart History ▸ All Days was applied — the
+   executions (all 2024) sit outside it, so the exec deck/table show
+   the honest empty state until the envelope is widened again. Not a
+   regression (same behavior before MOBILE-4); recorded so future
+   sessions don't chase it as "missing data".
+3. Radix menu TRIGGERS still need a real agent-browser click; once the
+   menu is open, synthetic el.click() on its ITEMS works fine.
+
+**Ritual:** pull 22:12:21Z (users=4, trades=386) before code · lint 0 ·
+tsc 0 · this entry above the block · AGENTS.md task entry above the
+block · CLAUDE.md discipline bullet above the block · commit + push
+last.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

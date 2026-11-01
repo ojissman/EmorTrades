@@ -105,16 +105,38 @@ at the bottom of this file.
   tool rail hidden below lg; 7-column phone calendar with number-only
   compact cell P&L; journal touch-visible actions via additive
   max-lg:opacity-100; swipe-scroller tab strips; mobile TradesTable
-  list). Remaining pages + the trades secondary sub-views (Symbol/Tags/
-  Day/Exec) keep their desktop tables until the owner reports friction.
-  Every mobile change must verify BOTH sides: the mobile presentation
-  AND the ≥ lg desktop shell byte-identical (MOBILE-1 guard: tab bar
-  flush 844/56, display:none at 1280). E2E trap: headless Chrome does
-  NOT match @media (hover: hover) and Tailwind v4 wraps ALL hover/
-  group-hover variants in it — hover-reveal is untestable in
-  agent-browser; reason from the served CSS, never "fix" phantom
-  breakage (scratch-element probes with unknown classes false-positive
-  to the default style).
+  list). Every mobile change must verify BOTH sides: the mobile
+  presentation AND the ≥ lg desktop shell byte-identical (MOBILE-1
+  guard: tab bar flush 844/56, display:none at 1280). E2E trap:
+  headless Chrome does NOT match @media (hover: hover) and Tailwind v4
+  wraps ALL hover/group-hover variants in it — hover-reveal is
+  untestable in agent-browser; reason from the served CSS, never "fix"
+  phantom breakage (scratch-element probes with unknown classes
+  false-positive to the default style).
+- MOBILE-4 (2026-11-01, owner: "do all") closed the recorded follow-up
+  channels; the standing disciplines it added: (a) EVERY heavy
+  desktop-only mount now follows the NEVER-ON-A-PHONE rule behind the
+  shared isNarrow null-guard — AG Grid (MOBILE-3) AND FullCalendar
+  (Week time-grid AND the Month engine; below lg the Week view is the
+  stacked week-agenda and Month always renders the Journal heat grid —
+  a persisted 'fullcalendar' choice simply falls through on a phone);
+  (b) mobile-reachable actions are ROUTED, not excused — the Actions
+  dropdown carries lg:hidden Export to CSV / Add Trade / Delete
+  Selected (desktop never sees them; the Global Action Bar and the
+  tool rail stay their home at lg+), and any handler that branches on
+  a grid api must require the grid to be MOUNTED (gridApiRef null on a
+  phone made Select All a silent no-op — fixed); (c) vaul drawers
+  carry an sr-only DrawerDescription (the Radix "Missing Description"
+  warning is gone — new drawers must not reintroduce it); (d) `bunx
+  tsc --noEmit` is part of the close (0/0 since the layout.tsx TS1117
+  duplicate-icons merge — keep it green). E2E traps added: agent-browser
+  `--session` persists after the command (a `||` fallback silently ran
+  at the default viewport — verify matchMedia('(max-width:
+  1023px)').matches before trusting isNarrow assertions); the global
+  filter envelope reverts to the 180d default on full reload (2024
+  demo executions sit outside it — an honest empty state, not missing
+  data); Radix menu TRIGGERS need real agent-browser clicks, menu
+  ITEMS accept synthetic ones.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

@@ -37,9 +37,9 @@ export const metadata: Metadata = {
     "EmorTrades",
   ],
   authors: [{ name: "EmorTrades" }],
-  icons: {
-    icon: "/logo.png",
-  },
+  // (icons intentionally declared ONCE, further down in the MOBILE-2 PWA
+  // block — TS1117 fires on duplicate keys; the SEO-era `icons` here was
+  // dead code silently overridden by the later one.)
   alternates: {
     canonical: "/",
   },

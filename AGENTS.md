@@ -627,6 +627,56 @@ Pull 21:33:02Z (users=4, trades=386) before code; lint 0; push closes
 the cycle. The trades secondary sub-views (Symbol/Tags/Day/Exec) keep
 their scrollable tables until real friction is reported.
 
+## Task MOBILE-4 — "do all": the four recorded Level-3 follow-up channels, closed
+
+Owner request (verbatim): "do all" — all four open channels from the
+post-MOBILE-3 recommendation, approved in one word. What shipped:
+(1) mobile-nav.tsx More-sheet a11y — sr-only DrawerDescription added
+(vaul/Radix Dialog was warning "Missing `Description` or
+`aria-describedby={undefined}`" on every open; warning verified GONE,
+aria-describedby resolves, visual byte-identical). (2) NEW
+src/components/trade/subview-mobile-decks.tsx — Symbol/Tag/Day/Exec
+decks in the TradesMobileDeck grammar, wired in trades-page.tsx behind
+the SAME isNarrow measure (null=skeleton guard; no wide table can paint
+on a phone); every deck calls the same handlers the desktop rows call
+(Symbol/Tag tap → their analysis pages, Day tap → filterToDay + ⋮ → Day
+Explore, Exec tap → trade Peek + ⋮ → Trade Explore); desktop tables
+untouched. (3) Mobile export/table actions ROUTED: the Actions dropdown
+carries lg:hidden Export to CSV / Add Trade (+ Delete Selected in the
+Selected Trades submenu) — desktop never sees them; REAL BUG FIXED:
+Select All/Deselect All silently no-op'ed on mobile whenever the
+persisted presentation was 'grid' (null grid api → `?.selectAll()`) —
+both now require the grid to be MOUNTED else the store-set fallback
+runs; openRailPanel('actions') toast now points at the menu. (4)
+Calendar Week view on phones: NEW
+src/components/calendar/week-agenda-mobile.tsx — below lg the
+FullCalendar NEVER MOUNTS (same discipline as the AG Grid); stacked
+per-day agenda (trades + releases merged chronologically, header tap →
+day Peek, ⋮ → Day Explore); calendar-page.tsx gained the isNarrow
+measure for BOTH FC mounts (Week time-grid AND Month engine — the
+engine toggle is hidden below lg, a persisted 'fullcalendar' choice
+falls through to the Journal heat grid on a phone, verified live);
+week strip got the DayCell treatment (gap-1/p-1 below md + number-only
+compact P&L, "+576" fits 44px cells). Also: layout.tsx pre-existing
+TS1117 (duplicate `icons` in metadata — the MOBILE-2 block silently
+overrode the SEO one) merged; `bunx tsc --noEmit` is 0/0. E2E (read-only
+minted demo cookie, no db writes): mobile 390×844 — decks 35/12/21/50
+cards with all taps/peeks/explores verified, Select All → "50 selected",
+Export → "CSV exported" toast, Add Trade → TradeModal (viewed only),
+week agenda 7 days with .fc absent, month toggle display:none, More
+sheet console clean (vaul warning gone), zero page/console errors;
+desktop 1280×800 — AG Grid + rail + wide tables + GlobalBar Export
+intact, no decks, no lg:hidden items, .fc-timegrid mounts at Week,
+fc-daygrid mounts with persisted fullcalendar mode. Forensic notes:
+agent-browser `--session` persists after the command (a `||` fallback
+created a second session and ran at the default viewport — verify
+`matchMedia('(max-width: 1023px)').matches` before trusting
+isNarrow assertions); the filter envelope reverts to the 180d default
+on full reload (the 2024 executions sit outside it — honest empty
+state, not missing data); Radix menu TRIGGERS need real clicks, menu
+ITEMS accept synthetic ones. Pull 22:12:21Z (users=4, trades=386)
+before code; lint 0; tsc 0; push closes the cycle.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
