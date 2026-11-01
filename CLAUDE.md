@@ -90,6 +90,15 @@ at the bottom of this file.
   RemovedPageRedirect so saved links never break (NAV-SUPPORT-1,
   2026-11-01: Support left Tools → standalone "Contact & Support" at
   /support).
+- The PWA layer (MOBILE-2, 2026-11-01) is install-first, cache-never: the
+  service worker `public/sw.js` is a PASSTHROUGH by design — it exists
+  only to complete install criteria. NEVER add caching to it without
+  explicit owner approval: a cache can serve stale code or a stale
+  production-data mirror and silently break the sync:prod guarantee.
+  meta[theme-color] is synced live to the active theme's shell.bar by
+  ThemePrefsApplier. Mobile nativeness beyond the shell (Level 3
+  page-level) ships only by real friction — the owner reports a page,
+  that page gets adapted; Level 4 (separate app/codebase) is never.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

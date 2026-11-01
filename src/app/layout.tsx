@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,6 +6,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemePrefsApplier } from "@/components/theme-prefs-applier";
 import { StorageHygiene } from "@/components/storage-hygiene";
+import { PwaRegistrar } from "@/components/pwa-registrar";
 import { SITE } from "@/lib/seo";
 
 const inter = Inter({
@@ -69,6 +70,35 @@ export const metadata: Metadata = {
   ...(process.env.GOOGLE_SITE_VERIFICATION
     ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } }
     : {}),
+
+  // ---- MOBILE-2 — the PWA native-app layer ----------------------------------
+  // Installable app: standalone window, own icon, splash from background /
+  // theme colors. Passthrough SW (no caching) completes the install criteria.
+  manifest: "/manifest.webmanifest",
+  // iOS: launch full-screen from the home-screen icon; the translucent status
+  // bar floats over the app chrome (theme-color synced live by
+  // ThemePrefsApplier per active theme).
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "EmorTrades",
+  },
+  // PnL tables full of numbers must never be linkified as phone numbers.
+  formatDetection: { telephone: false },
+  icons: {
+    icon: "/logo.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+}
+
+// MOBILE-2 — viewport-fit=cover extends the webview under the notch/home
+// indicator; env(safe-area-inset-*) then become real values (the MOBILE-1 tab
+// bar already pads by them). Zoom stays allowed (a11y: never block zoom).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1f2937", // midnight bar — synced live per theme by ThemePrefsApplier
 };
 
 export default function RootLayout({
@@ -98,6 +128,7 @@ export default function RootLayout({
         >
           <ThemePrefsApplier />
           <StorageHygiene />
+          <PwaRegistrar />
           {children}
           <Toaster />
           <SonnerToaster />

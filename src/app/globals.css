@@ -223,6 +223,14 @@ html[data-theme='mist'] {
        wheel scrolling in one region can never chain into the other. */
     overscroll-behavior: none;
   }
+  html {
+    /* MOBILE-2 — native-app touch feel: no gray tap flash anywhere (previously
+       only the tab bar had it), and no landscape auto-inflating text on
+       iOS Safari (keeps the shell chrome stable while rotating). */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "tnum" 1;

@@ -54,6 +54,20 @@ export function ThemePrefsApplier() {
     setTheme(theme.mode)
   }, [theme, setTheme])
 
+  // MOBILE-2 — native chrome sync: the browser address bar / standalone
+  // status bar tint follows the ACTIVE theme's bar color (layout.tsx emits
+  // the midnight default; this keeps it correct after any theme switch,
+  // including the pre-paint bootstrap for fresh loads).
+  useEffect(() => {
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'theme-color'
+      document.head.appendChild(meta)
+    }
+    meta.content = theme.shell.bar
+  }, [theme])
+
   // Nav font size — both modes.
   useEffect(() => {
     const root = document.documentElement
