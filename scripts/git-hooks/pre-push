@@ -4,6 +4,9 @@
 #
 #   "No pull and replacement of the sandbox DB → no task is done."
 #   (ENFORCE-3, 2026-11-01: "…and no unprotected .env either.")
+#   (ENFORCE-5, 2026-11-01: "…and every worklog entry ends with THE RITUAL
+#    — the fixed protocol text itself, repeated verbatim as the last
+#    section, before the push happens.")
 #
 # The Option-2 ritual requires EVERY task cycle to start with
 # `bun run sync:prod` (fresh production export → replaces the sandbox DB).
@@ -21,6 +24,16 @@
 #   can complete. A missing/truncated .env cannot push either — restore first.
 #
 # LOCK 2 — SYNC-STATE (ENFORCE-1): see below.
+#
+# LOCK 3 — THE RITUAL BLOCK (ENFORCE-5): see below. The push is refused
+#   unless the worklog AS COMMITTED (HEAD, not the working tree — "wrote it
+#   but forgot to commit" still refuses) has its last `## Task` entry
+#   ENDING with the fixed `### THE RITUAL` block: the protocol text itself,
+#   repeated verbatim as the final section of every entry — a standing
+#   reminder that the protocol exists (owner: "it is 1. the ritual itself…
+#   2. a reminder for you, to know that protocol exists… its repeated and
+#   fixed at the end of every worklog, it should say so on the worklog
+#   itself"). NOT a compliance report about following it.
 #
 # HOW IT DECIDES:
 #   · origin/main tip = the last state that successfully reached GitHub.
@@ -138,4 +151,63 @@ EOF
 fi
 
 echo "[enforcement] pull verified (epoch ${LAST_PULL} > pushed-tip ${TIP_CT}) — push allowed."
+
+# ── LOCK 3 · THE RITUAL BLOCK (ENFORCE-5) ─────────────────────────
+# Owner mandate (2026-11-01), corrected same day: "it is 1. the ritual
+# itself... 2. a reminder for you, to know that protocol exists... its
+# repeated and fixed at the end of every worklog, it should say so on the
+# worklog itself." Every task's worklog entry ENDS with the SAME fixed
+# ritual text — the protocol itself, verbatim: never a report about it,
+# never paraphrased. The push is refused unless the COMMITTED worklog
+# (HEAD) has its last `## Task` entry ending with that block as its FINAL
+# section (nothing written after it).
+refuse_ritual() {
+  cat >&2 <<EOF
+
+──────────────────────────────────────────────────────────────────
+  THE RITUAL BLOCK LOCK — PUSH REFUSED  (ENFORCE-5, owner-mandated)
+
+  $1
+
+  Every worklog entry ends with THE RITUAL — the fixed protocol text
+  itself (the ritual + a standing reminder that it exists; NOT a
+  compliance report). Append this exact block as the FINAL section of
+  the last task entry, COMMIT it, then re-run this push:
+
+    ### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+
+    DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
+    latest" and provides the GitHub token + repo → \`bun run day:start\` → the
+    gate must print CLEARED TO WORK and be reported to the owner before the
+    day's first task. No gate, no work.
+
+    TASK RITUAL (every task, exact order, no exceptions):
+    1. PULL FIRST: \`bun run sync:prod\` — fresh production export replaces the
+       sandbox DB, before any code.
+    2. IMPLEMENT on the pulled data.
+    3. VERIFY end-to-end in the app — the preview must show it working.
+    4. WORKLOG: append the entry, ending with this same ritual block.
+    5. COMMIT + \`git push\` — always the last step.
+
+    No pull and replacement of the sandbox DB → NO task is done.
+──────────────────────────────────────────────────────────────────
+
+EOF
+  exit 1
+}
+
+WL_BLOB="$(git show HEAD:worklog.md 2>/dev/null)" || refuse_ritual "worklog.md is not in the commit being pushed (HEAD) — a push without the worklog update is a push without the task record."
+WL_LAST_TASK="$(printf '%s\n' "$WL_BLOB" | grep -n '^## Task' | tail -1 | cut -d: -f1)"
+[ -n "$WL_LAST_TASK" ] || refuse_ritual "worklog.md has no '## Task' entry — nothing documents the work being pushed."
+WL_ENTRY="$(printf '%s\n' "$WL_BLOB" | tail -n +"$WL_LAST_TASK")"
+RITUAL_AT="$(printf '%s\n' "$WL_ENTRY" | grep -n '^### THE RITUAL' | tail -1 | cut -d: -f1)"
+[ -n "$RITUAL_AT" ] || refuse_ritual "The last task entry does not end with THE RITUAL — the fixed protocol text (the ritual itself + a standing reminder) is missing from the end of the entry."
+AFTER="$(printf '%s\n' "$WL_ENTRY" | tail -n +"$((RITUAL_AT + 1))")"
+printf '%s\n' "$AFTER" | grep -q '^#\{2,3\} ' && refuse_ritual "THE RITUAL block is not the FINAL section — something was written after it. The ritual block is always the last thing in every worklog entry."
+printf '%s\n' "$AFTER" | grep -q 'bun run sync:prod' || refuse_ritual "The ritual block is missing the TASK RITUAL pull command (bun run sync:prod)."
+printf '%s\n' "$AFTER" | grep -q 'bun run day:start' || refuse_ritual "The ritual block is missing the DAILY RITUAL gate command (bun run day:start)."
+printf '%s\n' "$AFTER" | grep -q 'CLEARED TO WORK' || refuse_ritual "The ritual block is missing the daily gate requirement (CLEARED TO WORK)."
+printf '%s\n' "$AFTER" | grep -q 'No pull and replacement of the sandbox DB → NO task is done.' || refuse_ritual "The ritual block is missing the strict-rule sentence."
+echo "[enforcement] THE RITUAL present — the fixed protocol text ends the last task entry (both rituals, verbatim)."
+
 exit 0

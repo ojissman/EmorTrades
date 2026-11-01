@@ -6673,3 +6673,86 @@ become a property of the environment.
   printed the 4-step completion order and died before any side effect
   (before bun install, before sync:prod). This is the exact burial path that
   hid the PROFILE-1 incident yesterday/today; it is now closed.
+
+---
+
+## Task ENFORCE-5 — the two rituals are always the last item of every task (owner mandate)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Owner report (verbatim intent)
+
+"the two ritual protocol must also be updated in the worklog as the last
+section of every worklog update before push... once a task is completed and
+the worklog has been updated, before the push will happen, this two protocol
+must be written on the worklog following the committed task update, in other
+words for every task completed, this protocol is always a task also, and the
+last todo list in every task before push."
+
+### Interpretation (owner's correction, same day — verbatim intent)
+
+First attempt misread it as a per-cycle compliance report. The owner
+corrected: "what i just ask you to do is not a compliance report. you may
+add that if you want to. it is a 1. the ritual itself... 2. a reminder for
+you, to know that protocol exists. [3.] its repeated and fixed at the end
+of every worklog, it should say so on the worklog itself." So: THE RITUAL
+— the fixed protocol text itself (both rituals, the actual instructions) —
+is repeated VERBATIM as the FINAL section of every worklog entry. It is
+the ritual, and a standing reminder to every future session that the
+protocol exists. A per-cycle values note is optional extra ("you may add
+that if you want to"); the fixed block is the mandate.
+
+### What was built (LOCK 3 — THE RITUAL BLOCK)
+
+- scripts/git-hooks/pre-push — LOCK 3 · THE RITUAL BLOCK (ENFORCE-5): the
+  push is refused unless the worklog AS COMMITTED (git show
+  HEAD:worklog.md — NOT the working tree, so "wrote it but forgot to
+  commit" still refuses) has its last task entry ENDING with the fixed
+  ritual block as its FINAL section — nothing may be written after it.
+  The hook greps the block's stable markers (bun run sync:prod, bun run
+  day:start, CLEARED TO WORK, the strict-rule sentence); paraphrase fails
+  by design. On refusal it prints the entire canonical block — the
+  recovery instruction IS the reminder.
+- AGENTS.md — ritual step 4 amended: every entry ends with THE RITUAL,
+  verbatim, never paraphrased, never a report about it; the canonical
+  text is in AGENTS.md; LOCK 3 updated in the enforcement map.
+- This entry is the first to carry the block — the dogfood proof, and
+  the live test of LOCK 3 on its own birth push.
+
+### Verification (E2E — refusal and pass, both directions)
+
+- Stage 1 REFUSAL (actual, this cycle): the first commit of this entry
+  (cac71e4) had NO ritual block; the hook was invoked exactly as git
+  invokes it (stdin: "refs/heads/main <sha> refs/heads/main <remote>") →
+  LOCK 1 env pass, LOCK 2 pull pass (epoch 1793555391 > pushed-tip
+  1793551564), LOCK 3 REFUSED: "The last task entry does not end with THE
+  RITUAL" — and the refusal printed the full canonical block (the
+  reminder at the point of refusal). Exit 1: the push was blocked.
+- Stage 2 PASS: the block appended as the final section + the commit
+  amended → the same invocation must pass all three locks; the real push
+  of this commit is the live proof (LOCK 3 ran on this entry as pushed).
+- bash -n clean; hooks re-armed; lint 0 errors (run at stage 1); no TS
+  files touched this cycle (hook + docs only); dev 200 throughout.
+
+### Files
+
+- M scripts/git-hooks/pre-push (LOCK 3 → THE RITUAL BLOCK + headers)
+- M AGENTS.md (step-4 amendment + canonical block + enforcement map)
+
+### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+
+DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
+latest" and provides the GitHub token + repo → `bun run day:start` → the
+gate must print CLEARED TO WORK and be reported to the owner before the
+day's first task. No gate, no work.
+
+TASK RITUAL (every task, exact order, no exceptions):
+1. PULL FIRST: `bun run sync:prod` — fresh production export replaces the
+   sandbox DB, before any code.
+2. IMPLEMENT on the pulled data.
+3. VERIFY end-to-end in the app — the preview must show it working.
+4. WORKLOG: append the entry, ending with this same ritual block.
+5. COMMIT + `git push` — always the last step.
+
+No pull and replacement of the sandbox DB → NO task is done.

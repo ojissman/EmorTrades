@@ -24,7 +24,36 @@ refreshed from live production.
    live data.
 4. **WORKLOG** entry in `worklog.md` (APPEND below the last entry, never
    overwrite; use the Task ID / Agent / Task / Work Log / Stage Summary
-   template, starting with a `---` line).
+   template, starting with a `---` line). The entry's FINAL section is
+   always **THE RITUAL** — the fixed protocol text below, repeated VERBATIM
+   (identical in every entry, never paraphrased, never a report about it).
+   It is the ritual itself and a standing reminder that the protocol exists
+   ("it should say so on the worklog itself"). An optional one-line note of
+   this cycle's real values may sit just BEFORE the block. Canonical text
+   (copy exactly):
+
+   ```md
+   ### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+
+   DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
+   latest" and provides the GitHub token + repo → `bun run day:start` → the
+   gate must print CLEARED TO WORK and be reported to the owner before the
+   day's first task. No gate, no work.
+
+   TASK RITUAL (every task, exact order, no exceptions):
+   1. PULL FIRST: `bun run sync:prod` — fresh production export replaces the
+      sandbox DB, before any code.
+   2. IMPLEMENT on the pulled data.
+   3. VERIFY end-to-end in the app — the preview must show it working.
+   4. WORKLOG: append the entry, ending with this same ritual block.
+   5. COMMIT + `git push` — always the last step.
+
+   No pull and replacement of the sandbox DB → NO task is done.
+   ```
+
+   The push (step 5) is physically refused without this block — pre-push
+   LOCK 3 greps for it on the COMMITTED worklog (HEAD), so "wrote it but
+   forgot to commit" still refuses.
 5. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the newest
    code + the current production data snapshot together (the data time
    machine; `db/custom.db` is tracked).
@@ -119,7 +148,18 @@ did not happen: just run `bun run day:start`.
     pushed. A truncated `.env` cannot push either — restore first.
   - **LOCK 2 · SYNC-STATE (ENFORCE-1)**: no push unless `.sync-state` proves
     a fully-verified production pull happened after the previous push.
-  Both live in the repo, so a cloned sandbox re-arms them automatically. A
+  - **LOCK 3 · THE RITUAL BLOCK (ENFORCE-5, 2026-11-01)**: the push is
+    refused unless the worklog AS COMMITTED (HEAD — not the working tree,
+    so "wrote but forgot to commit" still refuses) has its last
+    `## Task` entry ENDING with the fixed `### THE RITUAL` block — the
+    protocol text itself, verbatim (heading, DAILY RITUAL, TASK RITUAL,
+    the strict-rule sentence) — as the entry's FINAL section, nothing
+    after it. It is the ritual + a standing reminder that the protocol
+    exists; NOT a compliance report (owner-corrected same day). The hook
+    greps the block's stable markers, so paraphrase fails by design; on
+    refusal it prints the entire canonical block. Optional per-cycle
+    values may sit just BEFORE the block.
+  All three live in the repo, so a cloned sandbox re-arms them automatically. A
   fresh sandbox has no `.sync-state` → it is push-locked until the first real
   `bun run sync:prod`.
 - **Ritual guard / drift lock (ENFORCE-4, 2026-11-01)** — the environment-side
