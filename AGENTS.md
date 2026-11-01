@@ -29,8 +29,13 @@ refreshed from live production.
    (identical in every entry, never paraphrased, never a report about it).
    It is the ritual itself and a standing reminder that the protocol exists
    ("it should say so on the worklog itself"). An optional one-line note of
-   this cycle's real values may sit just BEFORE the block. Canonical text
-   (copy exactly):
+   this cycle's real values may sit just BEFORE the block.
+5. **AGENTS.md entry** (owner amendment, 2026-11-01): the SAME entry is also
+   appended to the END of this file (under "Mirrored task entries" at the
+   bottom), ending with the same THE RITUAL block — identical rule to the
+   worklog, so the protocol text stays visible at the end of AGENTS.md too,
+   continuously, per every task completed. Canonical text (copy exactly,
+   for BOTH files):
 
    ```md
    ### THE RITUAL — this protocol exists (fixed at the end of every task entry)
@@ -46,33 +51,37 @@ refreshed from live production.
    2. IMPLEMENT on the pulled data.
    3. VERIFY end-to-end in the app — the preview must show it working.
    4. WORKLOG: append the entry, ending with this same ritual block.
-   5. COMMIT + `git push` — always the last step.
+   5. AGENTS.md: append the entry, ending with this same ritual block.
+   6. COMMIT + `git push` — always the last step.
 
    No pull and replacement of the sandbox DB → NO task is done.
 
-   This exact ritual text is written at the end of every worklog —
-   continuously, per every task completed — so the protocol itself is
-   always visible on the worklog. It is the ritual, and the reminder
-   that it exists.
+   This exact ritual text is written at the end of every worklog and
+   AGENTS.md — continuously, per every task completed — so the protocol
+   itself is always visible on the end of the worklog and at the end of AGENTS.md.
+   It is the ritual, Command, Instruction and the reminder that it exists.
    ```
 
-   The push (step 5) is physically refused without this block — pre-push
-   LOCK 3 greps for it on the COMMITTED worklog (HEAD), so "wrote it but
-   forgot to commit" still refuses.
-5. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the newest
+6. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the newest
    code + the current production data snapshot together (the data time
    machine; `db/custom.db` is tracked).
 
+   The push (step 6) is physically refused without this block in BOTH
+   files — pre-push LOCK 3 greps for it on the COMMITTED worklog AND the
+   COMMITTED AGENTS.md (HEAD), so "wrote it but forgot to commit" (or
+   forgot to mirror the entry into AGENTS.md) still refuses.
+
 **Cycle disciplines (owner mandate after the PROFILE-1 incident, 2026-11-01):**
-the close-out (worklog → commit → push) is issued IN THE SAME ACTION as the
-work — a finished cycle is never left parked for "later". Sessions die
-without warning; anything parked is drift. If a session inherits a state at
-all (any session, any day): reconcile from **git + worklog.md only** — never
-from a session handoff/summary. If an open cycle is found (unpushed work,
-drifted state): complete it BEFORE any new work — `bun run sync:prod` first,
-then verify, worklog, commit, push. The **ritual lock page** (ENFORCE-4)
-replaces the app until the missing pull lands; it is by design, not an
-outage — run `bun run sync:prod` and it lifts.
+the close-out (worklog + AGENTS.md entries → commit → push) is issued IN
+THE SAME ACTION as the work — a finished cycle is never left parked for
+"later". Sessions die without warning; anything parked is drift. If a session
+inherits a state at all (any session, any day): reconcile from **git +
+worklog.md only** — never from a session handoff/summary. If an open cycle
+is found (unpushed work, drifted state): complete it BEFORE any new work —
+`bun run sync:prod` first, then verify, worklog + AGENTS.md entry, commit,
+push. The **ritual lock page** (ENFORCE-4) replaces the app until the
+missing pull lands; it is by design, not an outage — run `bun run sync:prod`
+and it lifts.
 
 ## NEW-DAY PROTOCOL (owner-initiated — current standing arrangement)
 
@@ -96,7 +105,7 @@ drifted backup — passphrase on stdin) → checks the DB → runs
 
 After it prints **CLEARED TO WORK**, report the state to the owner (commit
 hash, users/trades counts) and only then begin the day's task — following the
-5-step ritual above for each task within the day.
+6-step ritual above for each task within the day.
 
 ## WIPE-RECOVERY RUNBOOK — brand-new sandbox (complete wipe)
 
@@ -153,20 +162,26 @@ did not happen: just run `bun run day:start`.
     pushed. A truncated `.env` cannot push either — restore first.
   - **LOCK 2 · SYNC-STATE (ENFORCE-1)**: no push unless `.sync-state` proves
     a fully-verified production pull happened after the previous push.
-  - **LOCK 3 · THE RITUAL BLOCK (ENFORCE-5, 2026-11-01)**: the push is
-    refused unless the worklog AS COMMITTED (HEAD — not the working tree,
-    so "wrote but forgot to commit" still refuses) has its last
-    `## Task` entry ENDING with the fixed `### THE RITUAL` block — the
-    protocol text itself, verbatim — as the entry's FINAL section, nothing
-    after it. The block carries BOTH rituals, the strict-rule sentence,
-    AND the continuity mandate (that this exact text is written at the
-    end of every worklog, continuously, per every task completed — the
-    owner's 6th point, completed same day). It is the ritual + a standing
-    reminder that the protocol exists; NOT a compliance report. The hook
-    greps the block's stable markers (including 'written at the end of
-    every worklog'), so paraphrase fails by design; on refusal it prints
-    the entire canonical block. Optional per-cycle values may sit just
-    BEFORE the block.
+  - **LOCK 3 · THE RITUAL BLOCK (ENFORCE-5, 2026-11-01; amended same day,
+    RITUAL-AMEND-1)**: the push is refused unless the worklog AS COMMITTED
+    (HEAD — not the working tree, so "wrote but forgot to commit" still
+    refuses) has its last `## Task` entry ENDING with the fixed
+    `### THE RITUAL` block — the protocol text itself, verbatim — as the
+    entry's FINAL section, nothing after it. The owner's amendment
+    (2026-11-01) extends the same requirement to **AGENTS.md** (LOCK 3b):
+    every task's entry is ALSO appended to the end of AGENTS.md
+    ("Mirrored task entries"), ending with the same block as the file's
+    final section. The block carries BOTH rituals (now 6 steps — the
+    AGENTS.md append is step 5, commit + push is step 6), the strict-rule
+    sentence, AND the amended continuity mandate (that this exact text is
+    written at the end of every worklog AND AGENTS.md — continuously, per
+    every task completed). It is the ritual, Command, Instruction and a
+    standing reminder that the protocol exists; NOT a compliance report.
+    The hook greps the block's stable markers (including 'AGENTS.md:
+    append the entry' and 'written at the end of every worklog and'), so
+    paraphrase or the pre-amendment text fails by design; on refusal it
+    prints the entire canonical block. Optional per-cycle values may sit
+    just BEFORE the block.
   All three live in the repo, so a cloned sandbox re-arms them automatically. A
   fresh sandbox has no `.sync-state` → it is push-locked until the first real
   `bun run sync:prod`.
@@ -237,7 +252,9 @@ did not happen: just run `bun run day:start`.
 
 ## File map
 
-- `worklog.md` — the ONLY coordination record; append-only task history.
+- `worklog.md` — the ONLY coordination record; append-only task history
+  (each entry also mirrored to the end of AGENTS.md — ritual step 5, owner
+  amendment 2026-11-01).
 - `scripts/sync-prod-db.ts` — the pull (production → sandbox DB).
 - `scripts/day-start.ts` — the new-day gate (`bun run day:start`).
 - `scripts/secrets-backup.ts` — `.env` ↔ `backups/secrets.enc` (AES-256-GCM,
@@ -247,3 +264,114 @@ did not happen: just run `bun run day:start`.
 - `scripts/build-guarded.sh` — publish pipeline (owner-run).
 - `scripts/mint-session.ts` — E2E session minting.
 - `backups/README.md` — secrets backup documentation.
+
+---
+
+## Mirrored task entries (owner mandate 2026-11-01 — ritual step 5)
+
+Every task's worklog entry is ALSO appended here, ending with the same
+THE RITUAL block — so the protocol text is always visible at the end of
+AGENTS.md, continuously, per every task completed. Pre-push LOCK 3b
+enforces this on the COMMITTED AGENTS.md exactly as LOCK 3a does on
+worklog.md.
+
+---
+
+## Task RITUAL-AMEND-1 — the amended ritual text: AGENTS.md joins the worklog (6 steps, LOCK 3b)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Owner amendment (verbatim)
+
+"i want to edith the tex alittle for you" — then the full amended block:
+TASK RITUAL becomes six steps — a new step 5, "AGENT.md : append the
+entry, ending with this same ritual block" — COMMIT + push becomes step
+6 — and the continuity mandate now covers BOTH files, closing with:
+"This exact ritual text is written at the end of every worklog and
+Agents.md— continuously, per every task completed — so the protocol
+itself is always visible on the end of the worklog and at the end of
+Agents.md. It is the ritual, Command, Instruction and the reminder that
+it exists."
+
+### What changed
+
+- THE RITUAL text amended in every home it lives: the canonical copy in
+  AGENTS.md, BOTH existing worklog blocks (ENFORCE-5, ENFORCE-5-COMPLETE —
+  updated so every block in the worklog is the same text; the
+  pre-amendment versions remain visible in git history, never silent),
+  the hook's refusal text and marker set, and the standing protocol at
+  the top of worklog.md (now six steps).
+- Ritual step 5 implemented: AGENTS.md now carries the task log — the
+  SAME entry appended to the end of AGENTS.md (new "Mirrored task
+  entries" region at the bottom), ending with the block. This entry is
+  the first to land in both files.
+- Pre-push LOCK 3 extended into LOCK 3a (worklog.md) + LOCK 3b
+  (AGENTS.md): both COMMITTED files must have their last `## Task` entry
+  ending with THE RITUAL as the FINAL section, and the marker set now
+  includes the amendment's stable phrases — 'AGENTS.md: append the
+  entry', 'written at the end of every worklog and', 'at the end of
+  AGENTS.md', 'It is the ritual, Command, Instruction and the reminder' —
+  so the pre-amendment text fails the push by design.
+- Cycle strings updated everywhere the ritual is described: CLAUDE.md
+  (six-step list; its enforcement section was stale — still said TWO
+  counts — now THREE, including LOCK 3), day-start.ts CLEARED-TO-WORK
+  message, ritual-guard.ts warn reason, and ritual-lock-gate.tsx (amber
+  banner + lock-page steps): "verify → worklog → AGENTS.md → commit →
+  push".
+- The owner's typing was normalized minimally, never reworded: 'AGENT.md'
+  → 'AGENTS.md' (the real filename; the owner himself writes 'Agents.md'
+  in the same paragraph), spacing around colons and list numbers. Every
+  word — including "Command, Instruction" — kept exactly as written.
+
+### Verification
+
+- Ritual pull FIRST: sync:prod 18:36:42Z (users=4, trades=381) before any
+  code — .sync-state epoch 1793558221 > pushed-tip 1793556568 (f8aa1c4).
+- Stage 1 REFUSAL (actual): the amended hook invoked against HEAD as-was
+  (f8aa1c4 — pre-amendment text; AGENTS.md with no task log) → LOCK 3
+  REFUSED, exit 1: "[worklog.md] The ritual block is missing ritual step
+  5 — 'AGENTS.md: append the entry, ending with this same ritual block'
+  (the owner's amendment, RITUAL-AMEND-1)." LOCK 1 and LOCK 2 passed
+  first — the refusal is the amendment's, not a stale-state artifact.
+- Stage 2 PASS: this entry committed in BOTH files → the same invocation
+  passes all locks; the real push of this commit is the live proof.
+- bash -n clean; hook re-armed (install-git-hooks.sh); lint 0 errors;
+  dev 200 throughout; browser E2E before the push: the amber WARN banner
+  (open cycle, ahead=1) shows the new cycle text — and the state returns
+  to OK after the push.
+
+### Files
+
+- M scripts/git-hooks/pre-push (LOCK 3a/3b, amended markers, refusal text)
+- M AGENTS.md (canonical text, six-step list, disciplines, enforcement
+  map, file map + the Mirrored task entries region with this entry)
+- M CLAUDE.md (six-step ritual, THREE enforcement counts)
+- M scripts/day-start.ts (CLEARED TO WORK → six-step message)
+- M src/lib/ritual-guard.ts, M src/components/ritual-lock-gate.tsx
+  (cycle strings + lock-page steps)
+- M worklog.md (standing protocol six steps, both prior blocks amended,
+  this entry)
+
+### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+
+DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
+latest" and provides the GitHub token + repo → `bun run day:start` → the
+gate must print CLEARED TO WORK and be reported to the owner before the
+day's first task. No gate, no work.
+
+TASK RITUAL (every task, exact order, no exceptions):
+1. PULL FIRST: `bun run sync:prod` — fresh production export replaces the
+   sandbox DB, before any code.
+2. IMPLEMENT on the pulled data.
+3. VERIFY end-to-end in the app — the preview must show it working.
+4. WORKLOG: append the entry, ending with this same ritual block.
+5. AGENTS.md: append the entry, ending with this same ritual block.
+6. COMMIT + `git push` — always the last step.
+
+No pull and replacement of the sandbox DB → NO task is done.
+
+This exact ritual text is written at the end of every worklog and
+AGENTS.md — continuously, per every task completed — so the protocol
+itself is always visible on the end of the worklog and at the end of AGENTS.md.
+It is the ritual, Command, Instruction and the reminder that it exists.

@@ -1,7 +1,7 @@
 # CLAUDE.md — READ THIS FILE FIRST, BEFORE ANY TASK
 
 > **Canonical runbook: `AGENTS.md`** (same repo root). It contains the strict
-> rule, the 5-step ritual, the NEW-DAY PROTOCOL (owner provides GitHub key +
+> rule, the 6-step ritual, the NEW-DAY PROTOCOL (owner provides GitHub key +
 > repo name → `bun run day:start` → CLEARED TO WORK) and the complete
 > WIPE-RECOVERY RUNBOOK for a brand-new sandbox. This file is the short card.
 
@@ -21,20 +21,26 @@ restored from the GitHub repo.
 2. **IMPLEMENT** the task on the pulled production data.
 3. **VERIFY** — E2E in the browser; the preview must show the task
    working on live data.
-4. **WORKLOG** entry in `worklog.md` (append, never overwrite).
-5. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the
+4. **WORKLOG** entry in `worklog.md` (append, never overwrite), ending
+   with THE RITUAL block — the fixed protocol text (see AGENTS.md).
+5. **AGENTS.md entry** — the SAME entry appended to the end of AGENTS.md,
+   ending with the same THE RITUAL block (owner amendment, 2026-11-01).
+6. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the
    newest code + production's current data together (the data time machine).
 
 ### What enforces it (you cannot silently skip)
 
 - A **git pre-push hook** (`scripts/git-hooks/pre-push`, armed by
   `scripts/install-git-hooks.sh` via the `prepare` script in package.json)
-  physically REFUSES every push of `main` on TWO counts: (1) unless
+  physically REFUSES every push of `main` on THREE counts: (1) unless
   `.sync-state` proves a fully-verified production pull happened after the
-  previous push, and (2) unless the live `.env` exactly matches the
+  previous push, (2) unless the live `.env` exactly matches the
   encrypted backup's manifest (`backups/secrets.manifest` — ENFORCE-3:
   any added/changed key, or a truncated `.env`, or an uncommitted rotation
-  blocks the push until restored/rotated with the owner's passphrase).
+  blocks the push until restored/rotated with the owner's passphrase),
+  and (3) unless the last task entry in BOTH `worklog.md` AND `AGENTS.md`
+  ends with THE RITUAL — the fixed protocol text, verbatim (ENFORCE-5,
+  amended 2026-11-01: the entry and its block land in both files).
 - **One passphrase for life** (owner mandate): the system never expires or
   asks to change the secrets passphrase. Restores and rotations always use
   the same owner-held passphrase; changing it is solely the owner's

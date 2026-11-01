@@ -378,5 +378,5 @@ console.log(`  Production:  synced ${state.get('lastPullIso') || '?'} — users=
 console.log(`  Secrets:     .env complete (9/9 required) · ${protection}`)
 console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live · ritual-guard live (ENFORCE-4)`)
 console.log('────────────────────────────────────────────────────────────────')
-console.log('✅ CLEARED TO WORK — next: the 5-step ritual (AGENTS.md) for today’s task,')
+console.log('✅ CLEARED TO WORK — next: the 6-step ritual (AGENTS.md) for today’s task,')
 console.log('   starting from this pulled state. Report this block to the owner.')

@@ -169,7 +169,7 @@ export function computeRitualState(root: string = process.cwd()): RitualState {
       level: 'warn',
       lock: false,
       reasons: [
-        `Unpushed work — GitHub is behind the sandbox by ${ahead} commit(s). Complete the cycle: verify → worklog → commit → push.`,
+        `Unpushed work — GitHub is behind the sandbox by ${ahead} commit(s). Complete the cycle: verify → worklog → AGENTS.md → commit → push.`,
       ],
     }
   }
