@@ -77,6 +77,12 @@ at the bottom of this file.
   before/after row counts.
 - The GitHub repo is PRIVATE and stays private — every commit carries
   production user-data history.
+- The drift guard counts ALL sandbox work — app-side db writes from normal
+  preview usage and platform Auto-Backup bot commits included, not just
+  task edits. A lock can fire with no task in progress (real incident
+  2026-11-01: an owner preview login + a bot commit locked the app within
+  one 20s poll). That is the system working — never a malfunction, never
+  bypass it; recovery is always the lock page's five steps in order.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

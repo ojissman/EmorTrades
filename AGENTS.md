@@ -215,6 +215,17 @@ did not happen: just run `bun run day:start`.
 - Owner-side pending (non-blocking, see worklog): Resend DNS records for
   emortrade.com → `EMAIL_FROM`; Gmail one-time integration consent; optional
   GA/GSC env keys.
+- 2026-11-01 DRIFT-RECOVERY-2 (real incident, no task started): the
+  owner's own preview login (POST /api/auth/login, 20:35:47Z) wrote db
+  bookkeeping; the platform Auto-Backup bot committed it locally at
+  20:37:59Z (afc794d) without pushing; the guard locked the app within one
+  20s poll — the RITUAL-AMEND-2 push (20:26:36Z) had opened a new cycle
+  and no pull had run since. Lesson: the drift guard counts ALL sandbox
+  work — app-side db writes and platform backup-bot commits included, not
+  just agent task edits. A lock with no task in progress is the system
+  working, never a malfunction; recovery is always the lock page's five
+  steps in order, and drift is reported to the owner the moment it is
+  observed.
 
 ## File map
 
@@ -505,6 +516,38 @@ MANDATORY DEVELOPMENT PROTOCOL". Structural changes from RITUAL-AMEND-1:
   (cycle strings + lock-page steps)
 - M db/custom.db (the verified production mirror — rides with this
   commit)
+
+## Task DRIFT-RECOVERY-2 — ENFORCE-4 locked on its own (no task started)
+
+### What happened
+
+With no task in progress and no agent action, the app locked itself: the
+owner's preview login (POST /api/auth/login 200, 20:35:47Z) wrote login
+bookkeeping to db/custom.db; the platform Auto-Backup bot committed it
+locally at 20:37:59Z (afc794d) without pushing; the guard's 20s poll
+caught 1 unpushed commit + no pull since the RITUAL-AMEND-2 push
+(20:26:36Z) → DRIFT lock at ~20:39:58Z. ritual-state had verified ok at
+20:34:08Z — both readings were true; the gate re-checks continuously
+(every 20s).
+
+### Lesson for all agents (also recorded in Environment notes)
+
+The drift guard counts ALL sandbox work — app-side db writes from normal
+preview usage and platform Auto-Backup bot commits included, not just
+task edits. A lock with no task in progress is the system working, never
+a malfunction. Never bypass it; recovery is always the lock page's five
+steps in order, and drift is reported to the owner the moment it is
+observed.
+
+### Recovery
+
+sync:prod 20:44:35Z (users=4, trades=381; pull epoch 1793565898) →
+E2E: app returned from the lock page (WARN banner + full landing, zero
+console errors; no login performed during verification) → docs above
+the block in all three files → commit + push (hook-validated). The
+preview login bookkeeping was superseded by the production export per
+protocol (sandbox is scratch; production is the anchor); afc794d stays
+in git history. State at close: ok · clean · 0 ahead.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

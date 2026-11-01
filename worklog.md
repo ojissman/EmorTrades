@@ -7080,6 +7080,66 @@ MANDATORY DEVELOPMENT PROTOCOL". Structural changes from RITUAL-AMEND-1:
 - M db/custom.db (the verified production mirror — rides with this
   commit)
 
+## Task DRIFT-RECOVERY-2 — ENFORCE-4 locked on its own: no task started, proof the gate is real
+
+**What the owner saw:** the ENFORCE-4 lock page replacing the preview
+(~20:39:58Z): "Ritual drift — sandbox locked … the work started before
+'bun run sync:prod' ran this cycle." Owner's question: "hope it is
+actually enforced?" — this entry is the answer.
+
+**Verified timeline (UTC; every fact from git + dev.log + the guard's own state):**
+
+- 20:26:36Z — RITUAL-AMEND-2 (36e2005) pushed. The push closed that cycle
+  and opened a new one; a new cycle requires a fresh pull before new work.
+- 20:34:08Z — ritual-state checked ok — TRUE at that instant (tree clean,
+  0 ahead). Nothing had happened yet.
+- 20:35:43Z — the owner logged into the preview: POST /api/auth/login 200
+  (dev.log line 1790). The app wrote login bookkeeping to db/custom.db
+  (mtime 20:35:43; same byte size 1617920 → small in-place write), then
+  served a normal authenticated session (settings, trades, watchlists,
+  dashboard, challenges — all 200, 20:35–20:36).
+- 20:37:59Z — platform Auto-Backup bot committed that db write locally
+  (afc794d; db/custom.db Bin 1617920 → 1617920). No push followed.
+- ~20:38–20:39:58Z — the guard's 20s poll caught the invariant break:
+  work present (1 commit ahead of origin) + last pull (20:18:38Z) not
+  newer than last push (20:26:36Z) → DRIFT. The app was replaced by the
+  owner-visible lock page.
+
+**Why this is enforcement working, not a malfunction:** no task was
+started and no agent touched anything. The guard counts ALL work in the
+sandbox — app-side db writes from normal preview usage and the platform's
+own Auto-Backup commits included. It cannot tell who did the work, and by
+design it does not care: unanchored work is unanchored work. The
+20:34:08Z "ok" and the 20:39:58Z lock are both true — the gate re-checks
+every 20 seconds; it caught the event that happened in between.
+
+**Recovery (the lock page's own prescribed order):**
+
+1. `bun run sync:prod` — 20:44:35Z: production export received
+   (1617920 bytes, users=4, trades=381, generated 2026-11-01T20:44:35.864Z),
+   sandbox DB swapped, strict schema push, integrity verified
+   ("integrity ok, users=4, trades=381"), dev server restarted and serving
+   200 at 20:44:58Z. Pull epoch 1793565898 > push epoch 1793564796.
+   The preview-session login bookkeeping was superseded by the production
+   export per protocol (sandbox is scratch; production is the anchor) —
+   the owner simply logs in again; afc794d remains in git history.
+2. E2E verified: the app returned from the lock page — amber WARN banner
+   ("Unpushed work — GitHub is behind the sandbox by 1 commit(s). Complete
+   the cycle: verify → worklog → AGENTS.md → CLAUDE.md → commit → push.")
+   + full landing rendering, zero console/page errors in the browser.
+   DB data verified by the sync script itself (integrity ok, users=4,
+   trades=381); no login was performed during verification (that write
+   class is exactly what caused this incident).
+3. This entry — inserted ABOVE the ritual block; the block remains the
+   file's final content.
+4. AGENTS.md updated above the block (task documentation in the Task
+   entries region + a new environment note recording the lesson); CLAUDE.md
+   updated above the block (new standing-discipline bullet).
+5. Commit + push — the enforcement hook validates the pull; ritual-state
+   returns to ok.
+
+**State at close:** ok · tree clean · 0 ahead · pull 20:44:58Z > push 20:26:36Z.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
