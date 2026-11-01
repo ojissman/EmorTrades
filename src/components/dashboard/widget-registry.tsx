@@ -681,7 +681,46 @@ export function TradesTable({ trades, rows = 0 }: { trades: OverviewTradeRow[]; 
     })
   return (
     <div>
-      <div className="max-h-96 overflow-auto shell-scroll rounded-lg" style={{ border: '1px solid var(--border-strong)' }}>
+      {/* MOBILE-3 — below md the 7-column table is a native stacked row list
+          (symbol + side + P&L headline, setup · date · R meta); the desktop
+          table itself stays md+. Same peek on tap. */}
+      <div className="md:hidden" style={{ border: '1px solid var(--border-strong)' }} data-testid="trades-table-mobile">
+        {shown.length === 0 && (
+          <p className="px-3 py-6 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
+            No closed trades in range.
+          </p>
+        )}
+        <div className="divide-y" style={{ borderColor: 'var(--border-strong)' }}>
+          {shown.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => openTrade(t)}
+              className="block w-full cursor-pointer px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              title="Open this trade"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{t.symbol}</span>
+                <SidePill side={t.side} />
+                <span className="ml-auto tnum text-xs font-bold" style={{ color: pnlColor(t.pnl) }}>
+                  {formatCurrencyIn('table', t.pnl)}
+                </span>
+              </span>
+              <span className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                <span className="max-w-[45%] truncate">{t.setup?.name?.trim() || '—'}</span>
+                <span className="tnum">{t.entryTime?.slice(0, 10)}</span>
+                <span
+                  className="ml-auto tnum font-semibold"
+                  style={{ color: t.rMultiple != null ? (t.rMultiple >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)') : 'var(--text-secondary)' }}
+                >
+                  {t.rMultiple != null ? `${t.rMultiple.toFixed(2)}R` : '—'}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="hidden md:block max-h-96 overflow-auto shell-scroll rounded-lg" style={{ border: '1px solid var(--border-strong)' }}>
       <table className="w-full text-xs">
         <thead className="sticky top-0 z-10" style={{ background: 'var(--bg-bar)' }}>
           <tr className="text-left text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
@@ -741,6 +780,14 @@ export function TradesTable({ trades, rows = 0 }: { trades: OverviewTradeRow[]; 
         )}
       </table>
       </div>
+      {/* MOBILE-3 — the mobile list carries the same summary the desktop
+          tfoot shows, so nothing is lost below md. */}
+      {shown.length > 0 && (
+        <p className="mt-1.5 text-[10px] tnum md:hidden" style={{ color: 'var(--text-secondary)' }} data-testid="trades-table-mobile-total">
+          {shown.length} trades · {wins}W / {shown.length - wins}L · net{' '}
+          <b style={{ color: pnlColor(net) }}>{formatCurrencyIn('table', net)}</b>
+        </p>
+      )}
       {capped && (
         <p className="mt-1.5 text-[10px]" style={{ color: 'var(--text-secondary)' }} data-testid="trades-table-cap">
           Showing the latest {rows} of {closed.length} closed trades — raise “Rows” in the widget settings to see more.

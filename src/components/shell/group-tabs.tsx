@@ -99,11 +99,14 @@ export function GroupTabs({ route, fullRoute }: { route: string; fullRoute?: str
           key={row.label ?? `row-${i}`}
           aria-label={`${spec.groupLabel} — ${row.label ?? 'pages'}`}
           onKeyDown={handleRowKeys}
-          className="flex flex-wrap items-center gap-2"
+          /* MOBILE-3 — below sm the row is a single-line swipe scroller (the
+             sub-tabs-bar pattern): pills never wrap into 3–4 stacked rows on
+             a phone; sm+ keeps the wrapped multi-row desktop layout. */
+          className="flex max-w-full items-center gap-2 overflow-x-auto sm:flex-wrap"
         >
           {row.label && (
             <span
-              className="text-[10px] uppercase tracking-wider font-bold w-28 shrink-0"
+              className="hidden text-[10px] uppercase tracking-wider font-bold sm:block sm:w-28 shrink-0"
               style={{ color: 'var(--text-secondary)' }}
             >
               {row.label}
@@ -127,7 +130,7 @@ export function GroupTabs({ route, fullRoute }: { route: string; fullRoute?: str
                 title={t.hint}
                 data-testid={`group-tab-${t.path.replace(/^\//, '').replace(/\//g, '-')}`}
                 className={cn(
-                  'rounded-full px-3 py-1 text-[11px] font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent',
+                  'rounded-full px-3 py-1.5 text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 focus-visible:ring-offset-transparent',
                   active ? 'shadow-sm' : 'opacity-70 hover:opacity-100',
                 )}
                 style={

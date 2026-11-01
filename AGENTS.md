@@ -592,6 +592,41 @@ zero console errors. Pull 21:21:30Z (users=4, trades=386) before code.
 Level 3 page-level polish still rides by real friction — the owner
 reports a page, that page gets adapted.
 
+## Task MOBILE-3 — Level 3 page-level native polish (golden paths: Overview · Trades · Calendar · Journal)
+
+Owner request (verbatim): "level 3 it is then..." — the recorded Level 3
+from the MOBILE-1 Level 1–4 framework, activated. What shipped:
+trades-mobile-deck.tsx (NEW — the native card deck: one trade per row,
+page-scroll native, same Peek / bulk-selection / row actions; replaces
+BOTH desktop presentations below lg; breakpoint measured post-mount with
+a null=skeleton guard, hydration-safe, and the AG Grid can never mount
+on a phone); trades-page.tsx (tool rail hidden below lg; openRailPanel
+narrow-aware — 'filters' → the GlobalFiltersDrawer, columns/actions → an
+honest "Desktop panel" toast; sub-view strip + sticky totals footer
+single-row scrollers below sm; pager below the card on narrow);
+calendar-page.tsx (month grid 7-col below md, no 780px minimum, no week
+column; number-only compact cell P&L fmtCellPnlCompact below md — color
+is the sign cue; toggle pills + Best/Worst responsive); journal-page.tsx
+(edit/delete always visible below lg at 36px — additive
+max-lg:opacity-100, desktop hover-reveal byte-identical); group-tabs.tsx
+(single-line swipe scroller below sm); widget-registry.tsx TradesTable
+(stacked row list below md + summary line — Overview Charts+Table and
+custom dashboards inherit). E2E (read-only minted cookies; demo session
+for data — the owner USER account owns 0 trades, its honest empty state
+verified): mobile 390×844 — deck 50 cards, .ag-root absent, Peek/⋮/
+checkbox verified, calendar 332px 7-col with "+2.5K" fitting exactly,
+journal opacity-1 36×36, Charts+Table mobile list 182 rows, zero console
+errors; desktop 1280 — AG Grid + rail + in-card pager + 8-col calendar +
+hover-reveal intact. Forensic notes for future sessions: headless Chrome
+doesn't match @media (hover: hover) — Tailwind v4 wraps ALL hover/
+group-hover variants in it, so hover-reveal is UNTESTABLE in
+agent-browser, not broken (scratch probes with unknown classes
+false-positive to opacity 1); shadcn SelectTrigger data-[size=default]:h-9
+out-specifies h-7/sm:h-7 — the page-size select always rendered 36px.
+Pull 21:33:02Z (users=4, trades=386) before code; lint 0; push closes
+the cycle. The trades secondary sub-views (Symbol/Tags/Day/Exec) keep
+their scrollable tables until real friction is reported.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

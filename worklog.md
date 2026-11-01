@@ -7277,6 +7277,123 @@ CLAUDE.md discipline bullet above the block · commit + push last.
 
 **State at close:** ok after push · tree clean · 0 ahead.
 
+## Task MOBILE-3 — Level 3 page-level native polish: the golden-path pages on mobile
+
+**Owner request (verbatim, 2026-11-01):** "level 3 it is then..." — the
+recorded Level 3 from the MOBILE-1 Level 1–4 framework, activated. Level 2
+(the shell, MOBILE-1) and the PWA layer (MOBILE-2) shipped earlier the same
+day; what remained desktop-styled was the PAGE CONTENT. Scope = the four
+bottom-tab destinations — Overview · Trades · Calendar · Journal — plus the
+shared page frame they render through. Level 4 (separate codebase) stays
+never; the desktop shell stays untouched (owner: "windows is okay").
+
+**Friction map (read-only audit, exact line refs kept in session):** the
+ranked list — 1) AG Grid at 390px: 312px of pinned columns + a 44px rail
+inside ~298px of grid (~1,220px of default columns); 2) tool rail: any
+open panel (w-72 = 288px) + rail (44px) crush the grid to ~26px; 3)
+calendar Journal month grid `grid-cols-8 min-w-[780px]` — the whole month
+side-scrolls on phones; 4) journal edit/delete `opacity-0
+group-hover:opacity-100` at 28px — invisible/unreachable on touch, the
+ONLY edit path; 5) row-mode table 13 columns (Symbol 9 / Tags 9 / Day 12 /
+Exec 9 similar); 6) grid expanded detail row clips (480px of fixed-width
+siblings under overflow-hidden in a 390px viewport); 7) GroupTabs 5
+wrapped 26px pills + the page's own 5-pill strip = 3–4 rows of controls
+before content; 8) sticky totals footer wraps 3–4 rows; 9) small pager
+controls; 10) a sub-40px touch-target cluster (sub-view pills, kebabs,
+calendar toggles).
+
+**What shipped (MOBILE-3):**
+
+- NEW src/components/trade/trades-mobile-deck.tsx — the native trades
+  deck: one trade per card row (symbol + side + P&L headline; setup ·
+  date · hold · mistakes · R meta line), page-scroll native (no inner
+  scroll box — the row table's max-h viewport is a desktop idiom),
+  checkbox → the SAME bulk-selection set, card tap → the trade Peek,
+  ⋮ menu → View/Edit/Delete at touch size (desktop row-menu parity).
+- trades-page.tsx — below lg (matchMedia max-width 1023px, measured
+  post-mount; null = skeleton, hydration-safe on server AND client, and
+  the heavy AG Grid can never mount on a phone) the Table sub-view
+  renders the deck for BOTH presentations; the tool rail is hidden below
+  lg (wrapped `hidden lg:flex` — Columns/Filters/Table Actions are
+  desktop-layout tools; mobile filters already live in the top-bar
+  Filters icon); openRailPanel is narrow-aware: 'filters' → the
+  mobile-safe GlobalFiltersDrawer, columns/actions → an honest "Desktop
+  panel" toast (only caller: Actions ▸ Table Actions — verified live);
+  sub-view strip is a single-row scroller below sm (max-w-full
+  overflow-x-auto, pills whitespace-nowrap shrink-0 py-1.5); the sticky
+  totals footer is one scrollable row below sm (overflow-x-auto
+  sm:flex-wrap, items shrink-0); the pager renders below the card on
+  narrow (in-grid only when the grid actually mounts).
+- calendar-page.tsx — the month grid below md is the native phone
+  calendar: 7 day columns, the Week-totals column and the 780px minimum
+  gone (md+ keeps the 8-col grid + week column); DayCell p-1 mobile; the
+  cell P&L is number-only compact below md (fmtCellPnlCompact: +2.5K /
+  -224 / +831 — a 44px cell has ~34px of text room and "+$2.5K" measured
+  41px and clipped; the green/red heat is the sign cue, title/aria carry
+  the exact figure), full table format on md+; W/L compact below md;
+  view/engine toggle pills py-1.5; Best/Worst day cards 1-col below sm.
+- journal-page.tsx — edit/delete always visible below lg with 36px
+  targets; the desktop hover-reveal is BYTE-IDENTICAL (the fix is
+  additive: `opacity-0 group-hover:opacity-100` + `max-lg:opacity-100` —
+  responsive variants sort after pseudo variants, so below lg ALWAYS
+  wins; at lg+ nothing changed).
+- group-tabs.tsx — below sm each row is a single-line swipe scroller
+  (the sub-tabs-bar pattern: overflow-x-auto, pills shrink-0 py-1.5, row
+  label hidden below sm); sm+ keeps the wrapped desktop layout.
+- widget-registry.tsx TradesTable — below md the 7-column table is a
+  stacked row list (symbol + side + P&L; setup · date · R) carrying the
+  same summary as a total line; md+ unchanged. Overview Charts+Table AND
+  custom dashboards inherit it.
+- overview-page.tsx — banner show/hide toggles + DailyFooter chips
+  bumped to touch-friendlier padding (py-1 / py-1.5).
+
+**E2E proof (agent-browser, read-only minted cookies — demo session for
+data (381 trades; the owner's USER account owns 0 trades, so the honest
+empty state was verified on it first), no db writes, no login POST):**
+
+- MOBILE 390×844: tab bar intact (bottom 844, height 56); zero page
+  overflow on all five golden pages (overview/trades/calendar/journal/
+  support). Trades: deck renders 50 cards (356×74) of real rows; .ag-root
+  ABSENT (never mounted); rail display:none; card tap → Peek opens
+  ("NQ=F long, 1 @ 21,500.00"); ⋮ → View/Edit/Delete; Edit → TradeModal
+  opens (viewed only — read-only); checkbox → "1 selected" bulk bar;
+  exactly ONE pager, below the card; sub-view strip single row 34px;
+  totals footer one 35px row; Actions ▸ Table Actions → the honest
+  "Desktop panel" toast. Calendar: month grid 7 cols at 332px (was
+  780px+), week col hidden, compact P&L "+2.5K" fits exactly (scrollW 34
+  = clientW 34), October cells live, today ring intact. Journal: 133
+  entries, edit/delete opacity 1 at 36×36. Overview Charts+Table: mobile
+  list 182 rows + "182 trades · 96W / 86L · net $24,797.04" summary
+  line; desktop table hidden. Zero console/page errors across the sweep.
+- DESKTOP 1280×800: AG Grid present, rail flex, exactly one pager INSIDE
+  the grid card, deck absent, tab bar display:none, sidebar 52px rail;
+  calendar 8 cols + week col visible + full "+$831.80" format; journal
+  idle opacity 0 (hover-reveal preserved — see forensic note 1); group
+  tabs unchanged.
+
+**Two forensic lessons recorded for future sessions:**
+
+1. Headless Chrome does NOT match `@media (hover: hover)` — and Tailwind
+   v4 wraps ALL hover/group-hover variants in it — so hover-reveal
+   behavior CANNOT be exercised in agent-browser; it is NOT broken there.
+   (Chased a phantom "dead reveal" through variant-ordering theories and
+   an important-suffix red herring before fetching the served CSS and
+   reading the @media guard. Also: scratch-element probes with unknown
+   classes false-positive to opacity 1 — the default style, not the
+   class.)
+2. shadcn SelectTrigger's `data-[size=default]:h-9` (specificity 0,2,0)
+   beats BOTH the old `h-7` and a naive `sm:h-7` — the trades page-size
+   select has always rendered 36px; the "h-7" in its class list was
+   aspirational. Reverted the no-op bump rather than fight specificity.
+
+**Ritual:** pull 21:33:02Z (users=4, trades=386) before code · lint 0 ·
+this entry above the block · AGENTS.md task entry above the block ·
+CLAUDE.md discipline bullet above the block · commit + push last.
+
+**State at close:** dev server died once mid-task (RSS 2734MB — the
+known cgroup OOM; restarted single-instance, Ready 4.1s — an owner
+preview session was live at the time and recovered).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

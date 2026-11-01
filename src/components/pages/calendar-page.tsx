@@ -1036,7 +1036,7 @@ export function CalendarPage() {
                           : 'Month view — P&L heat grid with week totals'
                   }
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer',
+                    'rounded px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer',
                     view === v ? 'bg-emerald-600 text-white' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -1057,7 +1057,7 @@ export function CalendarPage() {
                   onClick={() => switchCalMode('journal')}
                   aria-pressed={calMode === 'journal'}
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer',
+                    'rounded px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer',
                     calMode === 'journal' ? 'bg-sky-600 text-white' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -1069,7 +1069,7 @@ export function CalendarPage() {
                   aria-pressed={calMode === 'fullcalendar'}
                   title="FullCalendar 6.1.21 engine — standard month grid with traded-day chips"
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer',
+                    'rounded px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer',
                     calMode === 'fullcalendar' ? 'bg-sky-600 text-white' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -1806,13 +1806,17 @@ export function CalendarPage() {
             </Card>
           ) : (
             <Card className="p-3 md:p-4 overflow-x-auto" data-testid="journal-grid">
-              <div className="grid grid-cols-8 gap-1.5 min-w-[780px]">
+              {/* MOBILE-3 — below md the month grid is the native phone
+                  calendar: 7 day columns, no Week-totals column, no forced
+                  780px minimum — the whole month fits the viewport with no
+                  side-scroll. md+ keeps the 8-column grid with week totals. */}
+              <div className="grid grid-cols-7 gap-1 md:grid-cols-8 md:gap-1.5 md:min-w-[780px]">
                 {[...DAY_SHORT, 'Week'].map((d) => (
                   <div
                     key={d}
                     className={cn(
                       'text-center text-xs font-medium text-muted-foreground uppercase tracking-wider py-2',
-                      d === 'Week' && 'text-left',
+                      d === 'Week' && 'text-left hidden md:block',
                     )}
                   >
                     {d}
@@ -1854,7 +1858,7 @@ export function CalendarPage() {
                       title={`Week of ${w.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${w.trades > 0 ? ` · ${w.trades} trade${w.trades === 1 ? '' : 's'} · ${w.wins}W / ${w.losses}L · ${w.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', w.pnl)}` : ' · no trades'}${w.notes ? ` · ${w.notes} day note${w.notes === 1 ? '' : 's'}` : ''} — click for Week view`}
                       aria-label={`Week of ${w.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${w.trades} trades, P&L ${w.pnl >= 0 ? '+' : ''}${Math.round(w.pnl)}${w.trades > 0 ? ', open Week view' : ''}`}
                       className={cn(
-                        'self-stretch rounded-md border p-1.5 flex flex-col justify-center gap-0.5 min-w-0 text-left transition-[transform,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60',
+                        'hidden md:flex self-stretch rounded-md border p-1.5 flex-col justify-center gap-0.5 min-w-0 text-left transition-[transform,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60',
                         w.trades > 0
                           ? 'border-sky-500/20 bg-sky-500/[0.04] hover:bg-sky-500/10 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20'
                           : 'border-border bg-muted/20 cursor-default',
@@ -1978,7 +1982,7 @@ export function CalendarPage() {
           {/* Best / Worst — each card IS a calendar day, so clicking it opens
               that day in Day Explore (the day's home page). */}
           {(bestDay || worstDay) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               {bestDay && (
                 <Card
                   data-testid="cal-best-day"
@@ -2613,6 +2617,18 @@ function fmtPrice(p: number) {
     : p.toFixed(Math.abs(p) < 10 ? 4 : 2)
 }
 
+/** MOBILE-3 — the phone-cell P&L: a 44px day cell has ~34px of text room,
+ *  so the mobile span carries sign + number ONLY ("+2.5K" / "-224" / "+831")
+ *  — the cell's green/red color is the sign cue, the title/aria carry the
+ *  exact figure, and the md+ span keeps the full table format. */
+function fmtCellPnlCompact(v: number) {
+  const abs = Math.abs(v)
+  const sign = v > 0 ? '+' : v < 0 ? '-' : ''
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`
+  return `${sign}${Math.round(abs)}`
+}
+
 // ---------- Month grid day cell ----------
 // The bespoke Journal-grid cell: P&L heat background, trade count, W/L,
 // release dots, note pen, day-number → Day Explore deep link, body → peek.
@@ -2680,7 +2696,7 @@ function DayCell({
       onMouseEnter={() => setHoverWd(date.getDay())}
       onMouseLeave={() => setHoverWd(null)}
       className={cn(
-        'group aspect-square md:aspect-[4/3] rounded-md border p-1.5 flex flex-col gap-0.5 relative overflow-hidden outline-none',
+        'group aspect-square md:aspect-[4/3] rounded-md border p-1 md:p-1.5 flex flex-col gap-0.5 relative overflow-hidden outline-none',
         !dayData && !hasNote && 'border-border bg-muted/20',
         !dayData && hasNote && 'border-amber-500/20 bg-amber-500/[0.04]',
         isToday && 'ring-2 ring-emerald-500',
@@ -2733,10 +2749,19 @@ function DayCell({
                 'text-[10px] md:text-xs font-bold tnum leading-tight',
                 dayData.pnl > 0 ? 'text-emerald-400' : 'text-red-400',
               )}>
-                {dayData.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', dayData.pnl)}
+                {/* MOBILE-3 — compact number-only P&L on the phone-sized
+                    cell (the full table format clips at 44px; color is the
+                    sign cue); the full format stays on md+. */}
+                <span className="md:hidden">
+                  {fmtCellPnlCompact(dayData.pnl)}
+                </span>
+                <span className="hidden md:inline">
+                  {dayData.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', dayData.pnl)}
+                </span>
               </p>
               <p className="text-[9px] text-muted-foreground tnum">
-                {dayData.wins}W / {dayData.losses}L
+                <span className="md:hidden">{dayData.wins}W/{dayData.losses}L</span>
+                <span className="hidden md:inline">{dayData.wins}W / {dayData.losses}L</span>
               </p>
             </>
           )}

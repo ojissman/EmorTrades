@@ -99,6 +99,22 @@ at the bottom of this file.
   ThemePrefsApplier. Mobile nativeness beyond the shell (Level 3
   page-level) ships only by real friction — the owner reports a page,
   that page gets adapted; Level 4 (separate app/codebase) is never.
+- Level 3 page-level polish is SHIPPED for the golden paths (MOBILE-3,
+  2026-11-01: Trades = the native card deck below lg — NEVER mount the
+  AG Grid on a phone, the isNarrow null-guard exists so it can't flash;
+  tool rail hidden below lg; 7-column phone calendar with number-only
+  compact cell P&L; journal touch-visible actions via additive
+  max-lg:opacity-100; swipe-scroller tab strips; mobile TradesTable
+  list). Remaining pages + the trades secondary sub-views (Symbol/Tags/
+  Day/Exec) keep their desktop tables until the owner reports friction.
+  Every mobile change must verify BOTH sides: the mobile presentation
+  AND the ≥ lg desktop shell byte-identical (MOBILE-1 guard: tab bar
+  flush 844/56, display:none at 1280). E2E trap: headless Chrome does
+  NOT match @media (hover: hover) and Tailwind v4 wraps ALL hover/
+  group-hover variants in it — hover-reveal is untestable in
+  agent-browser; reason from the served CSS, never "fix" phantom
+  breakage (scratch-element probes with unknown classes false-positive
+  to the default style).
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

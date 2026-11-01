@@ -285,11 +285,16 @@ export function JournalPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(j)}>
+                  {/* MOBILE-3 — touch can't hover: below lg the actions are
+                      always visible (max-lg:opacity-100 — Tailwind sorts
+                      responsive variants after pseudo variants, so this wins
+                      over BOTH base and group-hover below lg); at lg+ the
+                      original hover-reveal is byte-identical. */}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 max-lg:opacity-100">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 lg:h-7 lg:w-7" onClick={() => openEdit(j)} aria-label="Edit entry">
                       <Edit2 className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(j.id)}>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 lg:h-7 lg:w-7 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(j.id)} aria-label="Delete entry">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>

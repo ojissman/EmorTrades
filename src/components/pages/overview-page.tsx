@@ -141,7 +141,7 @@ function DailyFooter({ stats }: { stats: OverviewStats }) {
   const best = stats.daily.reduce((m, d) => (d.pnl > m.pnl ? d : m))
   const worst = stats.daily.reduce((m, d) => (d.pnl < m.pnl ? d : m))
   const green = stats.daily.filter((d) => d.pnl > 0).length
-  const chip = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 cursor-pointer transition-transform hover:scale-[1.03] whitespace-nowrap'
+  const chip = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 cursor-pointer transition-transform hover:scale-[1.03] whitespace-nowrap'
   return (
     <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
       <button
@@ -773,7 +773,7 @@ export function OverviewPage() {
         <button
           type="button"
           onClick={() => toggleSection('briefingHidden')}
-          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          className="italic text-[11px] py-1 text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
           data-testid="overview-briefing-toggle"
           title={sectionPrefs.briefingHidden ? 'Show the Daily Briefing section' : 'Hide the Daily Briefing section'}
         >
@@ -784,7 +784,7 @@ export function OverviewPage() {
         <button
           type="button"
           onClick={() => toggleSection('radarHidden')}
-          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          className="italic text-[11px] py-1 text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
           data-testid="overview-radar-toggle"
           title={sectionPrefs.radarHidden ? 'Show the Behavior Radar section' : 'Hide the Behavior Radar section'}
         >
@@ -795,7 +795,7 @@ export function OverviewPage() {
         <button
           type="button"
           onClick={() => toggleSection('aiWidgetHidden')}
-          className="italic text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
+          className="italic text-[11px] py-1 text-muted-foreground/70 transition-colors hover:text-foreground cursor-pointer"
           data-testid="overview-aiwidget-toggle"
           title={sectionPrefs.aiWidgetHidden ? 'Show the pinned AI widget (below the Behavior Radar)' : 'Hide the pinned AI widget (below the Behavior Radar)'}
         >

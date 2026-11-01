@@ -97,6 +97,9 @@ import {
   TRADES_GRID_COLUMNS,
   DEFAULT_HIDDEN_GRID_COLS,
 } from '@/components/trade/trades-data-grid'
+// MOBILE-3 — the native mobile card deck (Level 3 page-level polish): below
+// lg this replaces BOTH desktop presentations of the Table sub-view.
+import { TradesMobileDeck } from '@/components/trade/trades-mobile-deck'
 import { CustomColumnsDialog } from '@/components/trade/custom-columns-dialog'
 import type { CustomColumn } from '@/lib/formula'
 import {
@@ -348,6 +351,21 @@ export function TradesPage() {
   const presentation = useAppStore((s) => s.tradesPresentation)
   const setPresentation = useAppStore((s) => s.setTradesPresentation)
   const hydrateTradesPresentation = useAppStore((s) => s.hydrateTradesPresentation)
+
+  // MOBILE-3 — Level 3 page-level polish: below lg (the mobile-shell
+  // breakpoint, MOBILE-1) the Table sub-view renders the native card deck
+  // instead of the AG Grid / row table. Measured post-mount: null = not yet
+  // measured → skeleton (hydration-safe on server AND client, and the heavy
+  // AG Grid can never mount on a phone).
+  const [isNarrow, setIsNarrow] = useState<boolean | null>(null)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const apply = () => setIsNarrow(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
   useEffect(() => {
     hydrateTradesPresentation()
   }, [hydrateTradesPresentation])
@@ -1096,6 +1114,21 @@ export function TradesPage() {
    *  my own personalized column"); Table Actions jumps to the rail panel. */
   function openRailPanel(panel: TradesToolPanelId) {
     if (subView !== 'table') switchSubView('table')
+    // MOBILE-3 — below lg the tool rail is not rendered (the deck owns the
+    // page): Filters routes to the mobile-safe filters drawer; the
+    // desktop-only panels answer honestly instead of tapping into nothing.
+    if (isNarrow) {
+      if (panel === 'filters') {
+        setFiltersDrawerOpen(true)
+      } else {
+        toast({
+          title: 'Desktop panel',
+          description:
+            'Columns and Table Actions live in the desktop layout — widen the window to use them.',
+        })
+      }
+      return
+    }
     activateToolPanel(panel)
   }
 
@@ -1477,7 +1510,7 @@ export function TradesPage() {
       <div className="flex flex-wrap items-center gap-2">
       {/* L1 sub-view tab strip — verbatim `Table · Symbol · Tags · Day · Exec` */}
       <div
-        className="inline-flex items-center rounded-md border border-[var(--border-strong)] p-0.5"
+        className="inline-flex max-w-full items-center overflow-x-auto rounded-md border border-[var(--border-strong)] p-0.5"
         role="tablist"
         aria-label="Trades sub-views"
         data-testid="trades-subviews"
@@ -1485,7 +1518,7 @@ export function TradesPage() {
         {SUB_VIEWS.map(({ id, label }) => {
           const active = subView === id
           const btnCls = cn(
-            'rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer',
+            'rounded px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0',
             active ? 'bg-emerald-600 text-white' : 'text-muted-foreground hover:text-foreground'
           )
           if (id === 'table') {
@@ -2266,6 +2299,27 @@ export function TradesPage() {
               Add Trade
             </Button>
           </div>
+        ) : subView === 'table' && isNarrow === null ? (
+          /* MOBILE-3 — measurement guard: until the breakpoint is known, hold
+              the skeleton (same visual as the loading state; guarantees the
+              AG Grid never mounts on a phone). */
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        ) : subView === 'table' && isNarrow ? (
+          /* MOBILE-3 — the native mobile deck: one trade per card-sized row,
+              page-scroll native (no inner scroll box), same Peek / bulk
+              selection / row actions as the desktop presentations. */
+          <TradesMobileDeck
+            trades={filtered}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onOpenTrade={openTradeDetail}
+            onEditTrade={(id) => openTradeModal(id)}
+            onDeleteTrade={handleDelete}
+          />
         ) : subView === 'table' && presentation === 'grid' ? (
           <div className="p-2">
             <TradesDataGrid
@@ -2691,6 +2745,7 @@ export function TradesPage() {
           {/* Task 154 — right-edge Columns / Filters / Table Actions rail
               (Community-safe equivalent of L1's AG Grid side bar) */}
           {subView === 'table' && (
+            <div className="hidden items-stretch self-stretch lg:flex">
             <TradesToolRail
               active={toolPanel}
               onActivate={activateToolPanel}
@@ -2713,6 +2768,7 @@ export function TradesPage() {
               onOpenFiltersDrawer={() => setFiltersDrawerOpen(true)}
               actions={toolActions}
             />
+            </div>
           )}
         </div>
 
@@ -2721,10 +2777,10 @@ export function TradesPage() {
         {!contentLoading && showPageSummary && (
           <div
             data-testid="trades-totals-footer"
-            className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--border-strong)] bg-card px-3 py-2 text-[11px] text-muted-foreground"
+            className="sticky bottom-0 z-10 flex items-center gap-x-4 gap-y-1 overflow-x-auto border-t border-[var(--border-strong)] bg-card px-3 py-2 text-[11px] text-muted-foreground sm:flex-wrap"
           >
             {footerItems.map((it) => (
-              <span key={it.label} className="whitespace-nowrap">
+              <span key={it.label} className="shrink-0 whitespace-nowrap">
                 {it.label}:{' '}
                 <span className="tnum font-mono text-foreground">{it.value}</span>
               </span>
@@ -2736,7 +2792,7 @@ export function TradesPage() {
       {/* Task 156 — in Grid Mode the pager renders INSIDE the grid card
           (TradesDataGrid `pager` prop, directly after the last trade row).
           Every other sub-view keeps it below the card. */}
-      {!(subView === 'table' && presentation === 'grid') && pagerStrip}
+      {!(subView === 'table' && presentation === 'grid' && isNarrow === false) && pagerStrip}
 
       {/* Task 154 — the full L2 filters drawer, reachable from the tool rail */}
       <GlobalFiltersDrawer open={filtersDrawerOpen} onClose={() => setFiltersDrawerOpen(false)} />
