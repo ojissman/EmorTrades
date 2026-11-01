@@ -6168,3 +6168,71 @@ dirty (pass — exempt by design), real leftover work (refuse), unpushed
 previous cycle (warn + instruct), stale sandbox (pull N commits), diverged
 (refuse, escalate to owner). Next new day: owner provides key+repo → one
 command → CLEARED TO WORK.
+
+---
+Task ID: ENFORCE-3
+Agent: Z.ai Code
+Task: Owner fears made physics: (1) "pull happens but .env restore gets
+forgotten" and (2) "future keys never make it into the encryption — I can't
+keep count of them all." Owner mandate: ONE passphrase for life (the system
+never asks to change it; changing it is solely the owner's decision).
+
+Work Log:
+- RITUAL PULL first (13:54Z): sync:prod → production export replaced the
+  sandbox DB (users=3, trades=381).
+- DISCOVERY validating the owner's fear: the live .env holds 11 keys, not 9 —
+  RESEND_API_KEY and GOOGLE_SERVICE_ACCOUNT_JSON were added during the
+  GCI-era tasks and the required-9 check never knew they existed. A stale
+  backup restored after a restart would have silently dropped them, with no
+  check anywhere able to notice. This task closes that class of gap.
+- backups/secrets.manifest (NEW, plaintext, committed — names only, never
+  values): keyCount, sorted key-name list, sha256 of the exact .env bytes
+  encrypted into secrets.enc, rotation timestamp. Written ONLY on backup
+  rotation (restore verifies against it instead — restoring does not change
+  the protection). The owner can audit key coverage any day directly on
+  GitHub without trusting any agent's memory.
+- secrets-backup.ts: manifest write on backup; restore now fail-closes if
+  the restored content does not match the manifest (repo artifacts out of
+  sync); verify reports backup==manifest and live==manifest states; status
+  prints the manifest summary + FULLY PROTECTED / DRIFTED indicator.
+- Pre-push hook LOCK 1 · ENV-MANIFEST (before the existing sync-state lock):
+  refuses every push of main unless (a) live .env exists, (b) sha256(live
+  .env) == manifest.envSha256, (c) the rotation (secrets.enc + manifest) is
+  committed. Consequences: a truncated .env can never complete a task; ANY
+  key added/changed in .env physically requires a rotation (owner
+  passphrase) + commit before any push; a wipe-recovery always clones the
+  CURRENT protection, never a stale one.
+- day-start.ts: env completeness now checks the manifest inventory too
+  (catches loss of OPTIONAL keys); NEW 5b protection lock — a drifted .env
+  auto-rotates the backup when the owner pipes the passphrase (drift can
+  never survive past a day start); DAY START STATE report shows the
+  protection status; Enforcement line notes the env-manifest lock.
+- One-passphrase-for-life policy documented in AGENTS.md, CLAUDE.md and
+  backups/README.md (incl. the owner-only passphrase-change procedure).
+- INCIDENT FIX (found by the gates): after this morning's snapshot-restore +
+  17-commit pull, the generated Prisma client was stale (pre-BlogPost era;
+  tsc failed on db.blogPost / AlertRead.userId). Root cause: sync-prod-db.ts
+  used `prisma db push --skip-generate`. Fixed: explicit `prisma generate`
+  step (6b) after every strict push — the client is now regenerated from
+  the current schema on every sync. Gates green after: lint 0 · tsc 0 ·
+  vitest 131/131 · dev 200.
+- E2E PROOF (live, in order):
+  · Baseline rotation: 11 keys captured, manifest hash matches live .env. ✅
+  · day:start drift auto-rotate: FUTURE_TEST_KEY_E3 appended → gate detected
+    the drift → auto-rotated (12 keys) with the piped passphrase → true .env
+    restored → rotated back to the 11-key baseline. ✅
+  · Hook refusal — uncommitted rotation: push REFUSED. ✅
+  · Hook refusal — drifted .env: push REFUSED. ✅
+  · Hook refusal — missing .env: push REFUSED. ✅
+  · Final push of this task = the positive test (both locks verify). ✅
+- Note: two platform auto-backup commits (db/custom.db snapshots, 13:25/13:29Z)
+  ride to GitHub with this push — the documented GIT-1 auto-backup behavior.
+
+### Stage Summary
+
+Key coverage is now a public, self-verifying artifact instead of anyone's
+memory: the manifest counts the keys, the hook refuses pushes that don't
+match it, and day:start heals drift with the owner's one-for-life
+passphrase. The owner's two fears are physics now: an unrestored .env
+cannot push (fear 1), and a new key cannot reach "task done" unprotected
+(fear 2).
