@@ -175,7 +175,7 @@ const dirty = run('git status --porcelain')
 if (dirty.length) {
   console.error('✗ working tree is dirty — a new day must start from the last PUSHED state:')
   console.error(dirty.slice(0, 20).join('\n'))
-  die('commit + push the leftover work (ritual steps 4–5) or get the owner’s instruction first.')
+  die('commit + push the leftover work (ritual steps 4–6) or get the owner’s instruction first.')
 }
 
 /* ── 3 · fetch + pull --ff-only ─────────────────────────────────────────── */
@@ -222,8 +222,9 @@ if (ahead > 0) {
       '  Complete it first, then re-run: bun run day:start\n' +
       '    1. bun run sync:prod   — the ritual pull (the pre-push hook requires it)\n' +
       '    2. verify the task in the app (the ritual-lock page lifts once the pull lands)\n' +
-      '    3. append the worklog entry\n' +
-      '    4. git add -A && git commit && git push\n' +
+      '    3. append the worklog entry (ABOVE the ritual block)\n' +
+      '    4. update AGENTS.md + CLAUDE.md as applicable (ABOVE the block)\n' +
+      '    5. git add -A && git commit && git push\n' +
       '  If the work is dead-session residue of UNKNOWN intent: reconstruct from\n' +
       '  git + worklog.md (never from a session handoff), document it, then close.'
   )
@@ -378,5 +379,5 @@ console.log(`  Production:  synced ${state.get('lastPullIso') || '?'} — users=
 console.log(`  Secrets:     .env complete (9/9 required) · ${protection}`)
 console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live · ritual-guard live (ENFORCE-4)`)
 console.log('────────────────────────────────────────────────────────────────')
-console.log('✅ CLEARED TO WORK — next: the 6-step ritual (AGENTS.md) for today’s task,')
+console.log('✅ CLEARED TO WORK — next: the 7-step ritual (AGENTS.md) for today’s task,')
 console.log('   starting from this pulled state. Report this block to the owner.')

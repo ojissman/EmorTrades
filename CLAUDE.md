@@ -1,7 +1,7 @@
 # CLAUDE.md — READ THIS FILE FIRST, BEFORE ANY TASK
 
 > **Canonical runbook: `AGENTS.md`** (same repo root). It contains the strict
-> rule, the 6-step ritual, the NEW-DAY PROTOCOL (owner provides GitHub key +
+> rule, the 7-step ritual, the NEW-DAY PROTOCOL (owner provides GitHub key +
 > repo name → `bun run day:start` → CLEARED TO WORK) and the complete
 > WIPE-RECOVERY RUNBOOK for a brand-new sandbox. This file is the short card.
 
@@ -21,12 +21,23 @@ restored from the GitHub repo.
 2. **IMPLEMENT** the task on the pulled production data.
 3. **VERIFY** — E2E in the browser; the preview must show the task
    working on live data.
-4. **WORKLOG** entry in `worklog.md` (append, never overwrite), ending
-   with THE RITUAL block — the fixed protocol text (see AGENTS.md).
-5. **AGENTS.md entry** — the SAME entry appended to the end of AGENTS.md,
-   ending with the same THE RITUAL block (owner amendment, 2026-11-01).
-6. **COMMIT + `git push`** — ALWAYS the last step. GitHub receives the
-   newest code + production's current data together (the data time machine).
+4. **WORKLOG.md** — append the new task entry ABOVE the existing ritual
+   block; the block remains the file's final content.
+5. **AGENTS.md** — update task documentation, agent roles, functions, or
+   instructions as necessary; all new content ABOVE the ritual block.
+6. **CLAUDE.md** — update applicable instructions and task documentation;
+   all new content ABOVE the ritual block.
+7. **COMMIT + `git push`** — ALWAYS the final development operation.
+   GitHub receives the newest code + production's current data together
+   (the data time machine).
+
+THE RITUAL block ("THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL",
+RITUAL-AMEND-2, owner mandate 2026-11-01) sits exactly ONCE at the
+absolute end of worklog.md, AGENTS.md, and CLAUDE.md: new content is
+always inserted ABOVE it, nothing is ever appended after it, and it is
+never duplicated, deleted, shortened, rewritten, or modified. The
+complete PERMANENT RITUAL PRESERVATION RULE lives in the block itself,
+at the bottom of this file.
 
 ### What enforces it (you cannot silently skip)
 
@@ -38,9 +49,10 @@ restored from the GitHub repo.
   encrypted backup's manifest (`backups/secrets.manifest` — ENFORCE-3:
   any added/changed key, or a truncated `.env`, or an uncommitted rotation
   blocks the push until restored/rotated with the owner's passphrase),
-  and (3) unless the last task entry in BOTH `worklog.md` AND `AGENTS.md`
-  ends with THE RITUAL — the fixed protocol text, verbatim (ENFORCE-5,
-  amended 2026-11-01: the entry and its block land in both files).
+  and (3) unless ALL THREE files — `worklog.md`, `AGENTS.md`, AND
+  `CLAUDE.md` (RITUAL-AMEND-2, 2026-11-01) — end with the complete
+  ritual block: exactly once per file, final content, verbatim markers
+  (a duplicate block, content after it, or a paraphrase fails by design).
 - **One passphrase for life** (owner mandate): the system never expires or
   asks to change the secrets passphrase. Restores and rotations always use
   the same owner-held passphrase; changing it is solely the owner's
@@ -67,3 +79,83 @@ restored from the GitHub repo.
   production user-data history.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
+
+### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
+
+This protocol is permanent and must remain intact at the absolute end of
+WORKLOG.md, AGENTS.md, and CLAUDE.md.
+
+**DAILY RITUAL**
+
+(Once per day, before anything.)
+
+The owner says "Pull GitHub latest" and provides the GitHub token +
+repository → run `bun run day:start` → the gate must print
+CLEARED TO WORK and this result must be reported to the owner before
+the day's first task.
+
+No gate, no work.
+
+**TASK RITUAL**
+
+(Every task, exact order, no exceptions.)
+
+1. PULL FIRST: Run `bun run sync:prod`. A fresh production export must
+   replace the sandbox DB before any code is changed.
+2. IMPLEMENT: Implement on the freshly pulled production data.
+3. VERIFY: Verify end-to-end in the app. The preview must demonstrate
+   that the implementation works.
+4. WORKLOG.md: Append the new task entry
+   ABOVE the existing ritual block. Verify that the ritual block
+   remains the final content.
+5. AGENTS.md: Update task documentation, agent roles, functions, or
+   instructions as necessary. Place all new content
+   ABOVE the existing ritual block. Verify that the ritual block
+   remains the final content.
+6. CLAUDE.md: Update applicable instructions and task documentation.
+   Place all new content ABOVE the existing ritual block. Verify that
+   the ritual block remains the final content.
+7. COMMIT + PUSH: Commit and run `git push`. This must be the final
+   development operation.
+
+**PERMANENT RITUAL PRESERVATION RULE**
+
+These three files must ALWAYS end with the complete ritual block:
+
+- WORKLOG.md
+- AGENTS.md
+- CLAUDE.md
+
+The following rules are mandatory:
+
+1. The ritual block must appear exactly once in each file.
+2. New task entries and documentation must always be inserted ABOVE the
+   existing ritual block.
+3. Never append new content after the ritual block.
+4. Never duplicate the ritual block.
+5. Never delete, shorten, rewrite, or modify the ritual block.
+6. If the ritual block is missing, restore the complete original block
+   at the bottom.
+7. If the ritual block is not at the bottom, move it there without
+   losing existing content.
+8. Before committing and pushing, verify that all three files end with
+   the complete ritual block.
+9. New agents, agent functions, capabilities, responsibilities, and
+   operating instructions must be documented ABOVE the ritual block in
+   AGENTS.md.
+
+**ABSOLUTE COMPLETION RULE**
+
+No production pull and replacement of the sandbox DB → NO task is done.
+
+No end-to-end verification → NO task is done.
+
+No documentation updates and ritual-position verification → NO task is
+done.
+
+No commit and push → NO task is done.
+
+Always follow this strict mandatory development workflow, including both
+levels of control: DAILY RITUAL and TASK RITUAL.
+
+The ritual is the permanent Command, Instruction, and reminder that this protocol exists.

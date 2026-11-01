@@ -95,7 +95,7 @@ export function RitualLockGate({ children }: { children: React.ReactNode }) {
           <span>
             Unpushed work — GitHub is behind the sandbox
             {verdict.detail?.ahead ? ` by ${verdict.detail.ahead} commit(s)` : ''}. Complete the cycle: verify →
-            worklog → AGENTS.md → commit → push.
+            worklog → AGENTS.md → CLAUDE.md → commit → push.
           </span>
         </div>
       )}
@@ -147,8 +147,8 @@ function RitualLockPage({ state, onRecheck }: { state: RitualState; onRecheck: (
               ritual pull (production → sandbox DB)
             </li>
             <li>Verify the task end-to-end in the app</li>
-            <li>Append the task entry to worklog.md, ending with THE RITUAL block</li>
-            <li>Append the same entry to AGENTS.md — same block at its end</li>
+            <li>Append the task entry to worklog.md — ABOVE the ritual block</li>
+            <li>Update AGENTS.md and CLAUDE.md as applicable — ABOVE the ritual block</li>
             <li>
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">git commit</code> +{' '}
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">git push</code> — the enforcement hook

@@ -8,7 +8,13 @@
 #    — the fixed protocol text itself, repeated verbatim as the last
 #    section, before the push happens." Amended same day, RITUAL-AMEND-1:
 #    "…and the same entry lands in AGENTS.md too — ritual step 5 — with
-#    the block ending that file as well.")
+#    the block ending that file as well." Amended again same day,
+#    RITUAL-AMEND-2 — the owner replaced the whole protocol text with
+#    "THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL": the block now sits
+#    exactly ONCE at the absolute end of THREE files — worklog.md,
+#    AGENTS.md, AND CLAUDE.md — new content is always inserted ABOVE it,
+#    nothing is ever appended after it, and it is never duplicated or
+#    modified. LOCK 3 became 3a/3b/3c accordingly.)
 #
 # The Option-2 ritual requires EVERY task cycle to start with
 # `bun run sync:prod` (fresh production export → replaces the sandbox DB).
@@ -27,18 +33,15 @@
 #
 # LOCK 2 — SYNC-STATE (ENFORCE-1): see below.
 #
-# LOCK 3 — THE RITUAL BLOCK (ENFORCE-5, amended 2026-11-01 / RITUAL-AMEND-1):
-#   see below. The push is refused unless BOTH committed files (HEAD, not
-#   the working tree — "wrote it but forgot to commit" still refuses) have
-#   their last `## Task` entry ENDING with the fixed `### THE RITUAL` block:
-#   the protocol text itself, repeated verbatim as the final section of
-#   every entry — in worklog.md (step 4) AND in AGENTS.md (step 5, the
-#   owner's amendment: "AGENTS.md: append the entry, ending with this same
-#   ritual block") — including the amended continuity mandate (that this
-#   exact text is written at the end of every worklog AND AGENTS.md —
-#   continuously, per every task completed) — a standing reminder that the
-#   protocol exists: "It is the ritual, Command, Instruction and the
-#   reminder that it exists." NOT a compliance report about following it.
+# LOCK 3 — THE RITUAL BLOCK (ENFORCE-5; RITUAL-AMEND-1; RITUAL-AMEND-2,
+#   owner mandate 2026-11-01 — "THE RITUAL — MANDATORY DEVELOPMENT
+#   PROTOCOL"): see below. The push is refused unless THREE COMMITTED
+#   files (HEAD, not the working tree — "wrote it but forgot to commit"
+#   still refuses) each END with the complete ritual block: worklog.md
+#   (LOCK 3a), AGENTS.md (LOCK 3b), CLAUDE.md (LOCK 3c). Per file:
+#   the block header appears EXACTLY ONCE, NOTHING is written after the
+#   block, the file's last non-blank line is the block's closing sentence,
+#   and the body carries the stable marker phrases verbatim.
 #
 # HOW IT DECIDES:
 #   · origin/main tip = the last state that successfully reached GitHub.
@@ -157,97 +160,161 @@ fi
 
 echo "[enforcement] pull verified (epoch ${LAST_PULL} > pushed-tip ${TIP_CT}) — push allowed."
 
-# ── LOCK 3 · THE RITUAL BLOCK (ENFORCE-5, amended 2026-11-01) ─────────────────────────
-# Owner mandate (2026-11-01), corrected and amended same day: "it is 1. the
-# ritual itself... 2. a reminder for you, to know that protocol exists... its
-# repeated and fixed at the end of every worklog, it should say so on the
-# worklog itself." + RITUAL-AMEND-1: step 5 — "AGENTS.md: append the entry,
-# ending with this same ritual block" — and the continuity mandate now
-# covers BOTH files. Every task's entry ends with the SAME fixed ritual text
-# — the protocol itself, verbatim: never a report about it, never
-# paraphrased — in worklog.md AND at the end of AGENTS.md. The push is
-# refused unless BOTH COMMITTED files (HEAD) have their last `## Task` entry
-# ending with that block as its FINAL section (nothing after it).
+# ── LOCK 3 · THE RITUAL BLOCK (ENFORCE-5; RITUAL-AMEND-2, 2026-11-01) ─────
+# Owner mandate: "THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL" — the block
+# sits exactly ONCE at the absolute end of worklog.md, AGENTS.md, and
+# CLAUDE.md. New content is inserted ABOVE it; nothing is ever appended
+# after it; it is never duplicated, deleted, shortened, rewritten, or
+# modified. The push is refused unless every one of the three COMMITTED
+# files (HEAD) satisfies all four checks: exactly once, final content,
+# closing sentence, verbatim markers.
 refuse_ritual() {
   cat >&2 <<EOF
 
 ──────────────────────────────────────────────────────────────────
-  THE RITUAL BLOCK LOCK — PUSH REFUSED  (ENFORCE-5, owner-mandated)
+  THE RITUAL BLOCK LOCK — PUSH REFUSED  (owner-mandated)
 
   $1
 
-  Every task entry ends with THE RITUAL — the fixed protocol text
-  itself (the ritual + a standing reminder that it exists; NOT a
-  compliance report) — in worklog.md AND AGENTS.md (ritual step 5, the
-  owner's amendment 2026-11-01). Append this exact block as the FINAL
-  section of the last task entry in BOTH files, COMMIT, then re-run
-  this push:
+  "THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL" sits exactly ONCE at
+  the absolute end of worklog.md, AGENTS.md, and CLAUDE.md. New task
+  entries and documentation are inserted ABOVE the block — never after
+  it; the block is never duplicated or modified. Fix the file(s), COMMIT,
+  then re-run this push. The complete canonical block (verbatim):
 
-    ### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+    ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
-    DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
-    latest" and provides the GitHub token + repo → \`bun run day:start\` → the
-    gate must print CLEARED TO WORK and be reported to the owner before the
-    day's first task. No gate, no work.
+    This protocol is permanent and must remain intact at the absolute end of
+    WORKLOG.md, AGENTS.md, and CLAUDE.md.
 
-    TASK RITUAL (every task, exact order, no exceptions):
-    1. PULL FIRST: \`bun run sync:prod\` — fresh production export replaces the
-       sandbox DB, before any code.
-    2. IMPLEMENT on the pulled data.
-    3. VERIFY end-to-end in the app — the preview must show it working.
-    4. WORKLOG: append the entry, ending with this same ritual block.
-    5. AGENTS.md: append the entry, ending with this same ritual block.
-    6. COMMIT + \`git push\` — always the last step.
+    **DAILY RITUAL**
 
-    No pull and replacement of the sandbox DB → NO task is done.
+    (Once per day, before anything.)
 
-    This exact ritual text is written at the end of every worklog and
-    AGENTS.md — continuously, per every task completed — so the protocol
-    itself is always visible on the end of the worklog and at the end of AGENTS.md.
-    It is the ritual, Command, Instruction and the reminder that it exists.
+    The owner says "Pull GitHub latest" and provides the GitHub token +
+    repository → run `bun run day:start` → the gate must print
+    CLEARED TO WORK and this result must be reported to the owner before
+    the day's first task.
+
+    No gate, no work.
+
+    **TASK RITUAL**
+
+    (Every task, exact order, no exceptions.)
+
+    1. PULL FIRST: Run `bun run sync:prod`. A fresh production export must
+       replace the sandbox DB before any code is changed.
+    2. IMPLEMENT: Implement on the freshly pulled production data.
+    3. VERIFY: Verify end-to-end in the app. The preview must demonstrate
+       that the implementation works.
+    4. WORKLOG.md: Append the new task entry
+       ABOVE the existing ritual block. Verify that the ritual block
+       remains the final content.
+    5. AGENTS.md: Update task documentation, agent roles, functions, or
+       instructions as necessary. Place all new content
+       ABOVE the existing ritual block. Verify that the ritual block
+       remains the final content.
+    6. CLAUDE.md: Update applicable instructions and task documentation.
+       Place all new content ABOVE the existing ritual block. Verify that
+       the ritual block remains the final content.
+    7. COMMIT + PUSH: Commit and run `git push`. This must be the final
+       development operation.
+
+    **PERMANENT RITUAL PRESERVATION RULE**
+
+    These three files must ALWAYS end with the complete ritual block:
+
+    - WORKLOG.md
+    - AGENTS.md
+    - CLAUDE.md
+
+    The following rules are mandatory:
+
+    1. The ritual block must appear exactly once in each file.
+    2. New task entries and documentation must always be inserted ABOVE the
+       existing ritual block.
+    3. Never append new content after the ritual block.
+    4. Never duplicate the ritual block.
+    5. Never delete, shorten, rewrite, or modify the ritual block.
+    6. If the ritual block is missing, restore the complete original block
+       at the bottom.
+    7. If the ritual block is not at the bottom, move it there without
+       losing existing content.
+    8. Before committing and pushing, verify that all three files end with
+       the complete ritual block.
+    9. New agents, agent functions, capabilities, responsibilities, and
+       operating instructions must be documented ABOVE the ritual block in
+       AGENTS.md.
+
+    **ABSOLUTE COMPLETION RULE**
+
+    No production pull and replacement of the sandbox DB → NO task is done.
+
+    No end-to-end verification → NO task is done.
+
+    No documentation updates and ritual-position verification → NO task is
+    done.
+
+    No commit and push → NO task is done.
+
+    Always follow this strict mandatory development workflow, including both
+    levels of control: DAILY RITUAL and TASK RITUAL.
+
+    The ritual is the permanent Command, Instruction, and reminder that this protocol exists.
 ──────────────────────────────────────────────────────────────────
 
 EOF
   exit 1
 }
 
-# The amended block's stable markers — checked on the tail of BOTH files'
-# last task entry. Paraphrase (or the pre-amendment text) fails by design.
-ritual_markers_missing() { # $1 = text after the block header; echoes what is missing
-  printf '%s\n' "$1" | grep -q 'bun run sync:prod' || { echo "the TASK RITUAL pull command (bun run sync:prod)"; return; }
+# The block's stable markers — checked on the body of the block in each
+# file. Paraphrase (or any pre-amendment text) fails by design.
+ritual_markers_missing() { # $1 = block body text; echoes what is missing
   printf '%s\n' "$1" | grep -q 'bun run day:start' || { echo "the DAILY RITUAL gate command (bun run day:start)"; return; }
   printf '%s\n' "$1" | grep -q 'CLEARED TO WORK' || { echo "the daily gate requirement (CLEARED TO WORK)"; return; }
-  printf '%s\n' "$1" | grep -q 'No pull and replacement of the sandbox DB → NO task is done.' || { echo "the strict-rule sentence"; return; }
-  printf '%s\n' "$1" | grep -q 'AGENTS.md: append the entry' || { echo "ritual step 5 — 'AGENTS.md: append the entry, ending with this same ritual block' (the owner's amendment, RITUAL-AMEND-1)"; return; }
-  printf '%s\n' "$1" | grep -q 'written at the end of every worklog and' || { echo "the amended continuity mandate — that this exact text is written at the end of every worklog AND AGENTS.md, continuously, per every task completed"; return; }
-  printf '%s\n' "$1" | grep -q 'at the end of AGENTS.md' || { echo "the both-files visibility clause (at the end of AGENTS.md)"; return; }
-  printf '%s\n' "$1" | grep -q 'It is the ritual, Command, Instruction and the reminder' || { echo "the amended closing sentence — 'It is the ritual, Command, Instruction and the reminder that it exists.'"; return; }
+  printf '%s\n' "$1" | grep -q 'bun run sync:prod' || { echo "the TASK RITUAL pull command (bun run sync:prod)"; return; }
+  printf '%s\n' "$1" | grep -q 'ABOVE the existing ritual block' || { echo "the insertion rule (new content ABOVE the existing ritual block)"; return; }
+  printf '%s\n' "$1" | grep -q 'PERMANENT RITUAL PRESERVATION RULE' || { echo "the PERMANENT RITUAL PRESERVATION RULE section"; return; }
+  printf '%s\n' "$1" | grep -q 'exactly once in each file' || { echo "the exactly-once rule (the ritual block must appear exactly once in each file)"; return; }
+  printf '%s\n' "$1" | grep -q 'WORKLOG.md, AGENTS.md, and CLAUDE.md' || { echo "the three-file coverage (WORKLOG.md, AGENTS.md, and CLAUDE.md)"; return; }
+  printf '%s\n' "$1" | grep -q 'ABSOLUTE COMPLETION RULE' || { echo "the ABSOLUTE COMPLETION RULE section"; return; }
+  printf '%s\n' "$1" | grep -q 'No production pull and replacement of the sandbox DB → NO task is done.' || { echo "the strict-rule sentence (No production pull and replacement of the sandbox DB → NO task is done.)"; return; }
+  printf '%s\n' "$1" | grep -q 'The ritual is the permanent Command, Instruction, and reminder that this protocol exists.' || { echo "the closing sentence (The ritual is the permanent Command, Instruction, and reminder that this protocol exists.)"; return; }
   return 0
 }
 
-check_ritual_tail() { # $1 = file label, $2 = full blob; refuses on any violation
+check_ritual_file() { # $1 = file label, $2 = full blob; refuses on any violation
   LABEL="$1"
   BLOB="$2"
-  LAST_TASK="$(printf '%s\n' "$BLOB" | grep -n '^## Task' | tail -1 | cut -d: -f1)"
-  [ -n "$LAST_TASK" ] || refuse_ritual "[$LABEL] No '## Task' entry — nothing documents the work being pushed."
-  ENTRY="$(printf '%s\n' "$BLOB" | tail -n +"$LAST_TASK")"
-  RITUAL_AT="$(printf '%s\n' "$ENTRY" | grep -n '^### THE RITUAL' | tail -1 | cut -d: -f1)"
-  [ -n "$RITUAL_AT" ] || refuse_ritual "[$LABEL] The last task entry does not end with THE RITUAL — the fixed protocol text (the ritual itself + a standing reminder) is missing from the end of the entry."
-  AFTER="$(printf '%s\n' "$ENTRY" | tail -n +"$((RITUAL_AT + 1))")"
-  printf '%s\n' "$AFTER" | grep -q '^#\{2,3\} ' && refuse_ritual "[$LABEL] THE RITUAL block is not the FINAL section — something was written after it. The ritual block is always the last thing in every task entry."
+  # 1 · EXACTLY ONCE — never duplicate the block.
+  COUNT="$(printf '%s\n' "$BLOB" | grep -c '^### THE RITUAL')"
+  [ "$COUNT" -eq 1 ] || refuse_ritual "[$LABEL] The ritual block must appear EXACTLY ONCE — found $COUNT occurrence(s) of the block header. Never duplicate the block; exactly one block lives at the bottom of the file."
+  # 1b · THE NEW HEADER — RITUAL-AMEND-2's block, not a pre-amendment one.
+  printf '%s\n' "$BLOB" | grep -q '^### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL$' || refuse_ritual "[$LABEL] The block header is not RITUAL-AMEND-2's 'THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL' — a pre-amendment block was found instead. Restore the complete original block at the bottom."
+  # 2 · FINAL CONTENT — nothing may be written after the block.
+  RITUAL_AT="$(printf '%s\n' "$BLOB" | grep -n '^### THE RITUAL' | tail -1 | cut -d: -f1)"
+  AFTER="$(printf '%s\n' "$BLOB" | tail -n +"$((RITUAL_AT + 1))")"
+  printf '%s\n' "$AFTER" | grep -q '^#' && refuse_ritual "[$LABEL] Content was written AFTER the ritual block — the block must remain the file's FINAL content. Move the new content ABOVE the block (PERMANENT RITUAL PRESERVATION RULE)."
+  # 3 · CLOSING SENTENCE — the file ends with the block's last line.
+  LAST_LINE="$(printf '%s\n' "$BLOB" | sed '/^[[:space:]]*$/d' | tail -n 1)"
+  [ "$LAST_LINE" = "The ritual is the permanent Command, Instruction, and reminder that this protocol exists." ] || refuse_ritual "[$LABEL] The file does not end with the ritual block's closing sentence — the COMPLETE block must be the file's final content (restore the original block at the bottom if it was truncated)."
+  # 4 · VERBATIM MARKERS — paraphrase fails by design.
   MISSING="$(ritual_markers_missing "$AFTER")"
   [ -z "$MISSING" ] || refuse_ritual "[$LABEL] The ritual block is missing $MISSING."
 }
 
 # LOCK 3a — worklog.md (ritual step 4)
 WL_BLOB="$(git show HEAD:worklog.md 2>/dev/null)" || refuse_ritual "worklog.md is not in the commit being pushed (HEAD) — a push without the worklog update is a push without the task record."
-check_ritual_tail "worklog.md" "$WL_BLOB"
+check_ritual_file "worklog.md" "$WL_BLOB"
 
-# LOCK 3b — AGENTS.md (ritual step 5, owner amendment 2026-11-01: the same
-# entry is mirrored to the end of AGENTS.md, ending with the same block)
-AG_BLOB="$(git show HEAD:AGENTS.md 2>/dev/null)" || refuse_ritual "AGENTS.md is not in the commit being pushed (HEAD) — the runbook (with its mirrored task entry) must travel with every push."
-check_ritual_tail "AGENTS.md" "$AG_BLOB"
+# LOCK 3b — AGENTS.md (ritual step 5)
+AG_BLOB="$(git show HEAD:AGENTS.md 2>/dev/null)" || refuse_ritual "AGENTS.md is not in the commit being pushed (HEAD) — the runbook (ending with the ritual block) must travel with every push."
+check_ritual_file "AGENTS.md" "$AG_BLOB"
 
-echo "[enforcement] THE RITUAL present — the fixed protocol text ends the last task entry in worklog.md AND AGENTS.md (both rituals + the amended continuity mandate, verbatim)."
+# LOCK 3c — CLAUDE.md (ritual step 6, RITUAL-AMEND-2)
+CL_BLOB="$(git show HEAD:CLAUDE.md 2>/dev/null)" || refuse_ritual "CLAUDE.md is not in the commit being pushed (HEAD) — RITUAL-AMEND-2 requires worklog.md, AGENTS.md, AND CLAUDE.md to end with the ritual block."
+check_ritual_file "CLAUDE.md" "$CL_BLOB"
+
+echo "[enforcement] THE RITUAL present — the complete block ends worklog.md AND AGENTS.md AND CLAUDE.md (exactly once, final content, verbatim markers)."
 
 exit 0
