@@ -83,6 +83,13 @@ at the bottom of this file.
   2026-11-01: an owner preview login + a bot commit locked the app within
   one 20s poll). That is the system working — never a malfunction, never
   bypass it; recovery is always the lock page's five steps in order.
+- Navigation has ONE source: `src/config/navigation.ts` (NAV_ITEMS). Every
+  surface — sidebar, rail, mobile More sheet, ⌘K palette, in-page group
+  tabs — derives from it; never hardcode nav labels or paths in JSX. When
+  a page moves, keep its old hash alive as a page-registry
+  RemovedPageRedirect so saved links never break (NAV-SUPPORT-1,
+  2026-11-01: Support left Tools → standalone "Contact & Support" at
+  /support).
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

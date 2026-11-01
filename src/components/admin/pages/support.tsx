@@ -362,7 +362,7 @@ export function SupportPage() {
               emptyDescription={
                 filtersActive
                   ? 'Try clearing the search or filters.'
-                  : 'Tickets users submit from the Support page (/tools/support) will appear here.'
+                  : 'Tickets users submit from the Contact & Support page (/support) will appear here.'
               }
               page={page}
               pageSize={pageSize}

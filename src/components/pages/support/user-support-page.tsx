@@ -2,7 +2,8 @@
 
 /**
  * USER SUPPORT PAGE (ADMIN-2 · agent C) — the trader-side support experience
- * mounted at /tools/support by the page registry.
+ * mounted at /support (moved out of Tools, owner request 2026-11-01) by the
+ * page registry.
  *
  * Visual language: copied from the trader app (settings-page / section-card) —
  * token-driven slate surfaces (var(--bg-card), var(--border-strong), …), NOT

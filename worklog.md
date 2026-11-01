@@ -7140,6 +7140,56 @@ every 20 seconds; it caught the event that happened in between.
 
 **State at close:** ok · tree clean · 0 ahead · pull 20:44:58Z > push 20:26:36Z.
 
+## Task NAV-SUPPORT-1 — Support moved out of Tools: one standalone "Contact & Support" item
+
+**Owner request (verbatim, 2026-11-01):** "the client support, that is
+placed in naigation (tools), i dont think it was supposed to be there...
+its a Contact and Supports tool.... it shuld be placed as one"
+
+**What was wrong:** the user-side support page (ADMIN-2, Feedback &
+Support module — submit a ticket, follow the conversation) was registered
+as a child of the Tools nav group, next to Watchlist / Risk Tools /
+Execution / Challenges. It is a Contact & Support tool, not a trading
+tool — the owner is right.
+
+**The fix (single source of truth — one config, every surface follows):**
+
+- navigation.ts: Support removed from the Tools group (now exactly 4
+  trading tools); new standalone top-level item — label "Contact & Support"
+  (the owner's own description of it), path /support, LifeBuoy icon (the
+  icon the page already uses) — placed at the END of the main nav, after
+  Technical analysis: the conventional help position, clearly separated
+  from the trading groups.
+- page-registry.tsx: new /support entry (title "Contact & Support",
+  subtitle "Get help and track your tickets"); the old /tools/support
+  hash stays alive as a permanent RemovedPageRedirect → /support, so
+  saved links, bookmarks and stale suite memory keep working (the house
+  pattern: TP2 6A / Task 147).
+- Admin support console empty-state text updated (/tools/support →
+  /support); user-support-page header comment updated.
+
+**E2E verified (USER session, read-only minted cookie — no db writes, no
+login POST):** sidebar: Tools has exactly 4 children, Contact & Support
+its own row at the end of the main nav (after Technical analysis, before
+the utility row); in-page tab strip on Tools pages shows 4 pills, no
+Support; #/tools/support auto-redirects to #/support and renders the page
+(title "Contact & Support", New ticket / Your tickets,
+data-testid=user-support-page); the Ctrl+K palette (built from
+allNavLeaves) finds it as a page; mobile More sheet: Tools group without
+Support, no stray Support row, Contact & Support as ONE row after
+Technical analysis and before Settings / Trades Import / Library; zero
+page errors. Known pre-existing vaul DialogContent a11y warning on the
+More sheet (MOBILE-1, out of scope, unchanged by this task).
+
+**Ritual:** pull 21:05:17Z (users=4, trades=386) before code · lint 0
+errors · one dev-server OOM restart during the cycle, recovered
+immediately (single instance serving, Ready in 1582ms) · this entry above
+the block · AGENTS.md task entry above the block · CLAUDE.md discipline
+bullet above the block · commit + push last.
+
+**State at close:** ok after push · tree clean · 0 ahead. This push
+closes the cycle; the next task opens a new one and needs a fresh pull.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

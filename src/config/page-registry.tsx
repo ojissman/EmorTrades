@@ -428,8 +428,10 @@ export const PAGE_REGISTRY: Record<string, PageEntry> = {
   '/library': { kind: 'custom', title: 'Screenshots & Video Library', subtitle: 'Upload, caption and inspect trade evidence — screenshots, video and audio', render: () => <LibraryPage /> },
   // ---- Admin (multi-user launch) ----------------------------------------------
   '/admin': { kind: 'custom', title: 'Admin Console', subtitle: 'Manage users, roles, and platform activity', render: () => <AdminPage /> },
-  // ADMIN-2 — user-side support tickets (Feedback & Support module)
-  '/tools/support': { kind: 'custom', title: 'Support', subtitle: 'Get help and track your tickets', render: () => <UserSupportPage /> },
+  // ADMIN-2 — user-side support tickets (Feedback & Support module). Owner
+  // request 2026-11-01: moved out of Tools to /support — it is a Contact &
+  // Support tool and stands as one standalone nav item (see navigation.ts).
+  '/support': { kind: 'custom', title: 'Contact & Support', subtitle: 'Get help and track your tickets', render: () => <UserSupportPage /> },
 
   // ---- Hidden routes (not in nav) ---------------------------------------------
   // Task 147 — Trade Detail was merged into Trade Explore. The old route is
@@ -458,6 +460,16 @@ export const PAGE_REGISTRY: Record<string, PageEntry> = {
     title: 'Trade/Day Plan Analytics',
     subtitle: 'Retired — moved to Explore · Plan Review. Redirecting…',
     render: () => <RemovedPageRedirect to="/trading-plans/plans" />,
+  },
+  // Owner request 2026-11-01 — Support moved out of the Tools group to
+  // /support (Contact & Support, one standalone nav item). The old hash
+  // stays alive as a permanent redirect so saved links, bookmarks and
+  // stale suite memory land on the standalone page.
+  '/tools/support': {
+    kind: 'custom',
+    title: 'Support',
+    subtitle: 'Moved — redirecting to Contact & Support…',
+    render: () => <RemovedPageRedirect to="/support" />,
   },
 }
 

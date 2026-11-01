@@ -549,6 +549,23 @@ preview login bookkeeping was superseded by the production export per
 protocol (sandbox is scratch; production is the anchor); afc794d stays
 in git history. State at close: ok · clean · 0 ahead.
 
+## Task NAV-SUPPORT-1 — Support out of Tools; one standalone Contact & Support item
+
+Owner request (2026-11-01, verbatim in worklog): the user-side support
+page was sitting inside the Tools nav group; "its a Contact and Supports
+tool.... it shuld be placed as one." navigation.ts: Tools now has exactly
+4 trading tools (Watchlist / Risk Tools / Execution / Challenges); new
+top-level "Contact & Support" (/support, LifeBuoy icon) at the END of the
+main nav, after Technical analysis — the conventional help position.
+page-registry.tsx: /support is the page (title "Contact & Support"); the
+old /tools/support hash stays alive as a RemovedPageRedirect so saved
+links never break. Admin support console empty-state text updated.
+Every surface derives from NAV_ITEMS (sidebar, rail, mobile More sheet,
+⌘K palette, in-page group tabs) — never hardcode nav anywhere. E2E USER
+session (read-only minted cookie, no db writes): all surfaces verified,
+old-hash redirect verified, zero page errors. Pull 21:05:17Z (users=4,
+trades=386) before code; push closes the cycle.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

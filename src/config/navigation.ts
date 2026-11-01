@@ -43,6 +43,7 @@ import {
   Images,
   LayoutDashboard,
   ShieldCheck,
+  LifeBuoy,
 } from 'lucide-react'
 
 export type NavBadge = 'NEW'
@@ -143,8 +144,6 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Risk Tools', path: '/tools/risk-tools' },
       { label: 'Execution', path: '/tools/execution' },
       { label: 'Challenges', path: '/tools/challenges' },
-      // ADMIN-2 — user-side support tickets (Feedback & Support module)
-      { label: 'Support', path: '/tools/support' },
     ],
   },
 
@@ -308,6 +307,14 @@ export const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
+
+  // ADMIN-2 follow-up (owner request, 2026-11-01) — Support left the Tools
+  // group: it is a Contact & Support tool, not a trading tool, so it stands
+  // as ONE standalone item at the end of the main nav — the conventional
+  // help position, clearly separated from the trading groups. The old
+  // /tools/support hash stays alive as a page-registry redirect, so saved
+  // links and bookmarks keep working.
+  { label: 'Contact & Support', path: '/support', icon: LifeBuoy },
 ]
 
 /**
