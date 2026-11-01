@@ -49,6 +49,11 @@ refreshed from live production.
    5. COMMIT + `git push` — always the last step.
 
    No pull and replacement of the sandbox DB → NO task is done.
+
+   This exact ritual text is written at the end of every worklog —
+   continuously, per every task completed — so the protocol itself is
+   always visible on the worklog. It is the ritual, and the reminder
+   that it exists.
    ```
 
    The push (step 5) is physically refused without this block — pre-push
@@ -152,13 +157,16 @@ did not happen: just run `bun run day:start`.
     refused unless the worklog AS COMMITTED (HEAD — not the working tree,
     so "wrote but forgot to commit" still refuses) has its last
     `## Task` entry ENDING with the fixed `### THE RITUAL` block — the
-    protocol text itself, verbatim (heading, DAILY RITUAL, TASK RITUAL,
-    the strict-rule sentence) — as the entry's FINAL section, nothing
-    after it. It is the ritual + a standing reminder that the protocol
-    exists; NOT a compliance report (owner-corrected same day). The hook
-    greps the block's stable markers, so paraphrase fails by design; on
-    refusal it prints the entire canonical block. Optional per-cycle
-    values may sit just BEFORE the block.
+    protocol text itself, verbatim — as the entry's FINAL section, nothing
+    after it. The block carries BOTH rituals, the strict-rule sentence,
+    AND the continuity mandate (that this exact text is written at the
+    end of every worklog, continuously, per every task completed — the
+    owner's 6th point, completed same day). It is the ritual + a standing
+    reminder that the protocol exists; NOT a compliance report. The hook
+    greps the block's stable markers (including 'written at the end of
+    every worklog'), so paraphrase fails by design; on refusal it prints
+    the entire canonical block. Optional per-cycle values may sit just
+    BEFORE the block.
   All three live in the repo, so a cloned sandbox re-arms them automatically. A
   fresh sandbox has no `.sync-state` → it is push-locked until the first real
   `bun run sync:prod`.

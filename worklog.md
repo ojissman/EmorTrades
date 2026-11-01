@@ -6756,3 +6756,92 @@ TASK RITUAL (every task, exact order, no exceptions):
 5. COMMIT + `git push` — always the last step.
 
 No pull and replacement of the sandbox DB → NO task is done.
+
+This exact ritual text is written at the end of every worklog —
+continuously, per every task completed — so the protocol itself is always
+visible on the worklog. It is the ritual, and the reminder that it exists.
+
+---
+
+## Task ENFORCE-5-COMPLETE — the ritual text completed: the continuity mandate (the owner's 6th point)
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Owner report (verbatim)
+
+"the tex is not complete the 6. "this ritual exact text (DAILY RITUAL (once
+per day, before anything): owner says "Pull GitHub latest" + token + repo →
+bun run day:start → must print CLEARED TO WORK, reported to owner before the
+day's first task. No gate, no work. TASK RITUAL (every task, exact order):
+1. PULL FIRST bun run sync:prod → 2. implement → 3. verify E2E → 4. worklog
+(ending with this same block) → 5. commit + push, always last. No pull and
+replacement of the sandbox DB → NO task is done.) but be written at the end
+of every worklog continuely per evry task complteted" is not here"
+
+### What was missing
+
+The ritual text carried both rituals and the strict rule but NOT its final
+clause — the continuity mandate: that THIS EXACT TEXT is written at the end
+of every worklog, continuously, per every task completed. The repetition
+rule itself must be part of the repeated text, so every future reader sees
+the whole mandate — including that it repeats. The text was incomplete; now
+it ends with:
+
+  "This exact ritual text is written at the end of every worklog —
+  continuously, per every task completed — so the protocol itself is
+  always visible on the worklog. It is the ritual, and the reminder
+  that it exists."
+
+### What changed (the completed text, in every home it lives)
+
+- scripts/git-hooks/pre-push — LOCK 3 now also greps the continuity marker
+  ('written at the end of every worklog'); the refusal message carries the
+  completed block.
+- AGENTS.md — canonical text (step 4) + LOCK 3 enforcement-map entry updated.
+- worklog.md — the ENFORCE-5 entry's block (previous entry) updated to the
+  completed text. Documented here, never silently: the incomplete version
+  was pushed at 07cf1c6 and lived ~15 minutes; this cycle completes it, and
+  the correction is visible in git history and in this entry.
+- This entry ends with the completed block — as every task entry now does,
+  continuously.
+
+### Verification
+
+- Stage 1 REFUSAL (actual): with the updated hook, invocation against HEAD
+  as-was (07cf1c6 — its block lacked the continuity paragraph) → LOCK 3
+  REFUSED: "The ritual block is missing the continuity mandate — that this
+  exact text is written at the end of every worklog, continuously, per every
+  task completed (the owner's 6th point)."
+- Stage 2 PASS: this entry (ending with the completed block) committed →
+  the same invocation passes all three locks; the real push of this commit
+  is the live proof (LOCK 3 ran on this entry as pushed).
+- bash -n clean; hook re-armed; lint 0 errors; no TS touched this cycle;
+  dev 200 throughout.
+
+### Files
+
+- M scripts/git-hooks/pre-push (continuity marker + completed refusal text)
+- M AGENTS.md (canonical text + LOCK 3 map entry)
+- M worklog.md (this entry + the completed block in the ENFORCE-5 entry)
+
+### THE RITUAL — this protocol exists (fixed at the end of every task entry)
+
+DAILY RITUAL (once per day, before anything): the owner says "Pull GitHub
+latest" and provides the GitHub token + repo → `bun run day:start` → the
+gate must print CLEARED TO WORK and be reported to the owner before the
+day's first task. No gate, no work.
+
+TASK RITUAL (every task, exact order, no exceptions):
+1. PULL FIRST: `bun run sync:prod` — fresh production export replaces the
+   sandbox DB, before any code.
+2. IMPLEMENT on the pulled data.
+3. VERIFY end-to-end in the app — the preview must show it working.
+4. WORKLOG: append the entry, ending with this same ritual block.
+5. COMMIT + `git push` — always the last step.
+
+No pull and replacement of the sandbox DB → NO task is done.
+
+This exact ritual text is written at the end of every worklog —
+continuously, per every task completed — so the protocol itself is always
+visible on the worklog. It is the ritual, and the reminder that it exists.

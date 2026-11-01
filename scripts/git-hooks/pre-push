@@ -29,11 +29,13 @@
 #   unless the worklog AS COMMITTED (HEAD, not the working tree — "wrote it
 #   but forgot to commit" still refuses) has its last `## Task` entry
 #   ENDING with the fixed `### THE RITUAL` block: the protocol text itself,
-#   repeated verbatim as the final section of every entry — a standing
-#   reminder that the protocol exists (owner: "it is 1. the ritual itself…
-#   2. a reminder for you, to know that protocol exists… its repeated and
-#   fixed at the end of every worklog, it should say so on the worklog
-#   itself"). NOT a compliance report about following it.
+#   repeated verbatim as the final section of every entry — including the
+#   continuity mandate (that this exact text is written at the end of every
+#   worklog, continuously, per every task completed) — a standing reminder
+#   that the protocol exists (owner: "it is 1. the ritual itself… 2. a
+#   reminder for you, to know that protocol exists… its repeated and fixed
+#   at the end of every worklog, it should say so on the worklog itself").
+#   NOT a compliance report about following it.
 #
 # HOW IT DECIDES:
 #   · origin/main tip = the last state that successfully reached GitHub.
@@ -190,6 +192,11 @@ refuse_ritual() {
     5. COMMIT + \`git push\` — always the last step.
 
     No pull and replacement of the sandbox DB → NO task is done.
+
+    This exact ritual text is written at the end of every worklog —
+    continuously, per every task completed — so the protocol itself is
+    always visible on the worklog. It is the ritual, and the reminder
+    that it exists.
 ──────────────────────────────────────────────────────────────────
 
 EOF
@@ -208,6 +215,7 @@ printf '%s\n' "$AFTER" | grep -q 'bun run sync:prod' || refuse_ritual "The ritua
 printf '%s\n' "$AFTER" | grep -q 'bun run day:start' || refuse_ritual "The ritual block is missing the DAILY RITUAL gate command (bun run day:start)."
 printf '%s\n' "$AFTER" | grep -q 'CLEARED TO WORK' || refuse_ritual "The ritual block is missing the daily gate requirement (CLEARED TO WORK)."
 printf '%s\n' "$AFTER" | grep -q 'No pull and replacement of the sandbox DB → NO task is done.' || refuse_ritual "The ritual block is missing the strict-rule sentence."
-echo "[enforcement] THE RITUAL present — the fixed protocol text ends the last task entry (both rituals, verbatim)."
+printf '%s\n' "$AFTER" | grep -q 'written at the end of every worklog' || refuse_ritual "The ritual block is missing the continuity mandate — that this exact text is written at the end of every worklog, continuously, per every task completed (the owner's 6th point)."
+echo "[enforcement] THE RITUAL present — the fixed protocol text ends the last task entry (both rituals + the continuity mandate, verbatim)."
 
 exit 0
