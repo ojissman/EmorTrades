@@ -6538,3 +6538,40 @@ cannot push (fear 1), and a new key cannot reach "task done" unprotected
   /tmp/dev-watchdog.pid)
 - M package.json (dev: tee → tee -a, keeps log history across restarts)
 - M db/custom.db (E2E name round-trip; net-zero after revert)
+
+### Close-out addendum — ritual recovery (2026-11-01 16:18Z)
+
+- ANOMALY: the session died after the worklog append but BEFORE `git
+  commit`. The work survived only because the platform's EmorTrades
+  Auto-Backup swept the finished tree into commit cbaca93 at 16:01:19Z
+  (bare-UUID subject — cbaca93 IS this task's work: 16 files, worklog
+  included; the session itself never committed). The cycle had also
+  skipped its opening `bun run sync:prod` — the last verified pull was
+  15:12:36Z, which belonged to PREVIEW-1's cycle (pushed 15:12:45Z).
+  No push ever ran: GitHub showed PREVIEW-1 as latest while the sandbox
+  already served the fixes. Caught by the owner: "noticed you didnt
+  follow the ritual, WHY?"
+- RECOVERY (exactly per the enforcement hook's own instructions —
+  pre-push: "REQUIRED before this push can succeed: 1. bun run
+  sync:prod; 2. then re-run this push"):
+  · 16:18:02Z `bun run sync:prod` — pull users=4/trades=381 (identical
+    counts to 15:12Z: production idle since); swap + strict schema push +
+    prisma client regen + integrity verified; dev down ~22s, back 200 at
+    16:18:24Z. .sync-state epoch 1793549904.
+  · `git push` — hook approved both locks (env 11-key baseline; pull
+    epoch 1793549904 > pushed-tip 1793545965). cbaca93 landed:
+    e07fee9..cbaca93. GitHub latest = this task's work.
+  · This addendum + the pulled db snapshot ride this close-out commit;
+    the final push passes the hook on the same verified pull (epoch
+    1793549904 > cbaca93's commit time 16:01:19Z / 1793548879).
+- WHY (mechanism, not excuse): the enforcement system guards the push
+  (hook) and the day gate (passphrase) — nothing guards "session dies
+  between work and close-out." Context death hit exactly there; the
+  close-out had been left to session liveness. Discipline fix: the
+  close-out (worklog → commit → push) is issued in the same action as
+  the work — a finished cycle is never left parked. The cycle-opening
+  pull stays step 1, every cycle — this cycle is the cautionary exhibit.
+  The continuation handoff claimed the task was "not started";
+  reconciling from git+worklog (the durable record) instead of the
+  handoff is what recovered the truth — the protocol's design premise
+  working as intended.
