@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store/app-store'
-import { useAuthStore } from '@/store/auth-store'
+import { useAdminPermissions } from '@/store/auth-store'
 import { Search, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '../shell/shell.css'
@@ -69,7 +69,7 @@ async function getJson(url: string): Promise<unknown | null> {
 
 export function AdminGlobalSearch() {
   const navigate = useAppStore((s) => s.navigate)
-  const permissions = useAuthStore((s) => s.user?.adminPermissions ?? [])
+  const permissions = useAdminPermissions()
 
   const canUsers = permissions.includes('users.view')
   const canTrades = permissions.includes('trades.view')

@@ -23,7 +23,7 @@ import dynamic from 'next/dynamic'
 import { useMemo } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useAppStore } from '@/store/app-store'
-import { useAuthStore } from '@/store/auth-store'
+import { useAdminPermissions, useAuthStore } from '@/store/auth-store'
 import { AdminEmptyState } from './ui/primitives'
 import './admin.css'
 
@@ -168,7 +168,7 @@ export function AdminContent() {
   const route = useAppStore((s) => s.route)
   const routeQuery = useAppStore((s) => s.routeQuery)
   const user = useAuthStore((s) => s.user)
-  const permissions = user?.adminPermissions ?? []
+  const permissions = useAdminPermissions()
 
   const matched = useMemo(() => {
     // '/admin/users/abc' → '/admin/users/:id' + userId

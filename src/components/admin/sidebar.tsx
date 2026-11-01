@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/app-store'
-import { useAuthStore } from '@/store/auth-store'
+import { useAdminPermissions, useAuthStore } from '@/store/auth-store'
 import { NavGroup } from '@/components/shell/nav-group'
 import {
   ADMIN_NAV,
@@ -52,7 +52,7 @@ export function AdminSidebar() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
   const route = useAppStore((s) => s.route)
   const navigate = useAppStore((s) => s.navigate)
-  const permissions = useAuthStore((s) => s.user?.adminPermissions ?? [])
+  const permissions = useAdminPermissions()
   const adminRole = useAuthStore((s) => s.user?.adminRole ?? null)
 
   const [isMobile, setIsMobile] = useState(false)
@@ -314,7 +314,7 @@ function AdminUtilityRow({
   route: string
   onNavigate: (path: string) => void
 }) {
-  const permissions = useAuthStore((s) => s.user?.adminPermissions ?? [])
+  const permissions = useAdminPermissions()
 
   const entries: { label: string; path: string; icon: LucideIcon; active: boolean }[] = [
     { label: 'Back to App', path: '/overview', icon: ArrowLeft, active: false },

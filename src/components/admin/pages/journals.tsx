@@ -27,7 +27,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/store/auth-store'
+import { useAdminPermissions } from '@/store/auth-store'
 import {
   AdminPageHeader,
   KpiCard,
@@ -419,7 +419,7 @@ function JournalDetailModal({ journal, onClose }: { journal: JournalRow | null; 
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export function JournalsPage() {
-  const canViewPrivate = useAuthStore((s) => (s.user?.adminPermissions ?? []).includes('journals.view_private'))
+  const canViewPrivate = useAdminPermissions().includes('journals.view_private')
 
   const [tab, setTab] = useState<'trades' | 'journals'>('trades')
 

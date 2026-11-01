@@ -28,9 +28,21 @@ interface AuthState {
   setUser: (u: AuthUser | null) => void
 }
 
+/**
+ * STABLE EMPTY FALLBACK — Zustand selectors run inside React's
+ * useSyncExternalStore, whose contract requires getSnapshot to return a
+ * cached value. `?? []` inside a selector mints a fresh array on every call,
+ * which React flags as an infinite loop ("The result of getSnapshot should
+ * be cached"). All permissions selectors must fall back to THIS constant.
+ */
+const EMPTY_PERMISSIONS: string[] = []
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  setUser: (user) => set({ user }),
+  // Normalize on write: a signed-in user ALWAYS carries an adminPermissions
+  // array, so selectors can return it by reference without minting fallbacks.
+  setUser: (user) =>
+    set({ user: user ? { ...user, adminPermissions: user.adminPermissions ?? EMPTY_PERMISSIONS } : null }),
 }))
 
 export const useIsAdmin = () => useAuthStore((s) => Boolean(s.user?.isAdmin) || s.user?.role === 'ADMIN')
@@ -38,4 +50,4 @@ export const useIsAdmin = () => useAuthStore((s) => Boolean(s.user?.isAdmin) || 
 /** The staff role for the admin platform (null = no admin platform access). */
 export const useAdminRole = () => useAuthStore((s) => s.user?.adminRole ?? null)
 
-export const useAdminPermissions = () => useAuthStore((s) => s.user?.adminPermissions ?? [])
+export const useAdminPermissions = () => useAuthStore((s) => s.user?.adminPermissions ?? EMPTY_PERMISSIONS)

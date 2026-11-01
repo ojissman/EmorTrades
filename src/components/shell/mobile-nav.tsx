@@ -29,7 +29,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '@/store/app-store'
-import { useIsAdmin, useAuthStore } from '@/store/auth-store'
+import { useIsAdmin, useAdminPermissions } from '@/store/auth-store'
 import {
   SIMPLE_MODE_NAV,
   NAV_ITEMS,
@@ -120,7 +120,7 @@ export function MobileNav() {
   const simpleMode = useAppStore((s) => s.simpleMode)
   const setSimpleMode = useAppStore((s) => s.setSimpleMode)
   const isAdmin = useIsAdmin()
-  const permissions = useAuthStore((s) => s.user?.adminPermissions ?? [])
+  const permissions = useAdminPermissions()
 
   const [moreOpen, setMoreOpen] = useState(false)
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
