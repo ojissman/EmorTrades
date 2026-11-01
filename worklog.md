@@ -6427,3 +6427,114 @@ cannot push (fear 1), and a new key cannot reach "task done" unprotected
   snapshot 15:12Z: users=4, trades=381 — one new production user since the
   morning pull, captured by the ritual. The E2E-residue db was replaced;
   the E2E test user was already deleted before the sync.)
+
+## Task PROFILE-1 — Top bar: real per-user identity chip + ONE merged notification bell + dev-server watchdog
+
+**Agent:** main (Z.ai Code)
+**Date:** 2026-11-01
+
+### Work Log
+
+- OWNER REPORT (verbatim intent): "two issues i noticed: 1. two
+  notification/alert icon on the top Global bar. 2. The profile icon at the
+  top global bar, when clicked the modal shows (E) for EmorTrader (EmorTrader
+  All features included) and its same for all accounts, its fixed,
+  hardcoded... its each individual user profile that is supposed to be here
+  either their profile pic if available or their initials etc and their
+  name... i noticed in settings there is a section where this name is
+  actually set... but it seems it wasnt wired/linked appropriately or so".
+- ISSUE 2 ROOT CAUSE — a shared-cache SHAPE WAR, not missing data: six
+  components fetched user data under the SAME TanStack key ['user'] with
+  DIFFERENT endpoints/shapes. The top bar (and risk-page) used /api/seed
+  (`{user:{…}}` wrapped); the account tab, prefs applier, overview,
+  account-sharing and email-settings used /api/user — three UNWRAPPING
+  json.user, two keeping it wrapped. Whichever observer refetched last won
+  the cache; the shell-mounted SettingsPrefsApplier made the UNWRAPPED shape
+  win at boot, so the top bar's `userData?.user?.name` resolved undefined →
+  permanent "EmorTrader / All features included" fallbacks for EVERY
+  account. On top: the avatar letter "E" was literally hardcoded in JSX,
+  and /api/user never selected the `avatar` column (one production user has
+  a Google profile-pic URL that could never render).
+- ISSUE 2 FIX — one canonical source of truth: new
+  src/hooks/use-current-user.ts (key ['user'], endpoint /api/user,
+  UNWRAPPED shape, 60s staleTime; exports initialsOf() + displayNameOf()
+  helpers). /api/user GET now selects avatar (googleId/passwordHash still
+  stripped server-side). ALL SEVEN consumers migrated to the hook
+  (top-bar, account-tab, prefs-applier, overview, risk-page,
+  account-sharing, email-settings) — one key, one shape, no more race.
+  Top bar chip: user's avatar image when present (referrerPolicy
+  no-referrer, broken-URL fallback via key-based state — no setState-in-
+  effect), else REAL initials from the name ("Demo Trader"→DT, single word
+  → first letter, no name → email handle letter, else "T"). Menu header:
+  real name + real email; fallbacks are now "Trader" / "Not signed in" —
+  brand marketing strings removed. Settings ▸ Account ▸ Display Name save
+  → invalidateQueries(['user']) → top bar chip updates LIVE (verified).
+- ISSUE 1 ROOT CAUSE: the top bar mounted BOTH <AlertsCenter/> (bell:
+  price crossings + behavior patterns) AND <PlatformMessagesBell/>
+  (megaphone: ADMIN-2 announcements + notifications) — two badge-carrying
+  notification icons side by side.
+- ISSUE 1 FIX — one bell, two feeds: PlatformMessagesBell deleted; its
+  feed logic + lists extracted to src/components/platform-messages/panel.tsx
+  (exports usePlatformMessagesFeed() + <PlatformMessagesPanel active>).
+  AlertsCenter is now the single Notification Center: "Notifications"
+  header, segmented tab pills [Trading | Platform] with per-tab unread
+  badges, sound toggle + "N active" on the Trading tab, announcements +
+  per-user-read notifications on the Platform tab. Merged trigger badge =
+  trading unread + platform unread; critical pulse behavior preserved.
+  Platform feed refetches on dropdown-open and on tab activation (same
+  react-query cache as the badge — zero duplicate requests).
+- BONUS ROOT CAUSE FOR "PREVIEW NOT WORKING" (found during verify): the
+  4GB box's OOM-killer has now killed next-server FIVE times this session
+  (dmesg: RSS 2.3-2.7GB during Turbopack compile spikes, whenever chrome/
+  eslint/tsc ran concurrently). Every silent dev.log death matches this.
+  FIX: scripts/dev-watchdog.sh — port-bind probe (not HTTP, so a
+  compiling server is never false-killed), 60s boot grace, leftover-pkill
+  duplicate guard, append-only dev-watchdog.log trail; daemonized via
+  start-stop-daemon so it survives the tool-shell process reaper (plain
+  setsid/nohup children are reaped between tool commands — verified
+  empirically). package.json dev script tee → tee -a so restarts keep the
+  log history. Self-heal verified: manual kill → detected 23s → HTTP 200
+  again. Auto-recovery now ~30s instead of dead-until-manual-restart.
+
+### Verification (agent-browser E2E, two real accounts)
+
+- Session tokens minted server-side (HMAC, same AUTH_SECRET) for two
+  production users; bot-guard untouched (its UA screen only guards the
+  login/register endpoints).
+- User WITH Google avatar (ejikodovwan@gmail.com): chip renders the actual
+  profile picture (img loaded=true), menu shows "Ejikodovwan l Roseline" +
+  real email. NOT "EmorTrader".
+- User WITHOUT avatar (demo@emortrades.com): chip shows initials "DT",
+  menu shows "Demo Trader" + demo@emortrades.com.
+- Display Name round-trip: renamed to "Demo Trader QA" in Settings → chip
+  initials flipped to "DQ" + menu updated INSTANTLY (shared cache +
+  invalidation), PATCH /api/user 200, then reverted → "DT" again.
+- Bell: exactly ONE notifications button in the top bar (aria-label
+  "Notifications (N unread)"); dropdown shows both tabs; Platform tab
+  loads real announcements + notifications ("New weekly analytics
+  dashboard", mark-all-read works); Trading tab shows price-alert and
+  system-alert sections + sound toggle + "All clear" empty state.
+- VLM screenshot audit: 1 bell icon with badge, "DT" chip, no overlapping/
+  broken elements. bun run lint clean; tsc --noEmit clean; dev.log during
+  E2E: all API 200, no runtime/hydration errors. (Pre-existing React
+  "getSnapshot should be cached" console warning confirmed PRE-EXISTING
+  via stash test — 3 occurrences on HEAD vs 1 with this fix.)
+- E2E hygiene: no test users created (existing accounts used), name change
+  reverted, browser closed afterward to free ~1GB RAM.
+
+### Files
+
+- A src/hooks/use-current-user.ts (canonical current-user query + helpers)
+- A src/components/platform-messages/panel.tsx (extracted feed + lists)
+- D src/components/platform-messages/bell.tsx (merged into AlertsCenter)
+- M src/components/alerts-center.tsx (tabs: Trading | Platform, merged badge)
+- M src/components/shell/top-bar.tsx (real identity chip, one bell)
+- M src/app/api/user/route.ts (select avatar)
+- M src/components/settings/sections/tabs/account-tab.tsx ·
+  account-sharing-section.tsx · email-settings-section.tsx ·
+  settings-prefs-applier.tsx · pages/overview-page.tsx · pages/risk-page.tsx
+  (all → useCurrentUser)
+- A scripts/dev-watchdog.sh (OOM self-heal; daemonized, pid
+  /tmp/dev-watchdog.pid)
+- M package.json (dev: tee → tee -a, keeps log history across restarts)
+- M db/custom.db (E2E name round-trip; net-zero after revert)

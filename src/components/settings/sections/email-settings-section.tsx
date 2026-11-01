@@ -17,7 +17,8 @@
  */
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,15 +68,9 @@ export function EmailSettingsSection() {
   const queryClient = useQueryClient()
 
   // Primary email = the real account email (server truth).
-  const { data: userData } = useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const res = await fetch('/api/user')
-      if (!res.ok) throw new Error('Failed to load user')
-      return res.json()
-    },
-  })
-  const primaryEmail = String(userData?.user?.email ?? '')
+  // Profile fix (2025-11) — canonical ['user'] cache (unwrapped shape).
+  const { data: currentUser } = useCurrentUser()
+  const primaryEmail = String(currentUser?.email ?? '')
 
   const [extras, setExtras] = useState<ExtraEmail[]>(readExtras)
   const [selected, setSelected] = useState<string | null>(null)

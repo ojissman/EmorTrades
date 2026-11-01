@@ -19,6 +19,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, Plus, Settings2, Trash2 } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -79,15 +80,9 @@ export function AccountSharingSection() {
   const { toast } = useToast()
 
   // This app's display name — makes the share flow make sense locally.
-  const { data: userData } = useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const res = await fetch('/api/user')
-      if (!res.ok) throw new Error('Failed to load user')
-      return res.json()
-    },
-  })
-  const displayName = String(userData?.user?.name ?? '')
+  // Profile fix (2025-11) — canonical ['user'] cache (unwrapped shape).
+  const { data: currentUser } = useCurrentUser()
+  const displayName = String(currentUser?.name ?? '')
 
   // Real accounts for the gear (edit access) dialog.
   const { data: accountsData } = useQuery({

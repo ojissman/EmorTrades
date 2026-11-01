@@ -16,6 +16,10 @@ import {
   unreadSystemAlerts,
   useSystemAlerts,
 } from '@/store/system-alerts-store'
+// Merged-bell fix (2025-11) — the standalone PlatformMessagesBell megaphone
+// is gone from the top bar; its feed lives here as a second tab under the
+// ONE bell. One notification icon, one badge, two feeds.
+import { PlatformMessagesPanel, usePlatformMessagesFeed } from '@/components/platform-messages/panel'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -67,6 +71,10 @@ function fmtLevel(n: number): string {
 
 export function AlertsCenter() {
   const [open, setOpen] = useState(false)
+  // Which feed the single bell shows: the user's trading alerts (price
+  // crossings + behavior patterns) or platform messages (announcements +
+  // admin notifications). Defaults to trading — the journal's own signals.
+  const [tab, setTab] = useState<'trading' | 'platform'>('trading')
 
   // Price-alert events (hydrated by the global monitor on mount).
   const priceEvents = usePriceAlerts((s) => s.events)
@@ -116,8 +124,14 @@ export function AlertsCenter() {
 
   // Badge = UNREAD items only (system + price). The header still shows the
   // total active conditions.
-  const totalBadge = unreadSystemCount + unreadPrice
+  const tradingUnread = unreadSystemCount + unreadPrice
   const totalActive = count + priceEvents.length
+
+  // Platform feed (ADMIN-2) — same react-query cache as the panel tab, so
+  // the merged trigger badge and the tab lists share one request.
+  const platformFeed = usePlatformMessagesFeed()
+  const platformUnread = platformFeed.data?.unreadCount ?? 0
+  const totalBadge = tradingUnread + platformUnread
 
   function markAllSystemRead() {
     useSystemAlerts.getState().markAllRead(alerts.map((a) => a.id))
@@ -160,6 +174,7 @@ export function AlertsCenter() {
           // bars until each is actually clicked (or bulk-marked).
           hydratePriceAlerts()
           hydrateSystemAlerts()
+          platformFeed.refetch()
         }
         setOpen(o)
       }}
@@ -169,7 +184,7 @@ export function AlertsCenter() {
           variant="ghost"
           size="icon"
           className="relative h-9 w-9"
-          aria-label={`Alerts${totalBadge > 0 ? ` (${totalBadge} active)` : ''}`}
+          aria-label={`Notifications${totalBadge > 0 ? ` (${totalBadge} unread)` : ''}`}
           data-testid="alerts-bell"
         >
           <Bell className={cn('h-4.5 w-4.5', (hasCritical || unreadPrice > 0) && 'text-rose-300')} />
@@ -188,41 +203,72 @@ export function AlertsCenter() {
 
       <DropdownMenuContent align="end" className="w-80 p-0" data-testid="alerts-dropdown">
         <div className="px-3 py-2.5">
-          <DropdownMenuLabel className="flex items-center justify-between px-0 py-0">
-            <span>Alerts</span>
-            <span className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                aria-pressed={soundEnabled}
-                aria-label={soundEnabled ? 'Alert sounds on' : 'Alert sounds off'}
-                title={
-                  soundEnabled
-                    ? 'Alert sound & vibration on — click to silence new alerts'
-                    : 'Alert sound & vibration off — click to enable chime + buzz'
-                }
-                data-testid="alert-sound-toggle"
-                className={cn(
-                  'rounded p-1 transition-colors hover:bg-muted/60',
-                  soundEnabled ? 'text-emerald-300' : 'text-muted-foreground'
-                )}
-              >
-                {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-              </button>
-              <span
-                className={cn(
-                  'text-xs font-normal',
-                  totalBadge > 0 ? 'text-rose-300' : 'text-muted-foreground'
-                )}
-              >
-                {totalActive} active
-              </span>
-            </span>
+          <DropdownMenuLabel className="px-0 py-0">
+            <span>Notifications</span>
           </DropdownMenuLabel>
+        </div>
+
+        {/* Merged-bell fix (2025-11) — ONE bell, TWO feeds as tabs: the
+            user's trading alerts and the platform team's messages. The old
+            standalone megaphone icon next to this bell is gone. */}
+        <div className="flex gap-1 px-2 pb-2" role="tablist" aria-label="Notification groups">
+          <TabPill
+            active={tab === 'trading'}
+            onClick={() => setTab('trading')}
+            badge={tradingUnread}
+            testId="notifications-tab-trading"
+          >
+            Trading
+          </TabPill>
+          <TabPill
+            active={tab === 'platform'}
+            onClick={() => setTab('platform')}
+            badge={platformUnread}
+            testId="notifications-tab-platform"
+          >
+            Platform
+          </TabPill>
         </div>
         <DropdownMenuSeparator className="m-0" />
 
-        {/* Price alerts — watchlist target/stop crossings (newest first) */}
+        {tab === 'trading' ? (
+          <>
+            {/* Trading tab header — sound toggle + total active conditions */}
+            <div className="flex items-center justify-between px-3 pt-2 pb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Trading alerts
+              </span>
+              <span className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  aria-pressed={soundEnabled}
+                  aria-label={soundEnabled ? 'Alert sounds on' : 'Alert sounds off'}
+                  title={
+                    soundEnabled
+                      ? 'Alert sound & vibration on — click to silence new alerts'
+                      : 'Alert sound & vibration off — click to enable chime + buzz'
+                  }
+                  data-testid="alert-sound-toggle"
+                  className={cn(
+                    'rounded p-1 transition-colors hover:bg-muted/60',
+                    soundEnabled ? 'text-emerald-300' : 'text-muted-foreground'
+                  )}
+                >
+                  {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+                </button>
+                <span
+                  className={cn(
+                    'text-xs font-normal',
+                    tradingUnread > 0 ? 'text-rose-300' : 'text-muted-foreground'
+                  )}
+                >
+                  {totalActive} active
+                </span>
+              </span>
+            </div>
+
+            {/* Price alerts — watchlist target/stop crossings (newest first) */}
         {priceEvents.length > 0 && (
           <>
             <div className="flex items-center justify-between px-3 pt-2 pb-1">
@@ -410,7 +456,49 @@ export function AlertsCenter() {
             </div>
           </>
         )}
+          </>
+        ) : (
+          <PlatformMessagesPanel active={tab === 'platform'} />
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Compact segmented-control pill for the two notification feeds. */
+function TabPill({
+  active,
+  onClick,
+  badge,
+  testId,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  badge?: number
+  testId?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      data-testid={testId}
+      className={cn(
+        'flex flex-1 items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors',
+        active
+          ? 'border-transparent bg-muted text-foreground'
+          : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+      )}
+    >
+      {children}
+      {typeof badge === 'number' && badge > 0 && (
+        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </button>
   )
 }

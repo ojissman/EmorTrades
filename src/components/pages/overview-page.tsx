@@ -32,6 +32,7 @@
 import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { useAppStore, type DashboardWidgetInstance } from '@/store/app-store'
 import { applyFilterSnapshot, describeSnapshot, filtersMatchSnapshot } from '@/lib/dashboard-filters'
 import { CustomDashboardGrid } from '@/components/dashboard/custom-dashboard-grid'
@@ -635,15 +636,7 @@ export function OverviewPage() {
   // starting capital), the equity charts rebase onto capital instead of raw
   // cumulative P&L. The ['user'] cache is shared with SettingsPrefsApplier.
   const equityChartOverview = useSettingsPrefsStore((s) => s.equityChartOverview)
-  const { data: userRow } = useQuery({
-    queryKey: ['user'],
-    queryFn: async (): Promise<{ startingCapital?: number }> => {
-      const res = await fetch('/api/user')
-      if (!res.ok) throw new Error('Failed to load user')
-      const json = (await res.json()) as { user?: { startingCapital?: number } }
-      return json.user ?? {}
-    },
-  })
+  const { data: userRow } = useCurrentUser()
   const startingCapital = equityChartOverview ? userRow?.startingCapital ?? 0 : 0
   const equityMode = startingCapital > 0
 

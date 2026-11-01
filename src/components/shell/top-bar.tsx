@@ -13,7 +13,6 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { settingsSlice, useUserSettings } from '@/hooks/use-user-settings'
@@ -61,8 +60,10 @@ import {
 import { PeakPopup, PeakPopupTrigger, PeakPopupContent, PeakPopupClose } from './peak-popup'
 import { useThemePrefs, activeTheme, nextThemeId } from '@/store/theme-prefs-store'
 import { AlertsCenter } from '@/components/alerts-center'
-// ADMIN-2 — platform messages (announcements + notifications) bell.
-import { PlatformMessagesBell } from '@/components/platform-messages/bell'
+// Profile fix (2025-11) — canonical current-user identity (name/email/avatar)
+// for the account chip. Replaces the old /api/seed fetch that fought the
+// shared `['user']` query cache and permanently lost to the unwrapped shape.
+import { useCurrentUser, displayNameOf, initialsOf } from '@/hooks/use-current-user'
 // Task 10 — economic news-release awareness: next high-impact release as a
 // live-countdown chip, riding the top bar on every journal page (md+).
 import { EconReleaseChip } from '@/components/shell/econ-release-chip'
@@ -318,19 +319,21 @@ export function TopBar() {
   const { toast } = useToast()
 
   // Task 149 — L1 user-menu identity row (username + email) + Homepage Tab.
-  const { data: userData } = useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const res = await fetch('/api/seed')
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-  })
+  const { data: currentUser } = useCurrentUser()
   const { data: settingsRow } = useUserSettings()
   const homepageTab = String(settingsSlice(settingsRow, 'regional').homepageTab ?? '')
   const homeRoute = homepageTab === 'trades-table' ? '/tables/trades' : homepageTab === 'calendar' ? '/calendar' : homepageTab === 'journal' ? '/notes/journal' : '/overview'
-  const userName = String(userData?.user?.name ?? 'EmorTrader')
-  const userEmail = String(userData?.user?.email ?? '')
+  const userName = displayNameOf(currentUser)
+  const userEmail = String(currentUser?.email ?? '')
+  // Profile chip visuals: the user's own avatar image (Google profile pics
+  // land here via /api/user → user.avatar), else their initials — never a
+  // hardcoded brand letter again.
+  const userAvatar = String(currentUser?.avatar ?? '')
+  const userInitials = initialsOf(currentUser?.name, currentUser?.email)
+  // Broken-image fallback WITHOUT an effect: remember WHICH url failed;
+  // a different url (account switch) is automatically eligible again.
+  const [avatarBrokenFor, setAvatarBrokenFor] = useState<string | null>(null)
+  const showAvatarImage = userAvatar.length > 0 && avatarBrokenFor !== userAvatar
   // Multi-user launch — the user menu links to the Admin Console for admins.
   const isAdmin = useIsAdmin()
 
@@ -587,11 +590,10 @@ export function TopBar() {
         <SlidersHorizontal className="h-4 w-4" />
       </IconBtn>
 
-      {/* Alerts — behavior patterns + watchlist price crossings */}
+      {/* SINGLE notification center (profile/dedupe fix 2025-11): the former
+          separate PlatformMessagesBell megaphone merged INTO AlertsCenter as
+          a "Platform" tab — one bell, one badge, two feeds. */}
       <AlertsCenter />
-
-      {/* ADMIN-2 — platform announcements + admin notifications (in-app) */}
-      <PlatformMessagesBell />
 
       {/* Task 152 — theme icon CYCLES the 6-theme registry on click (no
           dropdown; the full picker lives in Settings ▸ Display). Each press
@@ -604,18 +606,30 @@ export function TopBar() {
             aria-label="Account menu"
             className="h-8 w-8 shrink-0 grid place-items-center rounded-full transition-colors hover:bg-[var(--bg-hover)]"
           >
-            <span
-              className="grid place-items-center rounded-full text-[11px] font-semibold"
-              style={{
-                width: 26,
-                height: 26,
-                background: 'var(--bg-inset)',
-                border: '1px solid var(--border-strong)',
-                color: 'var(--text-primary)',
-              }}
-            >
-              E
-            </span>
+            {showAvatarImage ? (
+              <img
+                src={userAvatar}
+                alt=""
+                aria-hidden
+                onError={() => setAvatarBrokenFor(userAvatar)}
+                referrerPolicy="no-referrer"
+                className="h-[26px] w-[26px] rounded-full object-cover"
+                style={{ border: '1px solid var(--border-strong)' }}
+              />
+            ) : (
+              <span
+                className="grid place-items-center rounded-full text-[11px] font-semibold"
+                style={{
+                  width: 26,
+                  height: 26,
+                  background: 'var(--bg-inset)',
+                  border: '1px solid var(--border-strong)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {userInitials}
+              </span>
+            )}
           </button>
         </PeakPopupTrigger>
         <PeakPopupContent align="end" width={240}>
@@ -625,7 +639,7 @@ export function TopBar() {
               {userName}
             </p>
             <p className="text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>
-              {userEmail || 'All features included'}
+              {userEmail || 'Not signed in'}
             </p>
           </div>
           {/* L1 verbatim items: Home · Import/Export · Account Settings ·

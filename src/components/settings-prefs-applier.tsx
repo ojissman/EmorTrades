@@ -15,8 +15,8 @@
  */
 
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { settingsSlice, useUserSettings } from '@/hooks/use-user-settings'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import {
   useSettingsPrefsStore,
   type SettingsPrefs,
@@ -46,22 +46,14 @@ function currencyDisplayFrom(slice: Record<string, unknown>): CurrencyDisplay {
   }
 }
 
-type UserRow = { timezone?: string | null }
-
 export function SettingsPrefsApplier() {
   const { data: settings } = useUserSettings()
   const hydrate = useSettingsPrefsStore((s) => s.hydrate)
   const colorblind = useSettingsPrefsStore((s) => s.colorblind)
 
-  const { data: userRow } = useQuery({
-    queryKey: ['user'],
-    queryFn: async (): Promise<UserRow> => {
-      const res = await fetch('/api/user')
-      if (!res.ok) throw new Error('Failed to load user')
-      const json = (await res.json()) as { user?: UserRow }
-      return json.user ?? {}
-    },
-  })
+  // Profile fix (2025-11) — canonical ['user'] cache via useCurrentUser()
+  // instead of a hand-rolled query under the same key.
+  const { data: userRow } = useCurrentUser()
 
   useEffect(() => {
     if (!settings) return

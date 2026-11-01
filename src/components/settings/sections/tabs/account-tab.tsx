@@ -26,8 +26,9 @@
  */
 
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Check, Loader2, Save, ShieldCheck, Unlink } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -167,15 +168,6 @@ function sliceStr(v: unknown, fallback: string): string {
   return typeof v === 'string' && v.length > 0 ? v : fallback
 }
 
-type UserRow = {
-  name: string
-  email: string
-  timezone: string
-  startingCapital: number | string
-  riskPerTrade: number | string
-  googleLinked: boolean
-  hasPassword: boolean
-}
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -188,15 +180,7 @@ export function AccountTab() {
 
   const regional = settingsSlice(settings, 'regional')
 
-  const { data: userData, isLoading: userLoading } = useQuery({
-    queryKey: ['user'],
-    queryFn: async (): Promise<UserRow> => {
-      const res = await fetch('/api/user')
-      if (!res.ok) throw new Error('Failed to load user')
-      const json = await res.json()
-      return json.user
-    },
-  })
+  const { data: userData, isLoading: userLoading } = useCurrentUser()
 
   // ---- General Settings · Display Name (render-derivation sync, no effect) ----
   const userName = userData?.name ?? ''

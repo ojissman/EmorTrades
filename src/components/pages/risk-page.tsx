@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 import { limitToAmount, limitLabel } from '@/lib/plan-limits'
 import { useAppStore } from '@/store/app-store'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 
 export function RiskPage() {
@@ -39,14 +40,9 @@ export function RiskPage() {
   // ('all' → no accountId param → the API aggregates across accounts).
   const { selectedAccountId } = useAppStore()
 
-  const { data: user, isLoading: userLoading } = useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const res = await fetch('/api/seed')
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-  })
+  // Profile fix (2025-11) — canonical ['user'] cache (was a hand-rolled
+  // /api/seed query that lost the shared-cache shape race).
+  const { data: user, isLoading: userLoading } = useCurrentUser()
 
   const { data: tradesData, isLoading: tradesLoading, isError, error, refetch } = useQuery({
     queryKey: ['trades-risk', selectedAccountId],
@@ -70,12 +66,12 @@ export function RiskPage() {
     },
   })
 
-  const accountSize = user?.user?.startingCapital || 25000
+  const accountSize = user?.startingCapital || 25000
 
   // Active Guardrails — computed from the closed trades the page already has
   const guardrails = useMemo(() => {
     const closed: any[] = tradesData?.trades || []
-    const starting = user?.user?.startingCapital || 25000
+    const starting = user?.startingCapital || 25000
 
     // Current equity = starting capital + realized P&L
     const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0)
@@ -115,7 +111,7 @@ export function RiskPage() {
     }
 
     // Risk-per-trade check: any of the last 5 closed losers beyond 1.5x target?
-    const riskPct = user?.user?.riskPerTrade || 1
+    const riskPct = user?.riskPerTrade || 1
     const targetRiskAmount = (equity * riskPct) / 100
     const recentLosers = sorted.filter((t) => t.pnl < 0).slice(0, 5)
     const breach = recentLosers.find((t) => Math.abs(t.pnl) > targetRiskAmount * 1.5)
@@ -437,7 +433,7 @@ export function RiskPage() {
             </p>
             <p className="text-[10px] text-muted-foreground mt-2">
               {guardrails.recentLoserCount > 0
-                ? `Largest of last ${guardrails.recentLoserCount} losers: ${formatCurrencyIn('table', guardrails.worstRecent)} (${(guardrails.worstRecent / Math.max(guardrails.targetRiskAmount, 1)).toFixed(1)}× target) · Target risk: ${user?.user?.riskPerTrade || 1}%`
+                ? `Largest of last ${guardrails.recentLoserCount} losers: ${formatCurrencyIn('table', guardrails.worstRecent)} (${(guardrails.worstRecent / Math.max(guardrails.targetRiskAmount, 1)).toFixed(1)}× target) · Target risk: ${user?.riskPerTrade || 1}%`
                 : 'No recent losers to check — target is the ceiling.'}
             </p>
           </Card>
