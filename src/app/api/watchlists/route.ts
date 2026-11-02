@@ -72,6 +72,11 @@ export async function PATCH(req: NextRequest) {
     if (body.kind !== 'item' || !body.id) {
       return NextResponse.json({ error: 'Expected kind=item with id' }, { status: 400 })
     }
+    // AUDIT S1/S2 — PATCH had no session guard and updated items by bare id.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const data: { targetPrice?: number | null; stopPrice?: number | null } = {}
     if ('targetPrice' in body) {
       data.targetPrice =
@@ -105,7 +110,13 @@ export async function PATCH(req: NextRequest) {
     const result = await db.$transaction(async (tx) => {
       const before = await tx.watchlistItem.findUnique({ where: { id: body.id } })
       if (!before) throw new Error('ITEM_NOT_FOUND')
-      const item = await tx.watchlistItem.update({ where: { id: body.id }, data })
+      // Ownership travels through the parent watchlist.
+      const parent = await tx.watchlist.findFirst({
+        where: { id: before.watchlistId, userId: user.id },
+        select: { id: true },
+      })
+      if (!parent) throw new Error('ITEM_NOT_FOUND')
+      const item = await tx.watchlistItem.update({ where: { id: before.id }, data })
       if (anchor) {
         await tx.reanchorEvent.create({
           data: {
@@ -123,22 +134,38 @@ export async function PATCH(req: NextRequest) {
     })
     return NextResponse.json({ item: result })
   } catch (e) {
+    const msg = e instanceof Error && e.message === 'ITEM_NOT_FOUND' ? 'Not found' : undefined
     console.error("Error in src/app/api/watchlists/route.ts:", e)
-    return NextResponse.json ({ error: 'Failed' }, { status: 500 })
+    return NextResponse.json ({ error: msg ?? 'Failed' }, { status: msg ? 404 : 500 })
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
+    // AUDIT S1/S2 — DELETE had no session guard; items were deletable by bare
+    // id. Ownership travels through the parent watchlist for kind=item.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     const kind = searchParams.get('kind')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     if (kind === 'item') {
+      const item = await db.watchlistItem.findUnique({ where: { id }, select: { watchlistId: true } })
+      if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const parent = await db.watchlist.findFirst({
+        where: { id: item.watchlistId, userId: user.id },
+        select: { id: true },
+      })
+      if (!parent) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       await db.watchlistItem.delete({ where: { id } })
     } else {
-      await db.watchlist.delete({ where: { id } })
+      const existing = await db.watchlist.findFirst({ where: { id, userId: user.id } })
+      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      await db.watchlist.delete({ where: { id: existing.id } })
     }
     return NextResponse.json({ success: true })
   } catch (e) {

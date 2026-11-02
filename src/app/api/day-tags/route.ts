@@ -127,7 +127,15 @@ export async function DELETE(req: NextRequest) {
       await db.dayTagGroup.delete({ where: { id } })
       return NextResponse.json({ success: true })
     }
-    await db.dayTag.delete({ where: { id } })
+    // AUDIT S1/S2 — the tag branch of DELETE had no session guard (the group
+    // branch above did). Same ownership treatment for both kinds.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+    const existing = await db.dayTag.findFirst({ where: { id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await db.dayTag.delete({ where: { id: existing.id } })
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error("Error in src/app/api/day-tags/route.ts:", e)

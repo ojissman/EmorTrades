@@ -51,7 +51,10 @@ const VAR_LOOKUP = new Map(FORMULA_VARIABLES.map((v) => [v.token.toLowerCase(), 
 export const FORMULA_PRESETS: { name: string; format: CustomColumnFormat; formula: string }[] = [
   { name: 'PnL per Share', format: 'currency', formula: '[PnL] / [Qty]' },
   { name: 'Cost Basis', format: 'currency', formula: '[Open Price] * [Qty]' },
-  { name: 'Net after Costs', format: 'currency', formula: '[PnL] - [Fees] - [Commission]' },
+  // AUDIT M7 — [PnL] is ALREADY net of fees + commission (write-time math),
+  // so the old "Net after Costs" ([PnL] − [Fees] − [Commission]) subtracted
+  // the costs TWICE. Gross adds them back — what the trade made before costs.
+  { name: 'Gross P&L (before costs)', format: 'currency', formula: '[PnL] + [Fees] + [Commission]' },
   { name: 'Fees + Commission', format: 'currency', formula: '[Fees] + [Commission]' },
   { name: 'Risk to Stop', format: 'currency', formula: '([Open Price] - [Stop Loss]) * [Qty] * [Multiplier]' },
   { name: 'Reward to Target', format: 'currency', formula: '([Profit Target] - [Open Price]) * [Qty] * [Multiplier]' },

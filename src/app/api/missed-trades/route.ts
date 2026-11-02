@@ -82,6 +82,13 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
     if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    // AUDIT S1/S2 — PATCH was unauthenticated + unscoped.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+    const existing = await db.missedTrade.findFirst({ where: { id: body.id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const data: Record<string, unknown> = {}
     if (body.symbol !== undefined && body.symbol !== '') data.symbol = String(body.symbol).toUpperCase()
     if (body.side !== undefined) data.side = body.side
@@ -102,7 +109,7 @@ export async function PATCH(req: NextRequest) {
     if (body.expectedPnl !== undefined) {
       data.expectedPnl = body.expectedPnl === null || body.expectedPnl === '' ? null : parseFloat(body.expectedPnl)
     }
-    const missed = await db.missedTrade.update({ where: { id: body.id }, data })
+    const missed = await db.missedTrade.update({ where: { id: existing.id }, data })
     return NextResponse.json({ missedTrade: missed })
   } catch (e) {
     console.error("Error in src/app/api/missed-trades/route.ts:", e)
@@ -112,10 +119,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // AUDIT S1 — DELETE had no session guard.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    await db.missedTrade.delete({ where: { id } })
+    const existing = await db.missedTrade.findFirst({ where: { id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await db.missedTrade.delete({ where: { id: existing.id } })
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error("Error in src/app/api/missed-trades/route.ts:", e)

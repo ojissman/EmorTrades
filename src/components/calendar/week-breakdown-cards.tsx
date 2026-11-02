@@ -250,15 +250,12 @@ export function WeekSessionIntel({
   const sessionsQ = useQuery({
     queryKey: ['week-sessions', startDate, endDate, accountId],
     queryFn: async () => {
-      // endDate must be the day AFTER the week's last day: the API parses it
-      // as UTC midnight (lte), so the last day's trades would be excluded.
-      const endExclusive = (() => {
-        const [yy, mm, dd] = endDate.split('-').map(Number)
-        const d = new Date(Date.UTC(yy, mm - 1, dd + 1))
-        return d.toISOString().slice(0, 10)
-      })()
+      // AUDIT M3/F7 — the API now treats a bare YYYY-MM-DD endDate as
+      // INCLUSIVE through 23:59:59.999Z of that UTC day, so the week's LAST
+      // day is the end bound (the old code padded +1 day to work around the
+      // midnight-UTC parse).
       const res = await fetch(
-        `/api/sessions-analytics?startDate=${startDate}&endDate=${endExclusive}&accountId=${encodeURIComponent(accountId)}`,
+        `/api/sessions-analytics?startDate=${startDate}&endDate=${endDate}&accountId=${encodeURIComponent(accountId)}`,
       )
       if (!res.ok) throw new Error('Failed to compute session analytics')
       return res.json() as Promise<WeekSessionsResponse>

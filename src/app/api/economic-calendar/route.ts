@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/server/auth'
 import {
   econSyncState,
   ensureEconFresh,
@@ -116,8 +117,12 @@ export async function GET(req: NextRequest) {
 
 // POST /api/economic-calendar — manual "Sync now": pulls all three weekly
 // feeds, upserts new rows, prunes old ones. Returns honest per-feed counts.
+// AUDIT S1 — was fully unauthenticated (anyone could trigger 3 outbound
+// feed pulls + DB churn). Now requires a signed-in user.
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
     const result = await syncNow()
     return NextResponse.json({ success: result.ok, result, sync: syncPayload() })
   } catch (e: any) {

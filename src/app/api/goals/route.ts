@@ -174,6 +174,14 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
     if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+    // AUDIT S1/S2 — PUT was unauthenticated + unscoped (any goal id was
+    // world-editable). Own the row first, then update through the owned id.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+    const existing = await db.goal.findFirst({ where: { id: body.id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const data: Record<string, unknown> = {}
     if (body.type !== undefined) data.type = body.type
     if (body.metric !== undefined) data.metric = body.metric
@@ -182,16 +190,12 @@ export async function PUT(req: NextRequest) {
     if (body.isActive !== undefined) data.isActive = !!body.isActive
     Object.assign(data, tpGoalFields(body))
     if ('planId' in body) {
-      const auth = await requireUser()
-      if (!auth.ok) return auth.response
-      const user = auth.user
-      if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
       const pin = await resolvePlanPin(body, user.id)
       if ('error' in pin) return NextResponse.json({ error: pin.error }, { status: 400 })
       Object.assign(data, pin)
     }
     const goal = await db.goal.update({
-      where: { id: body.id },
+      where: { id: existing.id },
       data,
     })
     return NextResponse.json({ goal })
@@ -210,6 +214,11 @@ export async function PUT(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
+    // AUDIT S1/S2 — PATCH (both branches) was unauthenticated + unscoped.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const items = Array.isArray(body?.items) ? body.items : null
 
     if (items && items.length > 0) {
@@ -219,15 +228,19 @@ export async function PATCH(req: NextRequest) {
       if (clean.length === 0) {
         return NextResponse.json({ error: 'No valid items' }, { status: 400 })
       }
-      await db.$transaction(
+      // updateMany carries the userId scope, so foreign ids in the batch are
+      // ignored instead of rewritten; the response reports the real count.
+      const results = await db.$transaction(
         clean.map((it: { id: string; order: number }) =>
-          db.goal.update({ where: { id: it.id }, data: { order: it.order } })
+          db.goal.updateMany({ where: { id: it.id, userId: user.id }, data: { order: it.order } })
         )
       )
-      return NextResponse.json({ updated: clean.length })
+      return NextResponse.json({ updated: results.reduce((n, r) => n + r.count, 0) })
     }
 
     if (body?.id) {
+      const existing = await db.goal.findFirst({ where: { id: body.id, userId: user.id } })
+      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const data: Record<string, unknown> = {}
       if (body.type !== undefined) data.type = body.type
       if (body.metric !== undefined) data.metric = body.metric
@@ -236,15 +249,11 @@ export async function PATCH(req: NextRequest) {
       if (body.isActive !== undefined) data.isActive = !!body.isActive
       Object.assign(data, tpGoalFields(body))
       if ('planId' in body) {
-        const auth = await requireUser()
-        if (!auth.ok) return auth.response
-        const user = auth.user
-        if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
         const pin = await resolvePlanPin(body, user.id)
         if ('error' in pin) return NextResponse.json({ error: pin.error }, { status: 400 })
         Object.assign(data, pin)
       }
-      const goal = await db.goal.update({ where: { id: body.id }, data })
+      const goal = await db.goal.update({ where: { id: existing.id }, data })
       return NextResponse.json({ goal })
     }
 
@@ -257,10 +266,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // AUDIT S1 — DELETE had no session guard (world-deletable goals).
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    await db.goal.delete({ where: { id } })
+    const existing = await db.goal.findFirst({ where: { id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await db.goal.delete({ where: { id: existing.id } })
     return NextResponse.json({ success: true })
   } catch (e: any) {
     return NextResponse.json({ error: 'Failed' }, { status: 500 })

@@ -235,7 +235,14 @@ function performanceOf(subset: { pnl: number }[]): Performance {
     netPnl: pnls.reduce((s, p) => s + p, 0),
     winRate,
     profitFactor: Number.isFinite(pf) ? pf : null,
-    expectancy: (winRate / 100) * avgWin - (1 - winRate / 100) * avgLoss,
+    // AUDIT M6 — BE trades are neither wins nor losses: use the explicit
+    // win/loss counts over the total. The old (1 − winRate/100) factor
+    // silently counted every break-even trade as a loss, skewing expectancy
+    // whenever BE trades existed.
+    expectancy:
+      pnls.length > 0
+        ? (wins.length / pnls.length) * avgWin - (losses.length / pnls.length) * avgLoss
+        : 0,
     avgWin,
     avgLoss,
     bestTrade: pnls.length > 0 ? Math.max(...pnls) : 0,

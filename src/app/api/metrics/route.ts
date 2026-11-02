@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope } from '@/lib/server/trade-scope'
+import { endBoundFromParam } from '@/lib/day-bounds'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,9 @@ interface MetricsTrade {
   mae: number | null
   holdingPeriod: number | null
   status: string
+  // AUDIT M8 — present on the OPEN-positions query only (exposure math);
+  // closed-trade pnl already bakes the multiplier in at write time.
+  multiplier?: number | null
 }
 
 // ---- cache -----------------------------------------------------------------
@@ -416,7 +420,10 @@ export async function GET(req: NextRequest) {
       // period a trade belongs to.
       where.entryTime = {}
       if (startDate) (where.entryTime as Record<string, unknown>).gte = new Date(startDate)
-      if (endDate) (where.entryTime as Record<string, unknown>).lte = new Date(endDate)
+      // AUDIT M3/F7 — a bare YYYY-MM-DD endDate means "through the END of
+      // that UTC day" (23:59:59.999Z), not midnight, so trades entered during
+      // the end day are included. Full ISO instants pass through unchanged.
+      if (endDate) (where.entryTime as Record<string, unknown>).lte = endBoundFromParam(endDate)
     }
 
     const trades = (await db.trade.findMany({
@@ -478,6 +485,8 @@ export async function GET(req: NextRequest) {
         entryTime: true,
         fees: true,
         commission: true,
+        // AUDIT M8 — open-position exposure is qty × entryPrice × multiplier
+        multiplier: true,
       },
       take: 2000,
     })) as unknown as MetricsTrade[]
@@ -532,7 +541,9 @@ export async function GET(req: NextRequest) {
       accounts: accountRows,
       openSummary: {
         count: open.length,
-        exposure: round(open.reduce((s, t) => s + t.quantity * t.entryPrice, 0)),
+        // AUDIT M8 — notional exposure applies the contract multiplier
+        // (futures qty × price under-reports without it; default 1).
+        exposure: round(open.reduce((s, t) => s + t.quantity * t.entryPrice * (t.multiplier ?? 1), 0)),
         longs: open.filter((t) => t.side === 'long').length,
         shorts: open.filter((t) => t.side === 'short').length,
         symbols: [...new Set(open.map((t) => t.symbol))].length,
@@ -547,7 +558,7 @@ export async function GET(req: NextRequest) {
             entryPrice: t.entryPrice,
             entryTime: t.entryTime,
             account: accountName.get(t.accountId) ?? t.accountId,
-            exposure: round(t.quantity * t.entryPrice),
+            exposure: round(t.quantity * t.entryPrice * (t.multiplier ?? 1)),
             daysOpen: round((Date.now() - new Date(t.entryTime).getTime()) / 86400000, 1),
           })),
         bySymbol: [...new Set(open.map((t) => t.symbol))]
@@ -557,7 +568,7 @@ export async function GET(req: NextRequest) {
               symbol: sym,
               positions: rows.length,
               shares: round(rows.reduce((s, t) => s + t.quantity, 0)),
-              exposure: round(rows.reduce((s, t) => s + t.quantity * t.entryPrice, 0)),
+              exposure: round(rows.reduce((s, t) => s + t.quantity * t.entryPrice * (t.multiplier ?? 1), 0)),
               avgPrice: round(mean(rows.map((t) => t.entryPrice))),
             }
           })

@@ -167,9 +167,12 @@ function buildFallbackReview(t: any, gaveBackPct: number | null): TradeReview {
   return { score, summary, strengths: strengths.slice(0, 4), weaknesses: weaknesses.slice(0, 4), tip }
 }
 
-async function generateReview(tradeId: string) {
-  const trade = await db.trade.findUnique({
-    where: { id: tradeId },
+async function generateReview(tradeId: string, userId: string) {
+  // AUDIT S2 — the trade was fetched by bare id BEFORE auth with no ownership
+  // check, letting any signed-in user generate/read AI reviews of other
+  // users' trades (incl. journal emotion/confidence). Scoped to the caller now.
+  const trade = await db.trade.findFirst({
+    where: { id: tradeId, userId },
     include: {
       setup: true,
       account: true,
@@ -182,9 +185,7 @@ async function generateReview(tradeId: string) {
   })
   if (!trade) return { status: 404 as const, body: { error: 'Trade not found' } }
 
-  const auth = await requireUser()
-  if (!auth.ok) return auth.response
-  const user = auth.user
+  const user = await db.user.findUnique({ where: { id: userId } })
   if (!user) return { status: 404 as const, body: { error: 'No user' } }
   // Currency Display pref — review text money honors Settings ▸ Display (AI).
   await loadServerCurrencyDisplay(user.id)
@@ -445,13 +446,15 @@ function resolveTradeId(body: any, url?: URL): string | null {
 // POST /api/ai/trade-review { tradeId } — primary endpoint
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
     const body = await req.json().catch(() => ({}))
     const url = new URL(req.url)
     const tradeId = resolveTradeId(body, url)
     if (!tradeId) {
       return NextResponse.json({ error: 'tradeId is required' }, { status: 400 })
     }
-    const result = await generateReview(tradeId)
+    const result = await generateReview(tradeId, auth.user.id)
     return NextResponse.json(result.body, { status: result.status })
   } catch (e) {
     console.error('POST /api/ai/trade-review error:', e)
@@ -462,12 +465,14 @@ export async function POST(req: NextRequest) {
 // GET /api/ai/trade-review?tradeId= — same review, linkable/curl-able
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
     const url = new URL(req.url)
     const tradeId = resolveTradeId(null, url)
     if (!tradeId) {
       return NextResponse.json({ error: 'tradeId query param is required' }, { status: 400 })
     }
-    const result = await generateReview(tradeId)
+    const result = await generateReview(tradeId, auth.user.id)
     return NextResponse.json(result.body, { status: result.status })
   } catch (e) {
     console.error('GET /api/ai/trade-review error:', e)

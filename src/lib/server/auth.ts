@@ -1,8 +1,9 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { Prisma, User } from '@prisma/client'
 import { db } from '@/lib/db'
+import { resolvePinnedOrigin } from './origin'
 
 /**
  * ============================================================================
@@ -159,6 +160,47 @@ export function withClearedSession(res: NextResponse): NextResponse {
   return res
 }
 
+/* ── CSRF origin gate (AUDIT S3) ─────────────────────────────────────────── */
+
+/**
+ * The session cookie is SameSite=None (PREVIEW-1: the app must work inside the
+ * platform's third-party iframe), which means browsers WILL attach it to
+ * cross-site requests — the textbook CSRF precondition. Every state-changing
+ * route guards through requireUser/requireAdmin/requirePermission, so a single
+ * origin gate inside loadSessionUser closes the whole surface centrally:
+ *
+ *   when a valid session cookie is presented AND the request carries an Origin
+ *   header, that origin must be one the app is legitimately served from —
+ *   PUBLIC_ORIGIN (production), DEV_ORIGIN (the preview sandbox), or a local
+ *   dev host. Anything else (a malicious site forging a cross-site POST with
+ *   the user's attached cookie) is rejected with 403.
+ *
+ * · Same-origin GETs send no Origin header in practice → untouched.
+ * · Non-browser clients (scripts, curl) send no Origin → untouched (they must
+ *   already possess the cookie or the export token to do anything).
+ * · Unpinned deployments (no PUBLIC_ORIGIN/DEV_ORIGIN configured) keep the
+ *   historical behaviour — the gate only arms when at least one pin exists.
+ */
+const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
+
+async function crossOriginBlocked(): Promise<boolean> {
+  const pins = [resolvePinnedOrigin({ ...process.env, NODE_ENV: 'production' }), resolvePinnedOrigin({ ...process.env, NODE_ENV: 'development' })]
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+  if (pins.length === 0) return false
+  try {
+    const h = await headers()
+    const origin = h.get('origin')
+    if (!origin) return false
+    const normalized = origin.trim().replace(/\/+$/, '')
+    if (LOCAL_ORIGIN_RE.test(normalized)) return false
+    return !pins.includes(normalized)
+  } catch {
+    // No request context (unit tests / non-HTTP callers) — fail open.
+    return false
+  }
+}
+
 /* ── Guards ─────────────────────────────────────────────────────────────── */
 
 export type AuthResult<S extends Prisma.UserDefaultArgs | undefined = undefined> =
@@ -179,6 +221,11 @@ async function loadSessionUser<S extends Prisma.UserDefaultArgs | undefined>(
   const jar = await cookies()
   const payload = verifySessionTokenPayload(jar.get(SESSION_COOKIE)?.value)
   if (!payload) return { ok: false, response: unauthorized() }
+
+  // AUDIT S3 — a session cookie was presented: enforce the origin gate.
+  if (await crossOriginBlocked()) {
+    return { ok: false, response: forbidden('Cross-origin request rejected.') }
+  }
 
   // LAND-1: the session epoch rides along in the SAME query as the caller's
   // shape. · no args / include → the full scalar row already carries it.

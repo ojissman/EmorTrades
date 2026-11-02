@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { peekTrade, drillToDay } from '@/lib/drill'
 import { useAppStore } from '@/store/app-store'
+import { useCurrentUser } from '@/hooks/use-current-user'
 import { formatCurrencyIn, formatDate, pnlColor } from '@/lib/format'
 import { calculateAnalytics, calculateEquityCurve, type TradeInput } from '@/lib/analytics'
 import { cn } from '@/lib/utils'
@@ -153,16 +154,46 @@ export function MonthlyExplorePage() {
 
   const batch = useBatchMarks({ from: from ?? '', to: to ?? '', planId: planFilter, enabled: !!from && !!to })
 
+  // AUDIT M1 — real equity baseline (was a hardcoded 25000): the combined
+  // startingBalance of the accounts in scope (the selected account when one
+  // is picked, all accounts otherwise — exactly how /api/dashboard computes
+  // it), falling back to the profile's startingCapital, then 0.
+  // calculateAnalytics/calculateEquityCurve handle 0 safely (return % and
+  // drawdown % are division-guarded), so no chart can crash on an empty
+  // capital setup.
+  const { data: userRow } = useCurrentUser()
+  const { data: accountsData } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: async () => {
+      const res = await fetch('/api/accounts')
+      if (!res.ok) throw new Error('Failed')
+      return (await res.json()) as { accounts: { id: string; startingBalance: number }[] }
+    },
+    staleTime: 60_000,
+  })
+  const equityBaseline = useMemo(() => {
+    const rows = accountsData?.accounts ?? []
+    const scoped =
+      selectedAccountId && selectedAccountId !== 'all'
+        ? rows.filter((a) => a.id === selectedAccountId)
+        : rows
+    const accountBaseline = scoped.reduce((sum, a) => sum + (a.startingBalance || 0), 0)
+    return accountBaseline > 0 ? accountBaseline : userRow?.startingCapital ?? 0
+  }, [accountsData, selectedAccountId, userRow])
+
   const trades = useMemo(() => tradesQ.data ?? [], [tradesQ.data])
   const analytics = useMemo(
-    () => calculateAnalytics(trades.map(toAnalyticsInput), 25000),
-    [trades],
+    () => calculateAnalytics(trades.map(toAnalyticsInput), equityBaseline),
+    [trades, equityBaseline],
   )
   const prevAnalytics = useMemo(
-    () => calculateAnalytics((prevTradesQ.data ?? []).map(toAnalyticsInput), 25000),
-    [prevTradesQ.data],
+    () => calculateAnalytics((prevTradesQ.data ?? []).map(toAnalyticsInput), equityBaseline),
+    [prevTradesQ.data, equityBaseline],
   )
-  const equity = useMemo(() => calculateEquityCurve(trades.map(toAnalyticsInput), 25000), [trades])
+  const equity = useMemo(
+    () => calculateEquityCurve(trades.map(toAnalyticsInput), equityBaseline),
+    [trades, equityBaseline],
+  )
 
   // daily + weekly aggregation + calendar grid (entry-day convention)
   const dayMap = useMemo(() => {

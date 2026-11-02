@@ -11,7 +11,7 @@ export async function GET() {
   const auth = await requireUser()
   if (!auth.ok) return auth.response
   try {
-    const templates = await listTemplates()
+    const templates = await listTemplates(auth.user.id)
     return NextResponse.json({ templates })
   } catch (e: unknown) {
     return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
-    const tpl = await saveTemplate(name, header as string[], clean)
+    const tpl = await saveTemplate(auth.user.id, name, header as string[], clean)
     return NextResponse.json({ template: tpl })
   } catch (e: unknown) {
     return NextResponse.json(
@@ -73,7 +73,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-    await deleteTemplate(id)
+    await deleteTemplate(auth.user.id, id)
     return NextResponse.json({ success: true })
   } catch (e: unknown) {
     return NextResponse.json(

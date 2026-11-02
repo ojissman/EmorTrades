@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin, hashPassword, sessionEpochNow } from '@/lib/server/auth'
+import { hashPassword, sessionEpochNow } from '@/lib/server/auth'
+import { requirePermission } from '@/lib/server/admin-rbac'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * POST /api/admin/users/[id]/reset-password — ADMIN ONLY. Sets a new
- * password for any account (support flow: user forgot password, admin
- * issues a temporary one). LAND-1: the target's outstanding sessions are
+ * POST /api/admin/users/[id]/reset-password — support flow: sets a new
+ * password for any account. LAND-1: the target's outstanding sessions are
  * revoked (sessionsValidFrom set) — consistent with every other password
  * change in the app.
  */
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdmin()
+  // AUDIT S5 — was coarse requireAdmin(); resetting a user's password is an
+  // account-management action → users.edit permission.
+  const auth = await requirePermission('users.edit')
   if (!auth.ok) return auth.response
 
   try {

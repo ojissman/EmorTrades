@@ -135,13 +135,31 @@ export function AlertsCenter() {
 
   function markAllSystemRead() {
     useSystemAlerts.getState().markAllRead(alerts.map((a) => a.id))
+    persistSystemReads(alerts.map((a) => a.id))
   }
 
   function openSystemAlert(a: AlertItem) {
     // Task 152 — per-item read: THIS row only (the other alerts keep their
     // unread bars + badge count), then drill to the alert's page.
     markSystemRead(a.id)
+    persistSystemReads([a.id])
     navigate(a.page)
+  }
+
+  // AUDIT F4 — read marks now PERSIST server-side. The store update was
+  // local-only, so the unread badge came back on another device/browser (the
+  // GET side already unions readIds; the matching POST /api/alerts/read was
+  // orphaned — never called). Fire-and-forget: a failed save keeps the local
+  // mark and the next GET re-syncs the union.
+  function persistSystemReads(ids: string[]) {
+    if (ids.length === 0) return
+    fetch('/api/alerts/read', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: ids.slice(0, 200) }),
+    }).catch(() => {
+      /* local mark stands; server union re-syncs on next /api/alerts fetch */
+    })
   }
 
   function navigate(page: string) {

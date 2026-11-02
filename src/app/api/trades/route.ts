@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { autoAttachNewsToTrade } from '../trade-news/route'
 import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope, hourInSessionWindow } from '@/lib/server/trade-scope'
 import { aggregateLegs, classifyStrategy, computeLegPnl, STRATEGY_KINDS, type LegInput } from '@/lib/legs'
+import { endBoundFromParam } from '@/lib/day-bounds'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,11 @@ export async function GET(req: NextRequest) {
       // was OPENED in, matching the calendar, day-explore and day drill-downs.
       where.entryTime = {}
       if (startDate) where.entryTime.gte = new Date(startDate)
-      if (endDate) where.entryTime.lte = new Date(endDate)
+      // AUDIT M3/F7 — a bare YYYY-MM-DD endDate means "through the END of
+      // that UTC day" (23:59:59.999Z), not midnight, so trades entered/closed
+      // during the end day are included. Full ISO instants pass through
+      // unchanged (precise-bound callers keep their exact semantics).
+      if (endDate) where.entryTime.lte = endBoundFromParam(endDate)
     }
     // Outcome filter
     if (outcome && outcome !== 'all') {

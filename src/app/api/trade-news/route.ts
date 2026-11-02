@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser } from '@/lib/server/auth'
 import { currenciesForSymbol, impactRank } from '@/lib/economic-calendar'
 
 export const dynamic = 'force-dynamic'
@@ -7,12 +8,24 @@ export const dynamic = 'force-dynamic'
 // GET /api/trade-news?tradeId=xxx - Get news linked to a trade
 export async function GET(req: NextRequest) {
   try {
+    // AUDIT S1 — GET/POST were fully unauthenticated (any trade's news was
+    // world-readable/writable). Both now require the session AND ownership of
+    // the target trade.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const tradeId = searchParams.get('tradeId')
 
     if (!tradeId) {
       return NextResponse.json({ error: 'tradeId required' }, { status: 400 })
     }
+    const trade = await db.trade.findFirst({
+      where: { id: tradeId, userId: user.id },
+      select: { id: true },
+    })
+    if (!trade) return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
 
     const news = await db.tradeNews.findMany({
       where: { tradeId },
@@ -30,11 +43,25 @@ export async function GET(req: NextRequest) {
 // Body: { tradeId, events: [{ title, currency, impact, eventTime, actual, forecast, previous, source }] }
 export async function POST(req: NextRequest) {
   try {
+    // AUDIT S1 — see GET: session + trade ownership required.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const body = await req.json()
     const { tradeId, events, refetch } = body
 
     if (!tradeId) {
       return NextResponse.json({ error: 'tradeId required' }, { status: 400 })
+    }
+
+    // Verify trade exists AND belongs to the caller
+    const trade = await db.trade.findFirst({
+      where: { id: tradeId, userId: user.id },
+      select: { id: true },
+    })
+    if (!trade) {
+      return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
     }
 
     // Re-derive attachments from the synced economic-release feed
@@ -49,12 +76,6 @@ export async function POST(req: NextRequest) {
 
     if (!events || !Array.isArray(events)) {
       return NextResponse.json({ error: 'events array required (or set refetch=true)' }, { status: 400 })
-    }
-
-    // Verify trade exists
-    const trade = await db.trade.findUnique({ where: { id: tradeId } })
-    if (!trade) {
-      return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
     }
 
     // Delete existing news for this trade (replace)

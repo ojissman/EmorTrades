@@ -36,9 +36,12 @@ export async function POST(req: NextRequest) {
     const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
 
+    // AUDIT S2 — body.id updates were unscoped (cross-user edits). Own it first.
     if (body.id) {
+      const existing = await db.miscNote.findFirst({ where: { id: body.id, userId: user.id } })
+      if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const note = await db.miscNote.update({
-        where: { id: body.id },
+        where: { id: existing.id },
         data: {
           title: body.title,
           content: body.content,
@@ -79,10 +82,17 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // AUDIT S1 — DELETE had no session guard.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    await db.miscNote.delete({ where: { id } })
+    const existing = await db.miscNote.findFirst({ where: { id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await db.miscNote.delete({ where: { id: existing.id } })
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error("Error in src/app/api/misc-notes/route.ts:", e)

@@ -622,7 +622,19 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
         setupId: form.setupId || null,
         rating: form.rating || null,
         tagIds: form.selectedTags,
-        status: form.status,
+        // AUDIT F2 — status is DERIVED from exit presence. The form always
+        // sent 'closed', so trades saved with an empty exit price (the "leave
+        // empty for open" placeholder) were stored as closed with pnl 0.
+        // Now: no exit = genuinely open (the server keeps pnl 0 until the
+        // exit arrives; options structures need every leg exited to close).
+        status:
+          isOptionsForm && legs.length > 0
+            ? legs.every((l) => l.exitPrice !== '')
+              ? 'closed'
+              : 'open'
+            : form.exitPrice !== ''
+              ? 'closed'
+              : 'open',
         // TP — rule-engine fields
         timeframe: tpForm.timeframe || null,
         setupGrade: (tpForm.setupGrade as 'A' | 'B') || null,

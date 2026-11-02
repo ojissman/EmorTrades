@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the documentation template IS committed (AUDIT: no .env.example = setup gap)
+!.env.example
 
 # vercel
 .vercel

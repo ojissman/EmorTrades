@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       preview = await parseFilePreview({
         filename: file.name,
         bytes,
+        userId: auth.user.id,
         timezoneMinutes,
         applyMapping,
       })
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
           preview = await parseFilePreview({
             filename: file.name,
             bytes,
+            userId: auth.user.id,
             timezoneMinutes,
             llmMapping: llm.mapping,
             llmConfidence: llm.confidence,

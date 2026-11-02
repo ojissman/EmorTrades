@@ -126,15 +126,12 @@ export function DaySessionStrip({ dateKey, accountId }: DaySessionStripProps) {
     staleTime: 60_000,
     retry: 1,
     queryFn: async () => {
-      // endDate must be the NEXT day: the API parses it as UTC midnight of
-      // the given date (lte), so passing the same day yields an empty range.
-      const nextDay = (() => {
-        const [yy, mm, dd] = dateKey.split('-').map(Number)
-        const d = new Date(Date.UTC(yy, mm - 1, dd + 1))
-        return d.toISOString().slice(0, 10)
-      })()
+      // AUDIT M3/F7 — the API now treats a bare YYYY-MM-DD endDate as
+      // INCLUSIVE through 23:59:59.999Z of that UTC day, so the day itself is
+      // the end bound (the old code needed the next day to work around the
+      // midnight-UTC parse).
       const res = await fetch(
-        `/api/sessions-analytics?startDate=${dateKey}&endDate=${nextDay}&accountId=${encodeURIComponent(accountId)}`,
+        `/api/sessions-analytics?startDate=${dateKey}&endDate=${dateKey}&accountId=${encodeURIComponent(accountId)}`,
       )
       if (!res.ok) throw new Error('Failed to compute session analytics')
       return (await res.json()) as SessionsResponse

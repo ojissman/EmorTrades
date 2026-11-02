@@ -10,6 +10,7 @@
  */
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
@@ -208,6 +209,14 @@ export function TradingPlansHubPage() {
       queryClient.invalidateQueries({ queryKey: ['trading-plans'] })
       navigate(`/trading-plans/plan-editor?plan=${d.plan.id}`)
     },
+    // AUDIT F3 — a failed create used to be completely silent (no onError:
+    // the button just went back to normal and nothing happened).
+    onError: (e: Error) => {
+      setCreating(false)
+      toast.error('Could not create the plan', {
+        description: e?.message || 'Please try again.',
+      })
+    },
   })
 
   const act = useMutation({
@@ -226,6 +235,12 @@ export function TradingPlansHubPage() {
       return res.json()
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trading-plans'] }),
+    // AUDIT F3 — duplicate/archive/unarchive failures were silent too.
+    onError: (e: Error) => {
+      toast.error('Action failed', {
+        description: e?.message || 'The plan was not changed. Please try again.',
+      })
+    },
   })
 
   // TP-7-j — saved plan reports for whichever plan's dialog is open

@@ -100,7 +100,9 @@ export function RiskPage() {
     let streak = 0
     let streakType: 'win' | 'loss' | 'none' = 'none'
     for (const t of sorted) {
-      if (!t.pnl) break
+      // AUDIT M4 — break-even trades are SKIPPED: the streak continues
+      // through them (BE no longer terminates the walk).
+      if (!t.pnl) continue
       const win = t.pnl > 0
       if (streakType === 'none') {
         streakType = win ? 'win' : 'loss'

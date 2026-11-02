@@ -66,6 +66,8 @@ export class ImportError extends Error {
 export interface ParseFileOptions {
   filename: string
   bytes: Uint8Array
+  /** Owning user — scopes saved mapping-template matching (AUDIT S5). */
+  userId?: string
   /** Broker timezone for naive datetimes, minutes east of UTC (default 0 = UTC). */
   timezoneMinutes?: number
   /** Explicit mapping from the UI "Apply & Re-parse" step. */
@@ -474,7 +476,7 @@ export async function parseFilePreview(opts: ParseFileOptions): Promise<ParsePre
   if (opts.applyMapping) {
     mappingCandidate = { mapping: opts.applyMapping, source: 'user', confidence: 1, label: 'Your mapping' }
   } else {
-    const tpl = await matchTemplate(header)
+    const tpl = opts.userId ? await matchTemplate(opts.userId, header) : null
     if (tpl) {
       mappingCandidate = {
         mapping: tpl.mapping,

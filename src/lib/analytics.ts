@@ -120,10 +120,10 @@ export function calculateAnalytics(
       currentLossStreak++
       currentWinStreak = 0
       if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak
-    } else {
-      currentWinStreak = 0
-      currentLossStreak = 0
     }
+    // AUDIT M4 — break-even trades are SKIPPED: a streak continues through
+    // them (unified with /api/metrics + weekly-review; BE no longer resets
+    // both counters).
   }
   const currentStreak = Math.max(currentWinStreak, currentLossStreak)
   const currentStreakType: 'win' | 'loss' | 'none' =

@@ -116,10 +116,12 @@ function rowA11y(onActivate: () => void) {
   }
 }
 
-/** First day of the month AFTER `month` ('YYYY-MM' → 'YYYY-MM-01'). */
-function nextMonthFirstOf(month: string): string {
+/** Last day of `month` ('YYYY-MM' → 'YYYY-MM-DD', the month's final day). */
+function monthLastDay(month: string): string {
   const [y, m] = month.split('-').map(Number)
-  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  // Day 0 of the NEXT month (1-based m) = last day of month m.
+  const d = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 0))
+  return d.toISOString().slice(0, 10)
 }
 
 function SectionHead({
@@ -202,8 +204,12 @@ export function CalendarAnalytics({
   const sessionsQ = useQuery({
     queryKey: ['sessions-analytics', month, accountId],
     queryFn: async () => {
+      // AUDIT M3/F7 — the API now treats a bare YYYY-MM-DD endDate as
+      // INCLUSIVE through 23:59:59.999Z of that UTC day, so the month's LAST
+      // day is the end bound (the old code passed the next month's 1st to
+      // work around the midnight-UTC parse).
       const res = await fetch(
-        `/api/sessions-analytics?startDate=${month}-01&endDate=${nextMonthFirstOf(month)}&accountId=${encodeURIComponent(accountId)}`,
+        `/api/sessions-analytics?startDate=${month}-01&endDate=${monthLastDay(month)}&accountId=${encodeURIComponent(accountId)}`,
       )
       if (!res.ok) throw new Error('Failed to compute session analytics')
       return res.json() as Promise<SessionsResponse>

@@ -82,10 +82,14 @@ export function computeOverviewStats(allTrades: OverviewTradeRow[]): OverviewSta
   )
 
   // Win/loss streak over the chronological tail.
+  // AUDIT M4 — break-even trades are SKIPPED (unified convention): a BE
+  // trade neither starts nor breaks a streak — the streak continues through
+  // it, and a BE-only tail keeps the streak from the last decisive trade.
   let streak = 0
   for (let i = chrono.length - 1; i >= 0; i--) {
+    if (chrono[i].pnl === 0) continue
     const win = chrono[i].pnl > 0
-    if (i === chrono.length - 1) streak = win ? 1 : -1
+    if (streak === 0) streak = win ? 1 : -1
     else if (streak > 0 && win) streak += 1
     else if (streak < 0 && !win) streak -= 1
     else break

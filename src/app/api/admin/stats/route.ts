@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAdmin } from '@/lib/server/auth'
+import { requirePermission } from '@/lib/server/admin-rbac'
 
 export const dynamic = 'force-dynamic'
 
-/** GET /api/admin/stats — ADMIN ONLY. Platform overview numbers. */
+/** GET /api/admin/stats — admin overview numbers (RBAC dashboard.view). */
 export async function GET() {
-  const auth = await requireAdmin()
+  // AUDIT S5 — was coarse requireAdmin(); now consistent with the dashboard
+  // page's own permission gate.
+  const auth = await requirePermission('dashboard.view')
   if (!auth.ok) return auth.response
 
   try {

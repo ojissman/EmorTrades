@@ -198,10 +198,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    // AUDIT S1 — DELETE had no session guard.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    await db.challenge.delete({ where: { id } })
+    const existing = await db.challenge.findFirst({ where: { id, userId: user.id } })
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    await db.challenge.delete({ where: { id: existing.id } })
     return NextResponse.json({ success: true })
   } catch (e: any) {
     console.error('DELETE /api/challenges error:', e?.message)

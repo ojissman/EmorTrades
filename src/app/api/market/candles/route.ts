@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchCandles } from '@/lib/market'
+import { rateLimit, clientIp } from '@/lib/server/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/market/candles?symbol=AAPL&start=<iso>&end=<iso>[&assetClass=forex][&interval=5m]
 // Real OHLCV candles via the Bun market-data service (Yahoo Finance upstream).
-// No synthetic data, ever.
+// No synthetic data, ever. AUDIT S4 — open relay closed: per-IP rate limit.
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(`market-candles:${clientIp(req)}`, 30, 60_000)
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
   const sp = req.nextUrl.searchParams
   const symbol = sp.get('symbol')?.trim()
   const start = sp.get('start')

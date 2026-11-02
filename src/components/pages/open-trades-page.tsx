@@ -79,6 +79,12 @@ function LiveDot() {
   )
 }
 
+// AUDIT M8 — futures notional scales by the contract multiplier (GC=100,
+// ES=50…; default 1 for stocks/forex/crypto): exposure and unrealized P&L
+// are qty × price × multiplier, matching how closed-trade P&L is written.
+const multOf = (t: any) =>
+  typeof t?.multiplier === 'number' && t.multiplier > 0 ? t.multiplier : 1
+
 export function OpenTradesPage() {
   const { selectedAccountId, openTradeModal } = useAppStore()
   const peekStore = usePeekStore()
@@ -134,14 +140,14 @@ export function OpenTradesPage() {
   const accounts = openTrades.reduce((acc: any, t: any) => {
     acc[t.accountId] = acc[t.accountId] || { name: t.account?.name, color: t.account?.color, trades: [], exposure: 0 }
     acc[t.accountId].trades.push(t)
-    acc[t.accountId].exposure += Math.abs(t.quantity * t.entryPrice)
+    acc[t.accountId].exposure += Math.abs(t.quantity * t.entryPrice * multOf(t))
     return acc
   }, {})
 
   // Total exposure
-  const totalExposure = openTrades.reduce((sum: number, t: any) => sum + Math.abs(t.quantity * t.entryPrice), 0)
-  const longExposure = openTrades.filter((t: any) => t.side === 'long').reduce((s: number, t: any) => s + t.quantity * t.entryPrice, 0)
-  const shortExposure = openTrades.filter((t: any) => t.side === 'short').reduce((s: number, t: any) => s + t.quantity * t.entryPrice, 0)
+  const totalExposure = openTrades.reduce((sum: number, t: any) => sum + Math.abs(t.quantity * t.entryPrice * multOf(t)), 0)
+  const longExposure = openTrades.filter((t: any) => t.side === 'long').reduce((s: number, t: any) => s + t.quantity * t.entryPrice * multOf(t), 0)
+  const shortExposure = openTrades.filter((t: any) => t.side === 'short').reduce((s: number, t: any) => s + t.quantity * t.entryPrice * multOf(t), 0)
 
   // Worst-case risk (if all stops hit)
   const worstCaseRisk = openTrades.reduce((sum: number, t: any) => {
@@ -153,13 +159,13 @@ export function OpenTradesPage() {
   }, 0)
 
   // Live P&L aggregates (only positions with a real quote contribute)
-  const totalCostBasis = openTrades.reduce((sum: number, t: any) => sum + Math.abs(t.quantity * t.entryPrice), 0)
+  const totalCostBasis = openTrades.reduce((sum: number, t: any) => sum + Math.abs(t.quantity * t.entryPrice * multOf(t)), 0)
   const liveCount = openTrades.filter((t: any) => quoteMap[t.symbol]?.price != null).length
   const totalUnrealized = openTrades.reduce((sum: number, t: any) => {
     const price = quoteMap[t.symbol]?.price
     if (price == null) return sum
     const dir = t.side === 'long' ? 1 : -1
-    return sum + dir * (price - t.entryPrice) * t.quantity
+    return sum + dir * (price - t.entryPrice) * t.quantity * multOf(t)
   }, 0)
   const hasLiveQuotes = liveCount > 0
   const quotesUpdatedAt = quotesQuery.dataUpdatedAt ? formatTime(new Date(quotesQuery.dataUpdatedAt)) : null
@@ -180,7 +186,7 @@ export function OpenTradesPage() {
   // By symbol concentration
   const bySymbol = openTrades.reduce((acc: any, t: any) => {
     acc[t.symbol] = acc[t.symbol] || { symbol: t.symbol, exposure: 0, count: 0, trades: [] }
-    acc[t.symbol].exposure += Math.abs(t.quantity * t.entryPrice)
+    acc[t.symbol].exposure += Math.abs(t.quantity * t.entryPrice * multOf(t))
     acc[t.symbol].count += 1
     acc[t.symbol].trades.push(t)
     return acc
@@ -367,7 +373,10 @@ export function OpenTradesPage() {
                 </thead>
                 <tbody>
                   {openTrades.map((t: any) => {
-                    const exposure = t.quantity * t.entryPrice
+                    // AUDIT M8 — exposure/unrealized scale by the futures
+                    // contract multiplier (see multOf above; default 1).
+                    const mult = multOf(t)
+                    const exposure = t.quantity * t.entryPrice * mult
                     const risk = t.stopLoss
                       ? t.side === 'long'
                         ? (t.entryPrice - t.stopLoss) * t.quantity
@@ -377,8 +386,8 @@ export function OpenTradesPage() {
                     const price = quote?.price ?? null
                     const dir = t.side === 'long' ? 1 : -1
                     const unrealizedPnl =
-                      price !== null ? dir * (price - t.entryPrice) * t.quantity : null
-                    const basis = t.quantity * t.entryPrice
+                      price !== null ? dir * (price - t.entryPrice) * t.quantity * mult : null
+                    const basis = t.quantity * t.entryPrice * mult
                     const unrealizedPct =
                       unrealizedPnl !== null && basis !== 0 ? (unrealizedPnl / basis) * 100 : null
                     const noLiveTitle = quoteErrors[t.symbol]

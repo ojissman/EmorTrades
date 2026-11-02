@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { endBoundFromParam } from '@/lib/day-bounds'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/sessions-analytics
 // Task 176 — session-performance analytics (Asia / London / New York / custom
-// windows). Trades are bucketed by the LOCAL hour of their entry time — the
-// same clock the user journals in — against the user's Session rows, with
+// windows). Trades are bucketed by the UTC hour of their entry time — the
+// app-wide UTC day-key convention — against the user's Session rows, with
 // classic defaults when none are defined. All stats derive from real closed
 // trades only; no estimates, no fabrication.
 // Task 9-d — the global shell controls scope this endpoint too (it was the
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest) {
     const usingDefaults = defs.length === 0
     const windows = usingDefaults ? DEFAULT_SESSIONS : defs
 
-    // Closed trades with their entry hour (local wall-clock, as journaled)
+    // Closed trades (entry hour extracted below in UTC — see AUDIT F9 note)
     const tradesWhere: any = { userId: user.id, status: 'closed', exitTime: { not: null } }
     if (accountId && accountId !== 'all') tradesWhere.accountId = accountId
     if (startDate || endDate) {
@@ -83,7 +84,10 @@ export async function GET(req: NextRequest) {
       // convention, src/lib/trade-day.ts), exactly like /api/trades.
       tradesWhere.entryTime = {}
       if (startDate) tradesWhere.entryTime.gte = new Date(startDate)
-      if (endDate) tradesWhere.entryTime.lte = new Date(endDate)
+      // AUDIT M3/F7 — a bare YYYY-MM-DD endDate means "through the END of
+      // that UTC day" (23:59:59.999Z), not midnight, so trades entered during
+      // the end day are included. Full ISO instants pass through unchanged.
+      if (endDate) tradesWhere.entryTime.lte = endBoundFromParam(endDate)
     }
     const trades = await db.trade.findMany({
       where: tradesWhere,
@@ -108,7 +112,8 @@ export async function GET(req: NextRequest) {
     const hourly = Array.from({ length: 24 }, (_, h) => ({ hour: h, pnl: 0, trades: 0 }))
 
     for (const t of trades) {
-      const hour = new Date(t.entryTime).getHours()
+      // AUDIT F9 — UTC hour (see note above): never the server's local clock.
+      const hour = new Date(t.entryTime).getUTCHours()
       const window = windows.find((w) => hourInWindow(hour, w.start, w.end))
       const b = window ? (buckets.get(window.name) ?? emptyBucket()) : off
       b.trades++
@@ -175,7 +180,7 @@ export async function GET(req: NextRequest) {
       best: ranked[0] ?? null,
       worst: ranked.length > 1 ? ranked[ranked.length - 1] : null,
       totalClosed: trades.length,
-      note: 'Windows use your local entry-time clock. Define custom windows (the manager below) to override the classic Asia/London/NY split.',
+      note: 'Windows use the UTC hour of your entry times. Define custom windows (the manager below) to override the classic Asia/London/NY split.',
       generatedAt: new Date().toISOString(),
     })
   } catch (e) {
