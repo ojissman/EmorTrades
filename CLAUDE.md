@@ -173,6 +173,13 @@ at the bottom of this file.
   the replacement (weekday peek → analytics callback, best/worst day →
   monthly summary) — removal without preservation is a functionality
   regression.
+- CALENDAR-UPGRADE-1 addendum lesson (VLM design review pass): a
+  `truncate` (text-overflow: ellipsis) cell holding TWO dated values
+  silently ellipsizes BOTH — innerText still returns the full text, so
+  DOM overflow probes pass while the pixels are clipped; only a VLM
+  screenshot review catches it. Rule: one value per truncate line, or
+  stack the rows. Also: VLM letter-grades are a cheap post-ship QA
+  layer — one real defect found per full-page screenshot review.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

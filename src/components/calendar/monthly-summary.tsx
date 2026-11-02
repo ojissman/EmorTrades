@@ -285,33 +285,51 @@ export function MonthlySummary({
           <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
             Best / worst day
           </p>
-          <p className="truncate whitespace-nowrap text-sm font-semibold tnum">
+          {/* stacked rows — the two values never ellipsize inside an 8-col cell
+              (the old single-line "best / worst" packed both dates into one
+              truncate and clipped on narrow widths) */}
+          <div className="mt-0.5 flex flex-col gap-0.5 tnum">
             {bestDay ? (
               <button
                 type="button"
                 onClick={() => onOpenDay(bestDay.key)}
                 title={`Best day: ${bestDay.key} — open on the calendar`}
-                className={cn('cursor-pointer hover:underline', pnlColor(bestDay.pnl))}
+                className={cn(
+                  'flex items-baseline gap-1.5 truncate text-left text-xs font-semibold hover:underline',
+                  pnlColor(bestDay.pnl),
+                )}
               >
-                {bestDay.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', bestDay.pnl)} {dayShort(bestDay)}
+                <span className="truncate">
+                  {bestDay.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', bestDay.pnl)}
+                </span>
+                <span className="shrink-0 text-[10px] font-normal text-muted-foreground">
+                  {dayShort(bestDay)}
+                </span>
               </button>
             ) : (
-              '—'
+              <span className="text-xs font-semibold text-muted-foreground">—</span>
             )}
-            <span className="mx-1 text-muted-foreground/50">/</span>
             {worstDay ? (
               <button
                 type="button"
                 onClick={() => onOpenDay(worstDay.key)}
                 title={`Worst day: ${worstDay.key} — open on the calendar`}
-                className={cn('cursor-pointer hover:underline', pnlColor(worstDay.pnl))}
+                className={cn(
+                  'flex items-baseline gap-1.5 truncate text-left text-xs font-semibold hover:underline',
+                  pnlColor(worstDay.pnl),
+                )}
               >
-                {worstDay.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', worstDay.pnl)} {dayShort(worstDay)}
+                <span className="truncate">
+                  {worstDay.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', worstDay.pnl)}
+                </span>
+                <span className="shrink-0 text-[10px] font-normal text-muted-foreground">
+                  {dayShort(worstDay)}
+                </span>
               </button>
             ) : (
-              '—'
+              <span className="text-xs font-semibold text-muted-foreground">—</span>
             )}
-          </p>
+          </div>
         </div>
       </div>
 

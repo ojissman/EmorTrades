@@ -7745,6 +7745,47 @@ dependencies; no .env changes (LOCK 1 unaffected); .sync-state written by
 the successful live pull at 16:00:14Z (users=4, trades=386 — production
 is BACK UP after the outage, live pull not dark-anchor).
 
+## Task ID: CALENDAR-UPGRADE-1 ADDENDUM (post-push verification + VLM-driven polish)
+
+**Agent:** main session (continuation after context handoff — state
+re-verified from git, full E2E re-run, one polish fix).
+
+**Task:** Re-verify the pushed CALENDAR-UPGRADE-1 live and close the one
+visual defect surfaced by VLM design review.
+
+**Work Log:**
+
+1. STATE CONFIRMATION: HEAD 5768b1f in sync with origin/main; all 12
+   implementation files intact (calendar-page 2,716 lines + 8 premium
+   components + calendar-intel.ts contract + /api/ai/calendar); dev
+   serving every route 200.
+2. FULL E2E RE-RUN (minted read-only demo cookie — 381-trade account):
+   October 2026 live through every card (+$2,554.80 / 53.3% / 15t /
+   PF 1.66, fees $55.50 inside the totals); day tap → intelligence panel
+   (Oct 2: +$2,504.56, 100%, 3W/0L exact); AI Daily narrative cites the
+   real trades (ZW +$1,002.50, DAX +$850.50, SPX −$1,021.20); Patterns =
+   30 similar days + matched-day list + market-conditions disclaimer;
+   Ask AI answered "most profitable session" with the cited weekday
+   figures (Fri +$2,504.56 / Thu +$831.80 / Sat −$618.01); weekday/
+   session/strategy/instrument analytics + consistency 57 with the
+   surfaced formula; econ releases on cells (Oct 28 = 16 releases);
+   Monthly CSV = real client blob download. Mobile 390×844: zero
+   overflow, FullCalendar never mounts, cell tap → panel, AI tab
+   grounded, Week agenda native (7 days, per-trade cards). Zero console
+   errors desktop AND mobile. lint 0; tsc 0.
+3. POLISH (the one VLM finding): monthly-summary Best/Worst day cell
+   packed BOTH dated values into one truncate line — ellipsized inside
+   the 8-col cell. Now two stacked rows (value + muted date each),
+   individually clickable to open the day. VLM re-check after the fix:
+   fully visible, cleanly readable.
+4. RITUAL: pull 19:22:54Z LIVE (users=4, trades=386, generated
+   19:22:58Z — production healthy); smoke re-run after the DB swap
+   (header + metrics render on fresh data).
+
+**Stage Summary:** CALENDAR-UPGRADE-1 verified end-to-end on a fresh
+production pull; the single VLM-flagged polish defect fixed; no other
+changes (no schema, no API, no .env — LOCK 1 unaffected).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

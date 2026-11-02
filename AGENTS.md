@@ -757,6 +757,15 @@ blocks automated logins; minted-cookie sessions are the standard path) —
 production credentials untouched, next sync:prod restores the sandbox
 hash.
 
+CALENDAR-UPGRADE-1 ADDENDUM (post-push verification session): full E2E
+re-run on a fresh live pull (19:22:54Z, users=4, trades=386) — every
+premium surface confirmed working (cards, heat grid, day panel, AI
+daily/patterns/ask, analytics, consistency, econ dots, CSV); zero
+console errors at 1440×900 AND 390×844. One polish fix shipped: the
+monthly-summary Best/Worst day cell now stacks its two dated values as
+separate rows (the old single-line truncate ellipsized both inside the
+8-col cell); each row stays clickable to open that day on the calendar.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
