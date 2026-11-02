@@ -719,6 +719,44 @@ relaunches dev itself in full mode (setsid, reaper-proof; --no-dev
 callers still own their dev lifecycle). Live re-tested 14:30:44Z, app
 200. Push closes the fix-up.
 
+CALENDAR-UPGRADE-1 (owner master prompt: premium AI-powered trading
+performance calendar): the Calendar page is now an institutional-grade
+intelligence center. Architecture to know for future tasks:
+(1) src/lib/calendar-intel.ts is the SHARED typed contract — DayEntry /
+PeriodStats / DayDigest / PatternResult + pure aggregators; the page builds
+a typed intelByDay map from the same grouped /api/trades fetch, and every
+premium surface (metric cards, heat grid, day panel, analytics, monthly
+summary) consumes it, so filters/accounts recalculate everything together.
+(2) /api/ai/calendar (POST) is the calendar's OWN AI backend — modes
+daily|pattern|ask, grounded on server-loaded DB rows only (never
+client-sent numbers), per-IP 12/min + 5-min cache, deterministic digest
+always returned so degraded AI still shows verified numbers. Reuse it for
+any new calendar AI feature; do not bypass callZai.
+(3) src/components/calendar/ now holds: month-grid-premium (the
+Monday-first centerpiece heat grid — cell click SELECTS a day for the side
+panel; day-number still drills to Day Explore), calendar-metrics-row (the
+four period cards), day-intelligence-panel + ai-daily-panel +
+pattern-recognition (the side panel's Day/AI/Patterns tabs),
+calendar-analytics (weekday/session/strategy/instrument/consistency),
+monthly-summary (chart + CSV), plus the pre-existing week-agenda-mobile.
+(4) Legacy month-view sections (insights strip, best/worst cards, weekday
+edge, DayCell) were superseded — their drills live on in the new
+components (weekday peek via callback, best/worst via monthly summary).
+Day/Week/Year views and the FullCalendar engine toggle (now labeled
+"Heat Grid", persisted value still 'journal') are untouched.
+(5) Honesty contracts to preserve: consistency score is a transparent
+journal heuristic (formula string in UI), vs-prev-quarter is disabled
+until a wider fetch envelope exists, pattern similarity = same weekday ±
+trades (never market conditions), AI narratives must cite digest numbers.
+E2E'd on live production data (October: +$2,554.80 / 53.3% / 15 trades /
+PF 1.66; grounded AI narratives citing real setups; mobile 390 clean,
+zero console errors; lint 0; tsc 0). Pull = LIVE production pull
+16:00:14Z (users=4, trades=386 — production recovered from the outage).
+Note: the sandbox demo password was temporarily set during E2E (bot-guard
+blocks automated logins; minted-cookie sessions are the standard path) —
+production credentials untouched, next sync:prod restores the sandbox
+hash.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

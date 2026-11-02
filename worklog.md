@@ -7612,6 +7612,139 @@ dark path taken, "dev was stopped before the pull — relaunching it",
 app serving 200 within seconds. tsc 0 · lint 0 · this addendum above
 the block · commit + push last.
 
+---
+
+## Task ID: CALENDAR-UPGRADE-1 (owner request: master build prompt — premium AI-powered trading performance calendar)
+
+**Agent:** main session (audit, contracts, API, centerpiece grid, page surgery,
+integration, E2E) + two parallel full-stack subagents (Task 4-a: AI panel
+family; Task 4-b: analytics family) — shared-type contract first, then
+parallel builds, then single-integrator wiring.
+
+**Task:** Transform the existing Calendar page into a premium, institutional-
+grade, AI-powered trading performance calendar per the owner's 18-part master
+spec (dark-luxury fintech design system; four period metric cards; a
+traditional Monday-first P&L heatmap grid as the visual centerpiece; selected-
+day intelligence; AI daily analysis with behavioral warnings; historical
+pattern recognition; weekday/session/strategy/instrument analytics with an
+honest consistency score; monthly summary + chart with comparison; economic
+event context; Ask AI Q&A; full responsive + a11y + honesty discipline).
+
+**Work Log:**
+
+1. AUDIT (Explore subagent): full map of the 3,007-line calendar-page.tsx —
+   four-view system (Day/Week/Month/Year), tradesByDay UTC-entry-day
+   convention, FullCalendar engines + isNarrow mobile skeleton discipline,
+   peek/drill contracts, econ radar, stores, formatters; Trade.pnl is NET
+   (gross − fees − commission); AI infra = callZai/zaiChatWithRetry
+   (non-streaming, AI_VOICE_RULE) + page-insights cache/ratelimit pattern;
+   /api/sessions-analytics response shape.
+2. NEW src/lib/calendar-intel.ts (client-safe shared contract): DayEntry /
+   PeriodStats / WeekdayStat / StrategyStat / SymbolStat / ConsistencyMetrics
+   / DayDigest / PatternResult types + pure aggregators (groupTradesByDay on
+   the SAME UTC entry-day keys the legacy grid used; computePeriodStats incl.
+   profitFactor/gross/avgR/avgHold; weekday/strategy/symbol breakdowns;
+   consistency score as a TRANSPARENT 3-component heuristic — green-day rate
+   40 + win-vs-loss-day balance 30 + activity 30 — formula string surfaced in
+   the UI, explicitly not an industry metric; monthlySeries; median).
+3. NEW /api/ai/calendar (POST; requireUser; per-IP 12/min token bucket;
+   5-min in-memory cache): three grounded modes —
+   daily: server loads the day's closed trades (setup/mistakes/journal
+     includes), builds a deterministic DayDigest (incl. behavioral
+     afterLosses: worst trade preceded by N consecutive losses) + callZai
+     narrative (thin-sample honesty below 3 trades);
+   pattern: similar days = same UTC weekday, |trades ± 2|, trailing 12
+     months, excluding the day itself; sample size shown; the prompt forces
+     the "market conditions are NOT part of the matching" disclaimer;
+   ask: month + previous-month server-side digest (net/winrate/PF, weekday,
+     top symbols, long/short split) grounds a max-160-word answer; no-data →
+     honest degraded, never invented.
+   Grounding is always server-side DB rows — client-sent numbers are never
+   trusted. Live smoke-tested with a minted demo session: daily narrative
+   cited the real NQ=F ORB Push plan-break; ask cited Friday +$2,504.56.
+4. NEW AI family (subagent 4-a): ai-daily-panel.tsx (violet AI accent; day
+   facts grid; amber BEHAVIORAL WARNING block when the worst trade followed
+   2+ consecutive losses; degraded shows the verified numbers with a note),
+   pattern-recognition.tsx (matched-days list + similarity disclaimer
+   footer), ask-ai-panel.tsx (the spec's 8 suggested questions with
+   More/Less, Ctrl/Cmd+Enter send, violet-bordered answers, last-3 history,
+   session resets on month change).
+5. NEW analytics family (subagent 4-b): day-intelligence-panel.tsx (12-cell
+   daily summary grid; trades deck — SymbolTag, side badges, R multiples,
+   trade peek on click; attachments strip from real screenshots; execution
+   quality: plan-followed ratio, avg R vs 1.0 target, R-overshoot count,
+   avg hold; mistakes/journal-mood/day-note; market releases with impact
+   dots), calendar-analytics.tsx (weekday ranking with the preserved weekday
+   PEEK drill; sessions from /api/sessions-analytics with its honest footer
+   note; strategies; instruments; full-width consistency card with the three
+   explained progress bars + formula footer), monthly-summary.tsx (8-cell
+   stat strip with clickable best/worst day; recharts ComposedChart — daily
+   bars + cumulative line, dark custom tooltip; vs-prev-month overlay with
+   forward-filled curves; vs-prev-quarter honestly DISABLED with tooltip
+   because the 180d default envelope only guarantees one prior month;
+   Monthly CSV blob download emortrades-calendar-YYYY-MM.csv).
+6. NEW month-grid-premium.tsx (main): the centerpiece — Monday-first
+   seven-column heat grid (spec §C) with intensity-scaled rgba tints
+   (0.07 + 0.28·|pnl|/max), break-even sky tint, today emerald ring,
+   selected-day sky ring, violet AI-availability dot on 3+ trade days, econ
+   impact dots, note pens, week-totals column (md+, click → Week view),
+   compact mobile P&L ("+2.5K"), animate-in month transition, day-number →
+   Day Explore drill, cell body → day selection.
+7. NEW calendar-metrics-row.tsx (main): the four premium period cards —
+   Net P&L (+ daily sparkline + vs-prev delta), Win Rate (+ progress bar +
+   pp delta), Total Trades (+ avg per trading day), Profit Factor (+ gross
+   split + delta). Deltas hide when the previous month is empty (honest).
+   Responsive: 2-col on phones with the Net P&L hero spanning full width.
+8. calendar-page.tsx surgery: page header (Trading Calendar + subtitle +
+   live AI indicator chip via GET /api/ai/providers cached verdicts);
+   CalendarMetricsRow under the toolbar (month view); split layout
+   xl:grid-cols-[minmax(0,1fr)_400px] with the Day/AI/Patterns tabs side
+   panel (scrolls into view on click below xl); section order per spec §16:
+   toolbar → metrics → grid+panel → analytics → monthly summary → quarter
+   map (kept, moved below) → econ radar (kept, shared) → Ask AI; superseded
+   legacy sections removed (month insights strip, best/worst cards, weekday
+   edge — every function lives on richer in the new components; the weekday
+   peek drill is preserved via the analytics callback); DayCell + dead
+   grid geometry removed; engine toggle relabeled "Heat Grid" (persisted
+   'journal' value untouched); Day/Week/Year views byte-untouched; grid cell
+   click now SELECTS the day (peek preserved on the FullCalendar engine,
+   Week view and econ chips).
+9. E2E (agent-browser; demo session via minted cookie — the bot-guard
+   blocks automated login POSTs by design, and the sandbox demo password
+   was temporarily set for one UI login pass; production untouched, next
+   sync:prod restores the sandbox hash): desktop 1280×800 — every section
+   renders; October 2026 real data through every card (Net +$2,554.80 ·
+   53.3% · 15 trades · PF 1.66 · 8 heat cells · 3 AI dots); cell click →
+   panel (real ZW/SPX/DAX rows with +1.57R etc., execution quality, journal
+   mood, day note); AI Analysis tab produced a grounded narrative citing
+   the real setups (Trend Pullback ZW +$1,002.50, London Open Breakout
+   DAX +$850.50, Liquidity Sweep Reversal SPX −$1,021.20); Patterns tab:
+   30 similar days, 49.2% win, avg +$332.98, disclaimer footer; Ask AI:
+   "What is my most profitable trading session?" answered with cited
+   figures; analytics: Friday top +$2,504.56/4t/75%, Off-session/London
+   rows from the real sessions API; monthly summary chart: 8 bars +
+   cumulative line; Monthly CSV click; ←/→ month nav; Week/Day/Year
+   regression PASS (week-agenda, day-hero/timeline/trades/news,
+   year-stats/bars/months all present); ZERO console/page errors.
+   Mobile 390×844 — no horizontal overflow anywhere, 7-column compact
+   grid with "+2.5K" cells, 2-col metrics with hero span, panel stacks
+   below and scrolls into view on selection. VLM design reviews: B+
+   overall / A- institutional feel / A- heatmap readability — remaining
+   notes are micro (sub-metric baseline rhythm), no structural defects.
+   Gates: eslint 0 (whole repo) · bunx tsc --noEmit 0. (Known sandbox
+   hazard hit twice: tsc OOM-kills the dev server — restarted via the
+   documented setsid command, 200 re-verified each time.)
+
+**Stage Summary:** The Calendar page is now the premium AI-powered trading
+intelligence center the spec demanded: every number computed from real
+trade records through one shared typed intel layer, every AI insight
+grounded server-side with honest degraded/thin-sample/empty states, the
+heatmap grid as the visual centerpiece, all four legacy views preserved,
+and the mobile-first discipline intact. No other pages touched; no new
+dependencies; no .env changes (LOCK 1 unaffected); .sync-state written by
+the successful live pull at 16:00:14Z (users=4, trades=386 — production
+is BACK UP after the outage, live pull not dark-anchor).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

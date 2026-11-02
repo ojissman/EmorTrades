@@ -41,6 +41,25 @@ import { fmtEconCountdown, ECON_IMPACT_RANK, ECON_DOT_CLS, ECON_IMPACT_BG } from
 // MOBILE-4 — the native phone Week view (stacked per-day agenda). Below lg
 // it replaces the FullCalendar time-grid, which can never mount on a phone.
 import { WeekAgendaMobile } from '@/components/calendar/week-agenda-mobile'
+// CALENDAR-UPGRADE-1 — the premium calendar intelligence layer: centerpiece
+// heat grid, period metric cards, day-intelligence side panel (Day/AI/Pattern
+// tabs), analytics heatmap sections, monthly summary chart and the Ask AI
+// panel. All fed from the SAME filtered /api/trades fetch as the legacy views.
+import { MonthGridPremium } from '@/components/calendar/month-grid-premium'
+import { CalendarMetricsRow } from '@/components/calendar/calendar-metrics-row'
+import { DayIntelligencePanel } from '@/components/calendar/day-intelligence-panel'
+import { AiDailyPanel } from '@/components/calendar/ai-daily-panel'
+import { PatternRecognitionPanel } from '@/components/calendar/pattern-recognition'
+import { AskAiPanel } from '@/components/calendar/ask-ai-panel'
+import { CalendarAnalytics } from '@/components/calendar/calendar-analytics'
+import { MonthlySummary } from '@/components/calendar/monthly-summary'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  computePeriodStats,
+  monthlySeries,
+  type CalendarTrade,
+  type DayEntry,
+} from '@/lib/calendar-intel'
 // honest fetch-failure state (same card the metrics pages use)
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 // the app-wide day deep link (breadcrumb-aware) — every "open this day" on
@@ -61,7 +80,7 @@ const MS_DAY = 86_400_000
 export function CalendarPage() {
   // cross-link: store navigate aliased as spaNavigate (this file has a
   // local month-navigator function named `navigate`).
-  const { selectedAccountId, navigate: spaNavigate, routeQuery } = useAppStore()
+  const { selectedAccountId, navigate: spaNavigate, routeQuery, setPage, setFocusDate } = useAppStore()
   const filterStore = useFilterStore()
   const peekIsOpen = usePeekStore((s) => s.isOpen)
   const { open: openPeek } = usePeekStore()
@@ -139,10 +158,10 @@ export function CalendarPage() {
     if (!same) api.gotoDate(cursor)
   }, [cursor, view, calMode])
 
-  // the weekday-strip cell under the cursor; the grid above answers by
-  // ring-matching every day cell of that weekday, so the eye can trace
-  // "where do the Tuesdays actually sit in the month".
-  const [hoverWd, setHoverWd] = useState<number | null>(null)
+  // CALENDAR-UPGRADE-1 — the selected day driving the right-hand intelligence
+  // panel (Day breakdown / AI analysis / patterns). Set by premium-grid cell
+  // clicks; defaulted per month by the effect below the intel memos.
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
 
   // MOBILE-4 — Level 3 page-level polish, week-view follow-up. Same measure
   // as the trades page (MOBILE-3): null = not yet measured → the Week view
@@ -347,48 +366,114 @@ export function CalendarPage() {
   const month = cursor.getMonth()
   const today = new Date()
 
-  // Month grid geometry
-  const firstDay = new Date(year, month, 1)
-  const lastDay = new Date(year, month + 1, 0)
-  const startOffset = firstDay.getDay()
-  const totalDays = lastDay.getDate()
-  const cells: (Date | null)[] = []
-  for (let i = 0; i < startOffset; i++) cells.push(null)
-  for (let d = 1; d <= totalDays; d++) cells.push(new Date(year, month, d))
-  while (cells.length % 7 !== 0) cells.push(null)
-
-  // Week rows of the month grid, each with its own aggregate for the Week
-  // totals column (TradesViz-style): leading/trailing nulls belong to
-  // neighbour months and never contribute.
-  const weeks = [] as {
-    cells: (Date | null)[]
-    start: Date
-    pnl: number
-    trades: number
-    wins: number
-    losses: number
-    notes: number
-  }[]
-  for (let r = 0; r * 7 < cells.length; r++) {
-    const rowCells = cells.slice(r * 7, r * 7 + 7)
-    // the calendar date of the row's FIRST slot (may be a prev-month day)
-    const start = new Date(year, month, 1 - startOffset + r * 7)
-    let pnl = 0, trades = 0, wins = 0, losses = 0, notes = 0
-    for (const d of rowCells) {
-      if (!d) continue
-      const k = toIsoDate(d)
-      const dd = tradesByDay.get(k)
-      if (dd) {
-        pnl += dd.pnl
-        trades += dd.trades
-        wins += dd.wins
-        losses += dd.losses
+  // ---------- Premium calendar intelligence layer (CALENDAR-UPGRADE-1) ----------
+  // Typed DayEntry map derived from the SAME grouped fetch — the premium grid,
+  // the metrics row, the day panel and the analytics sections all share it,
+  // so every surface recalculates together on filter/account changes.
+  const intelByDay = useMemo(() => {
+    const map = new Map<string, DayEntry>()
+    for (const [key, day] of tradesByDay.entries()) {
+      const list = (day.trades_list || []) as CalendarTrade[]
+      let grossProfit = 0
+      let grossLoss = 0
+      let fees = 0
+      let rSum = 0
+      let rCount = 0
+      for (const t of list) {
+        if (t.pnl > 0) grossProfit += t.pnl
+        else if (t.pnl < 0) grossLoss += Math.abs(t.pnl)
+        fees += (t.fees ?? 0) + (t.commission ?? 0)
+        if (typeof t.rMultiple === 'number') {
+          rSum += t.rMultiple
+          rCount++
+        }
       }
-      if (noteDays.has(k)) notes++
+      map.set(key, {
+        key,
+        date: day.date,
+        pnl: day.pnl,
+        grossProfit,
+        grossLoss,
+        fees,
+        trades: day.trades,
+        wins: day.wins,
+        losses: day.losses,
+        rSum,
+        rCount,
+        symbols: day.symbols,
+        tradesList: list,
+      })
     }
-    weeks.push({ cells: rowCells, start, pnl, trades, wins, losses, notes })
-  }
-  const maxWeekAbs = Math.max(...weeks.map((w) => Math.abs(w.pnl)), 1)
+    return map
+  }, [tradesByDay])
+
+  // month-scoped slices (current + previous) for the metrics row, analytics
+  // and the monthly summary. The previous month comes from the SAME fetch —
+  // with the default 180d envelope it is always present; a narrower global
+  // date filter honestly yields empty prev stats (deltas hide, no fake data).
+  const pmYI = month === 0 ? year - 1 : year
+  const pmMI = month === 0 ? 11 : month - 1
+  const intelMonthDays = useMemo(
+    () =>
+      Array.from(intelByDay.values()).filter(
+        (d) => d.date.getFullYear() === year && d.date.getMonth() === month,
+      ),
+    [intelByDay, year, month],
+  )
+  const intelPrevMonthDays = useMemo(
+    () =>
+      Array.from(intelByDay.values()).filter(
+        (d) => d.date.getFullYear() === pmYI && d.date.getMonth() === pmMI,
+      ),
+    [intelByDay, pmYI, pmMI],
+  )
+  const intelMonthTrades = useMemo(() => intelMonthDays.flatMap((d) => d.tradesList), [intelMonthDays])
+  const monthPeriodStats = useMemo(
+    () => computePeriodStats(intelMonthTrades, intelMonthDays),
+    [intelMonthTrades, intelMonthDays],
+  )
+  const prevMonthPeriodStats = useMemo(() => {
+    if (intelPrevMonthDays.length === 0) return null
+    return computePeriodStats(intelPrevMonthDays.flatMap((d) => d.tradesList), intelPrevMonthDays)
+  }, [intelPrevMonthDays])
+  const monthSeriesData = useMemo(() => monthlySeries(intelMonthDays), [intelMonthDays])
+  const monthKeyStr = `${year}-${String(month + 1).padStart(2, '0')}`
+  const prevMonthLong = new Date(pmYI, pmMI, 1).toLocaleDateString('en-US', { month: 'long' })
+
+  // Default day selection per month: today when viewing the current month,
+  // the month's last traded day when browsing history, null for future
+  // months (the panel shows its honest prompt state).
+  useEffect(() => {
+    const t = new Date()
+    if (t.getFullYear() === year && t.getMonth() === month) {
+      setSelectedDayKey(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`)
+      return
+    }
+    const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+    const keys = Array.from(tradesByDay.keys()).filter((k) => k.startsWith(prefix)).sort()
+    setSelectedDayKey(keys.length ? keys[keys.length - 1] : null)
+  }, [year, month, data])
+
+  // AI provider health for the header indicator chip (GET reads cached
+  // verdicts only — it never pings providers from the calendar).
+  const { data: aiProvidersData } = useQuery({
+    queryKey: ['ai-providers-calendar'],
+    queryFn: async () => {
+      const res = await fetch('/api/ai/providers')
+      if (!res.ok) throw new Error('Failed')
+      return res.json()
+    },
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+  const aiOnline = (aiProvidersData?.providers ?? []).some(
+    (p: { state?: string }) => p.state === 'available' || p.state === 'configured',
+  )
+
+  // Month grid geometry — only the month length is still needed here (the
+  // month stats aggregate). The premium grid computes its own Monday-first
+  // geometry internally (month-grid-premium.tsx).
+  const totalDays = new Date(year, month + 1, 0).getDate()
 
   // Week-view geometry: the Sunday-starting week that contains the cursor.
   const weekStartDate = new Date(year, month, cursor.getDate() - cursor.getDay())
@@ -602,46 +687,13 @@ export function CalendarPage() {
     return out
   }, [newsByDay])
 
-  // ---------- Month insights (visible month) ----------
-  // Best/worst day
+  // ---------- Month weekday aggregates (visible month) ----------
+  // monthDays feeds the weekday peek drill; weekdayStats is its aggregate.
+  // (The rich weekday/session/strategy/instrument breakdowns now live in
+  // CalendarAnalytics, fed by the typed intel layer — CALENDAR-UPGRADE-1.)
   const monthDays = Array.from(tradesByDay.values()).filter(
     (d) => d.date.getFullYear() === year && d.date.getMonth() === month,
   )
-  const bestDay = monthDays.length > 0 ? monthDays.reduce((a, b) => (a.pnl > b.pnl ? a : b)) : null
-  const worstDay = monthDays.length > 0 ? monthDays.reduce((a, b) => (a.pnl < b.pnl ? a : b)) : null
-
-  // green-day %, day streaks, avg green/red day, daily sparkline
-  const sortedDays = [...monthDays].sort((a, b) => a.date.getDate() - b.date.getDate())
-  const greenDays = sortedDays.filter((d) => d.pnl > 0)
-  const redDays = sortedDays.filter((d) => d.pnl < 0)
-  const greenPct = sortedDays.length > 0 ? (greenDays.length / sortedDays.length) * 100 : 0
-  let greenStreak = 0
-  let redStreak = 0
-  let curGreen = 0
-  let curRed = 0
-  for (const d of sortedDays) {
-    if (d.pnl > 0) {
-      curGreen += 1
-      curRed = 0
-    } else if (d.pnl < 0) {
-      curRed += 1
-      curGreen = 0
-    }
-    greenStreak = Math.max(greenStreak, curGreen)
-    redStreak = Math.max(redStreak, curRed)
-  }
-  const avgGreen = greenDays.length > 0 ? greenDays.reduce((s, d) => s + d.pnl, 0) / greenDays.length : 0
-  const avgRed = redDays.length > 0 ? redDays.reduce((s, d) => s + d.pnl, 0) / redDays.length : 0
-  const maxAbsDay = Math.max(...sortedDays.map((d) => Math.abs(d.pnl)), 1)
-  const sparkBars = sortedDays.map((d) => ({
-    day: d.date.getDate(),
-    pnl: d.pnl,
-    h: Math.max(8, (Math.abs(d.pnl) / maxAbsDay) * 100),
-  }))
-
-  // per-weekday performance for the visible month (Sun..Sat to mirror the
-  // grid above): avg P&L per TRADED day, win rate on trades, and a magnitude
-  // bar scaled to the strongest weekday.
   const weekdayStats = Array.from({ length: 7 }, (_, wd) => ({
     wd,
     pnl: 0,
@@ -656,24 +708,6 @@ export function CalendarPage() {
     s.trades += d.trades
     s.wins += d.wins
   }
-  const weekdayAvg = weekdayStats.map((s) => (s.days > 0 ? s.pnl / s.days : 0))
-  const tradedWeekdays = weekdayStats.filter((s) => s.days > 0)
-  const maxWeekdayAvg = tradedWeekdays.length
-    ? Math.max(...tradedWeekdays.map((s) => s.pnl / s.days), 0)
-    : 0
-  const minWeekdayAvg = tradedWeekdays.length
-    ? Math.min(...tradedWeekdays.map((s) => s.pnl / s.days), 0)
-    : 0
-  // Top/worst marks need competition: a month traded on a single weekday
-  // would make that day both best AND worst, which reads as a bug.
-  const bestWd =
-    tradedWeekdays.length >= 2 && maxWeekdayAvg > 0 ? weekdayAvg.indexOf(maxWeekdayAvg) : -1
-  const worstWd =
-    tradedWeekdays.length >= 2 && minWeekdayAvg < 0 ? weekdayAvg.indexOf(minWeekdayAvg) : -1
-  const maxWeekdayBar = Math.max(maxWeekdayAvg, -minWeekdayAvg, 1)
-
-  // heatmap intensity scale (hoisted out of the per-cell render loop)
-  const gridMaxAbsPnl = Math.max(...monthDays.map((d) => Math.abs(d.pnl)), 1)
 
   // ---------- Month panels (quarter mini-map + Year view) ----------
   // One builder for both: the quarter map shows the cursor's three months;
@@ -868,6 +902,26 @@ export function CalendarPage() {
     })
   }
 
+  // CALENDAR-UPGRADE-1 — premium-grid cell click: select the day for the
+  // intelligence side panel. Below xl the panel stacks under the grid, so
+  // scroll it into view for the mobile/tablet experience.
+  function handleSelectDay(key: string) {
+    setSelectedDayKey(key)
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches) {
+      requestAnimationFrame(() => {
+        document
+          .querySelector('[data-testid="calendar-day-intelligence"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    }
+  }
+
+  // day-note focus: the same wiring the day peek's "Day note" action uses
+  function focusDayNote(key: string) {
+    setFocusDate(key)
+    setPage('day-notes')
+  }
+
   // ---------- FullCalendar renderers/handlers (month + week engines) ----------
   function fcEventContent(arg: any) {
     // economic release chips (week view)
@@ -1001,6 +1055,34 @@ export function CalendarPage() {
     <div className="space-y-4">
       {/* ================= Toolbar ================= */}
       <Card className="p-4" data-testid="calendar-toolbar">
+        {/* CALENDAR-UPGRADE-1 — page header: identity + AI health indicator */}
+        <div className="mb-3 flex items-start justify-between gap-3 border-b border-white/5 pb-3">
+          <div>
+            <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+              <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Trading Calendar
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Your trading performance, visualized.</p>
+          </div>
+          <span
+            data-testid="calendar-ai-indicator"
+            title={
+              aiOnline
+                ? 'AI intelligence is connected — daily analysis, pattern recognition and Q&A are live'
+                : 'AI providers are not reachable right now — panels will show your verified numbers without narratives'
+            }
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border-strong)] px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+          >
+            <span
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                aiOnline ? 'bg-violet-400 shadow-[0_0_4px_rgba(167,139,250,0.6)] animate-pulse' : 'bg-muted-foreground/50',
+              )}
+              aria-hidden
+            />
+            {aiOnline ? 'AI intelligence online' : 'AI offline'}
+          </span>
+        </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1">
@@ -1083,7 +1165,7 @@ export function CalendarPage() {
                     calMode === 'journal' ? 'bg-sky-600 text-white' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  Journal
+                  Heat Grid
                 </button>
                 <button
                   type="button"
@@ -1151,10 +1233,24 @@ export function CalendarPage() {
             <p className="text-xs text-muted-foreground">{viewSubtitle}</p>
           </div>
           <p className="hidden md:block text-[10px] text-muted-foreground/70">
-            ← / → keys change {unit} · click a week total for Week view · click a day for the peek
+            ← / → keys change {unit} · click a week total for Week view · click a day for its intelligence panel
           </p>
         </div>
       </Card>
+
+      {/* CALENDAR-UPGRADE-1 — the four premium period metric cards (spec §B):
+          Net P&L + sparkline, Win Rate, Total Trades, Profit Factor. Fed by
+          the shared intel layer, so they recalculate on every month/filter/
+          account change. Month view only (Week keeps its recap, Day its hero
+          insights, Year its own strip). */}
+      {view === 'month' && (
+        <CalendarMetricsRow
+          stats={monthPeriodStats}
+          prev={prevMonthPeriodStats}
+          prevLabel={`vs ${prevMonthLong}`}
+          series={monthSeriesData}
+        />
+      )}
 
       {/* honest zero-trade state — the calendar itself still renders below
           (news + notes remain useful), this just lights the path forward. */}
@@ -1746,6 +1842,160 @@ export function CalendarPage() {
       {/* ================= MONTH VIEW ================= */}
       {view === 'month' && (
         <>
+          {/* CALENDAR-UPGRADE-1 — split layout (spec §16): the premium heat
+              grid stays the visual centerpiece; the day-intelligence panel
+              rides beside it on xl+ and stacks below on smaller screens. */}
+          <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0 space-y-3 md:space-y-4">
+          {/* Month grid — Journal (bespoke P&L heat grid + Week totals column)
+              vs FullCalendar engine. The toolbar, quarter map and insights
+              strip stay authoritative in both: FullCalendar navigation syncs
+              back into `cursor` via datesSet.
+              MOBILE-4 — the FullCalendar engine is desktop-only now: on a
+              phone (or before the breakpoint is measured) the journal grid
+              renders, with a one-frame skeleton while measuring so the FC
+              can never mount on a phone. */}
+          {calMode === 'fullcalendar' && isNarrow !== true ? (
+            isNarrow === null ? (
+              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12" />
+                  ))}
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
+              <div className="fc-dark">
+                <FullCalendar
+                  ref={fcRef}
+                  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                  initialView="dayGridMonth"
+                  initialDate={cursor}
+                  fixedWeekCount={false}
+                  height="auto"
+                  dayMaxEventRows={3}
+                  headerToolbar={false}
+                  allDaySlot={false}
+                  navLinks
+                  navLinkDayClick={fcNavLinkDay}
+                  events={[...fcEvents, ...fcNewsBackground]}
+                  eventContent={fcEventContent}
+                  eventClick={fcEventClick}
+                  dateClick={(info: any) => {
+                    const d = new Date(info.date)
+                    openDayPeek(d, tradesByDay.get(toIsoDate(d)))
+                  }}
+                  datesSet={(arg: any) => {
+                    const s = arg.view.currentStart
+                    const next = new Date(s.getFullYear(), s.getMonth(), 1)
+                    setCursor((prev) => (prev.getTime() === next.getTime() ? prev : next))
+                  }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground px-1">
+                FullCalendar engine · click a chip or day for the peek · click a day number to open Day Explore
+              </p>
+              </Card>
+            )
+            ) : (
+              <Card className="p-3 md:p-4 overflow-x-auto" data-testid="journal-grid">
+                {/* The premium P&L heat grid: Monday-first columns,
+                    intensity-scaled heat, econ dots, AI availability dot, week
+                    totals and click-to-select for the intelligence panel. */}
+                <MonthGridPremium
+                  cursor={cursor}
+                  byDay={intelByDay}
+                  newsByDay={newsByDay}
+                  noteDays={noteDays}
+                  selectedKey={selectedDayKey}
+                  today={today}
+                  onSelectDay={handleSelectDay}
+                  onDayExplore={(k) => drillToDay(k)}
+                  onOpenWeek={(ws) => {
+                    setView('week')
+                    setCursor(ws)
+                  }}
+                />
+                <p className="mt-2 px-1 text-[10px] text-muted-foreground">
+                  click a day to open its intelligence panel · day number opens Day Explore · violet dot = AI analysis available
+                </p>
+              </Card>
+            )}
+            </div>
+
+            {/* Day intelligence side panel — the selected day's breakdown, AI
+                analysis and historical patterns as tabs (progressive
+                disclosure keeps the panel scannable; every tab is grounded on
+                the same filtered data). */}
+            <Card className="overflow-hidden p-0" data-testid="calendar-day-intelligence">
+              <Tabs defaultValue="day">
+                <div className="flex items-center justify-between gap-2 border-b border-[var(--border-strong)] px-3 py-2">
+                  <TabsList className="h-8 p-0.5">
+                    <TabsTrigger value="day" className="px-2.5 text-xs">
+                      Day
+                    </TabsTrigger>
+                    <TabsTrigger value="ai" className="gap-1 px-2.5 text-xs">
+                      <Sparkles className="h-3 w-3 text-violet-400" aria-hidden />
+                      AI Analysis
+                    </TabsTrigger>
+                    <TabsTrigger value="pattern" className="px-2.5 text-xs">
+                      Patterns
+                    </TabsTrigger>
+                  </TabsList>
+                  {selectedDayKey && (
+                    <span className="text-[10px] text-muted-foreground tnum">{selectedDayKey}</span>
+                  )}
+                </div>
+                <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-3">
+                  <TabsContent value="day" className="mt-0">
+                    <DayIntelligencePanel
+                      dayKey={selectedDayKey}
+                      dayEntry={selectedDayKey ? intelByDay.get(selectedDayKey) ?? null : null}
+                      hasNote={!!selectedDayKey && noteDays.has(selectedDayKey)}
+                      dayNews={selectedDayKey ? newsByDay.get(selectedDayKey) : undefined}
+                      onTradeClick={tradePeek}
+                      onDayExplore={drillToDay}
+                      onFocusNote={focusDayNote}
+                    />
+                  </TabsContent>
+                  <TabsContent value="ai" className="mt-0">
+                    <AiDailyPanel
+                      dayKey={selectedDayKey}
+                      accountId={selectedAccountId}
+                      hasNote={!!selectedDayKey && noteDays.has(selectedDayKey)}
+                    />
+                  </TabsContent>
+                  <TabsContent value="pattern" className="mt-0">
+                    <PatternRecognitionPanel dayKey={selectedDayKey} accountId={selectedAccountId} />
+                  </TabsContent>
+                </div>
+              </Tabs>
+            </Card>
+          </div>
+
+          {/* AI performance heatmap (spec §F): weekday ranking, sessions,
+              strategies, instruments and the consistency score — all fed by
+              the shared intel layer; weekday rows keep the peek drill. */}
+          <CalendarAnalytics
+            month={monthKeyStr}
+            monthLabel={monthName}
+            days={intelMonthDays}
+            trades={intelMonthTrades}
+            accountId={selectedAccountId}
+            onWeekdayPeek={openWeekdayPeek}
+          />
+
+          {/* Monthly performance summary + chart with comparison (spec §I) */}
+          <MonthlySummary
+            month={monthKeyStr}
+            monthLabel={monthName}
+            days={intelMonthDays}
+            prevDays={intelPrevMonthDays}
+            trades={intelMonthTrades}
+            onOpenDay={handleSelectDay}
+          />
+
           {/* Quarter mini-map: the zoomed-out context a single month can't
               give. Three day-dot heat panels (one shared intensity scale),
               quarter totals, and one-click month jumps. */}
@@ -1823,401 +2073,6 @@ export function CalendarPage() {
               </span>
             </div>
           </Card>
-
-          {/* Month grid — Journal (bespoke P&L heat grid + Week totals column)
-              vs FullCalendar engine. The toolbar, quarter map and insights
-              strip stay authoritative in both: FullCalendar navigation syncs
-              back into `cursor` via datesSet.
-              MOBILE-4 — the FullCalendar engine is desktop-only now: on a
-              phone (or before the breakpoint is measured) the journal grid
-              renders, with a one-frame skeleton while measuring so the FC
-              can never mount on a phone. */}
-          {calMode === 'fullcalendar' && isNarrow !== true ? (
-            isNarrow === null ? (
-              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-12" />
-                  ))}
-                </div>
-              </Card>
-            ) : (
-              <Card className="p-3 md:p-4 overflow-hidden" data-testid="fullcalendar-view">
-              <div className="fc-dark">
-                <FullCalendar
-                  ref={fcRef}
-                  plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                  initialView="dayGridMonth"
-                  initialDate={cursor}
-                  fixedWeekCount={false}
-                  height="auto"
-                  dayMaxEventRows={3}
-                  headerToolbar={false}
-                  allDaySlot={false}
-                  navLinks
-                  navLinkDayClick={fcNavLinkDay}
-                  events={[...fcEvents, ...fcNewsBackground]}
-                  eventContent={fcEventContent}
-                  eventClick={fcEventClick}
-                  dateClick={(info: any) => {
-                    const d = new Date(info.date)
-                    openDayPeek(d, tradesByDay.get(toIsoDate(d)))
-                  }}
-                  datesSet={(arg: any) => {
-                    const s = arg.view.currentStart
-                    const next = new Date(s.getFullYear(), s.getMonth(), 1)
-                    setCursor((prev) => (prev.getTime() === next.getTime() ? prev : next))
-                  }}
-                />
-              </div>
-              <p className="mt-2 text-[10px] text-muted-foreground px-1">
-                FullCalendar engine · click a chip or day for the peek · click a day number to open Day Explore
-              </p>
-              </Card>
-            )
-          ) : (
-            <Card className="p-3 md:p-4 overflow-x-auto" data-testid="journal-grid">
-              {/* MOBILE-3 — below md the month grid is the native phone
-                  calendar: 7 day columns, no Week-totals column, no forced
-                  780px minimum — the whole month fits the viewport with no
-                  side-scroll. md+ keeps the 8-column grid with week totals. */}
-              <div className="grid grid-cols-7 gap-1 md:grid-cols-8 md:gap-1.5 md:min-w-[780px]">
-                {[...DAY_SHORT, 'Week'].map((d) => (
-                  <div
-                    key={d}
-                    className={cn(
-                      'text-center text-xs font-medium text-muted-foreground uppercase tracking-wider py-2',
-                      d === 'Week' && 'text-left hidden md:block',
-                    )}
-                  >
-                    {d}
-                  </div>
-                ))}
-                {weeks.map((w, wi) => (
-                  <Fragment key={wi}>
-                    {w.cells.map((date, i) =>
-                      date ? (
-                        <DayCell
-                          key={toIsoDate(date)}
-                          date={date}
-                          dayData={tradesByDay.get(toIsoDate(date))}
-                          hasNote={noteDays.has(toIsoDate(date))}
-                          dayNews={newsByDay.get(toIsoDate(date))}
-                          isToday={
-                            date.getFullYear() === today.getFullYear() &&
-                            date.getMonth() === today.getMonth() &&
-                            date.getDate() === today.getDate()
-                          }
-                          isFuture={date > today}
-                          hoverWd={hoverWd}
-                          setHoverWd={setHoverWd}
-                          onOpenDay={openDayPeek}
-                          onDayExplore={(d) => drillToDay(toIsoDate(d))}
-                          gridMaxAbsPnl={gridMaxAbsPnl}
-                        />
-                      ) : (
-                        <div key={`empty-${wi}-${i}`} className="aspect-square md:aspect-[4/3]" />
-                      ),
-                    )}
-                    {/* Week totals column */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setView('week')
-                        setCursor(w.start)
-                      }}
-                      title={`Week of ${w.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${w.trades > 0 ? ` · ${w.trades} trade${w.trades === 1 ? '' : 's'} · ${w.wins}W / ${w.losses}L · ${w.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', w.pnl)}` : ' · no trades'}${w.notes ? ` · ${w.notes} day note${w.notes === 1 ? '' : 's'}` : ''} — click for Week view`}
-                      aria-label={`Week of ${w.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${w.trades} trades, P&L ${w.pnl >= 0 ? '+' : ''}${Math.round(w.pnl)}${w.trades > 0 ? ', open Week view' : ''}`}
-                      className={cn(
-                        'hidden md:flex self-stretch rounded-md border p-1.5 flex-col justify-center gap-0.5 min-w-0 text-left transition-[transform,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60',
-                        w.trades > 0
-                          ? 'border-sky-500/20 bg-sky-500/[0.04] hover:bg-sky-500/10 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20'
-                          : 'border-border bg-muted/20 cursor-default',
-                      )}
-                      tabIndex={w.trades > 0 ? 0 : -1}
-                    >
-                      <span
-                        className={cn(
-                          'text-[10px] md:text-xs font-bold tnum leading-tight truncate',
-                          w.trades > 0 ? pnlColor(w.pnl) : 'text-muted-foreground/60',
-                        )}
-                      >
-                        {w.trades > 0 ? `${w.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', w.pnl)}` : '—'}
-                      </span>
-                      {w.trades > 0 && (
-                        <span className="text-[9px] text-muted-foreground tnum leading-none">
-                          {w.trades}t · {w.wins}/{w.losses}
-                        </span>
-                      )}
-                      <span className="w-full h-1 rounded-full bg-white/5 overflow-hidden mt-0.5" aria-hidden>
-                        {w.trades > 0 && (
-                          <span
-                            className={cn('block h-full rounded-full', w.pnl >= 0 ? 'bg-emerald-500/70' : 'bg-red-500/70')}
-                            style={{ width: `${Math.max(8, (Math.abs(w.pnl) / maxWeekAbs) * 100)}%` }}
-                          />
-                        )}
-                      </span>
-                    </button>
-                  </Fragment>
-                ))}
-              </div>
-              {/* Month totals footer */}
-              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-muted-foreground">
-                <span className="text-[10px] uppercase tracking-wider">Month totals</span>
-                <span className={cn('text-sm font-bold tnum', pnlColor(monthStats.pnl))}>
-                  {monthStats.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', monthStats.pnl)}
-                </span>
-                <span className="tnum">{monthStats.trades} trades</span>
-                <span className="tnum">{monthStats.wins}W / {monthStats.losses}L</span>
-                <span className="tnum">
-                  {monthStats.trades > 0 ? ((monthStats.wins / monthStats.trades) * 100).toFixed(0) : 0}% win
-                </span>
-                <span className="tnum">
-                  avg {formatCurrencyIn('table', monthStats.trades > 0 ? monthStats.pnl / monthStats.trades : 0)}/trade
-                </span>
-                <span className="ml-auto hidden md:inline text-[10px] text-muted-foreground/70">
-                  click a week total → Week view
-                </span>
-              </div>
-            </Card>
-          )}
-
-          {/* Month insights strip */}
-          {sortedDays.length > 0 && (
-            <Card className="p-3 md:p-4" data-testid="month-insights">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {monthName.split(' ')[0]} insights
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 flex-1 min-w-0">
-                  <MiniInsight
-                    label="Green-day rate"
-                    value={`${greenPct.toFixed(0)}%`}
-                    hint={`${greenDays.length} of ${sortedDays.length} trading days`}
-                    tone={greenPct >= 50 ? 'good' : 'bad'}
-                  />
-                  <MiniInsight
-                    label="Best day streak"
-                    value={`${greenStreak}${greenStreak === 1 ? ' day' : ' days'}`}
-                    hint="consecutive green days"
-                    tone={greenStreak >= 3 ? 'good' : 'neutral'}
-                  />
-                  <MiniInsight
-                    label="Worst day streak"
-                    value={`${redStreak}${redStreak === 1 ? ' day' : ' days'}`}
-                    hint="consecutive red days"
-                    tone={redStreak >= 3 ? 'bad' : 'neutral'}
-                  />
-                  <MiniInsight
-                    label="Avg green day"
-                    value={`+${formatCurrencyIn('kpi', avgGreen)}`}
-                    hint={`${greenDays.length} days`}
-                    tone="good"
-                  />
-                  <MiniInsight
-                    label="Avg red day"
-                    value={formatCurrencyIn('kpi', avgRed)}
-                    hint={`${redDays.length} days`}
-                    tone="bad"
-                  />
-                </div>
-                {/* Daily P&L sparkline */}
-                <div
-                  className="hidden md:flex items-end gap-[3px] h-14 shrink-0 lg:max-w-[380px] overflow-x-auto"
-                  role="img"
-                  aria-label={`Daily P&L sparkline for ${monthName}`}
-                >
-                  {sparkBars.map((b) => (
-                    <div
-                      key={b.day}
-                      className="relative w-[9px] shrink-0 group/bar"
-                      title={`Day ${b.day}: ${b.pnl >= 0 ? '+' : ''}${formatCurrencyIn('table', b.pnl)}`}
-                    >
-                      <div
-                        className={cn(
-                          'w-full rounded-sm transition-transform group-hover/bar:scale-y-110 origin-bottom',
-                          b.pnl >= 0 ? 'bg-emerald-500/70' : 'bg-red-500/70'
-                        )}
-                        style={{ height: `${b.h * 0.56}px` }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Best / Worst — each card IS a calendar day, so clicking it opens
-              that day in Day Explore (the day's home page). */}
-          {(bestDay || worstDay) && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-              {bestDay && (
-                <Card
-                  data-testid="cal-best-day"
-                  className="p-4 flex items-center gap-3 cursor-pointer hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-colors group/best"
-                  onClick={() => drillToDay(toIsoDate(bestDay.date))}
-                  title={`Best day of ${monthName} — open in Day Explore`}
-                >
-                  <div className="p-2 rounded-md bg-white/5">
-                    <TrendingUp className="h-5 w-5 text-[var(--text-secondary)]" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Best Day</p>
-                    <p className="text-sm font-semibold">
-                      {bestDay.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </p>
-                    <p className="text-emerald-400 font-bold tnum">
-                      {formatCurrencyIn('table', bestDay.pnl)}
-                    </p>
-                  </div>
-                  <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors group-hover/best:text-emerald-400">
-                    Day Explore
-                    <ArrowUpRight className="h-3 w-3" />
-                  </span>
-                </Card>
-              )}
-              {worstDay && (
-                <Card
-                  data-testid="cal-worst-day"
-                  className="p-4 flex items-center gap-3 cursor-pointer hover:border-rose-500/40 hover:bg-rose-500/5 transition-colors group/worst"
-                  onClick={() => drillToDay(toIsoDate(worstDay.date))}
-                  title={`Worst day of ${monthName} — open in Day Explore`}
-                >
-                  <div className="p-2 rounded-md bg-red-500/10">
-                    <TrendingDown className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Worst Day</p>
-                    <p className="text-sm font-semibold">
-                      {worstDay.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </p>
-                    <p className="text-red-400 font-bold tnum">
-                      {formatCurrencyIn('table', worstDay.pnl)}
-                    </p>
-                  </div>
-                  <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors group-hover/worst:text-rose-400">
-                    Day Explore
-                    <ArrowUpRight className="h-3 w-3" />
-                  </span>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Weekday edge: where this month's money actually comes from. */}
-          {sortedDays.length > 0 && (
-            <Card className="p-3 md:p-4" data-testid="weekday-edge">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <BarChart3 className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Weekday edge
-                  </span>
-                </div>
-                <div className="grid grid-cols-7 gap-1.5 sm:gap-2 flex-1 min-w-0">
-                  {weekdayStats.map((s) => {
-                    const avg = weekdayAvg[s.wd]
-                    const winPct = s.trades > 0 ? (s.wins / s.trades) * 100 : null
-                    const barW = s.days > 0 ? Math.max(10, (Math.abs(avg) / maxWeekdayBar) * 100) : 0
-                    const isBest = s.wd === bestWd
-                    const isWorst = s.wd === worstWd
-                    return (
-                      <div
-                        key={s.wd}
-                        role={s.days > 0 ? 'button' : undefined}
-                        tabIndex={s.days > 0 ? 0 : -1}
-                        aria-label={
-                          s.days > 0
-                            ? `${DAY_NAMES[s.wd]} average ${avg >= 0 ? '+' : ''}${formatCurrencyIn('table', avg)}, ${winPct !== null ? `${winPct.toFixed(0)}% win rate` : 'no trades'}, peek all ${DAY_NAMES[s.wd]} trades`
-                            : `${DAY_NAMES[s.wd]}: no traded days this month`
-                        }
-                        title={
-                          s.days > 0
-                            ? `${DAY_NAMES[s.wd]} · ${s.days} traded day${s.days === 1 ? '' : 's'} · ${s.trades} trade${s.trades === 1 ? '' : 's'}${winPct !== null ? ` · ${winPct.toFixed(0)}% win rate` : ''} · avg ${avg >= 0 ? '+' : ''}${formatCurrencyIn('table', avg)} · click to peek trades`
-                            : `${DAY_NAMES[s.wd]} · no traded days this month`
-                        }
-                        onClick={() => openWeekdayPeek(s.wd)}
-                        onKeyDown={(e) => {
-                          if ((e.key === 'Enter' || e.key === ' ') && s.days > 0) {
-                            e.preventDefault()
-                            openWeekdayPeek(s.wd)
-                          }
-                        }}
-                        onMouseEnter={() => s.days > 0 && setHoverWd(s.wd)}
-                        onMouseLeave={() => setHoverWd(null)}
-                        onFocus={() => s.days > 0 && setHoverWd(s.wd)}
-                        onBlur={() => setHoverWd(null)}
-                        className={cn(
-                          'rounded-md border p-1.5 flex flex-col items-center gap-1 min-w-0 transition-[background-color,border-color,transform,box-shadow]',
-                          s.days === 0 && 'border-border bg-muted/20 opacity-60',
-                          s.days > 0 &&
-                            avg >= 0 &&
-                            'border-emerald-500/20 bg-emerald-500/[0.05] hover:bg-emerald-500/10 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60',
-                          s.days > 0 &&
-                            avg < 0 &&
-                            'border-red-500/20 bg-red-500/[0.05] hover:bg-red-500/10 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60',
-                          isBest && 'ring-1 ring-emerald-400/60',
-                          isWorst && 'ring-1 ring-red-400/60',
-                          hoverWd === s.wd && 'ring-2 ring-amber-400/60 border-amber-400/40',
-                        )}
-                      >
-                        <div className="flex items-center gap-1 max-w-full">
-                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground truncate">
-                            {DAY_SHORT[s.wd]}
-                          </span>
-                          {isBest && (
-                            <span
-                              className="shrink-0 rounded-sm bg-emerald-500/15 px-1 text-[8px] font-bold uppercase tracking-wide text-emerald-400"
-                              title="Best average day this month"
-                            >
-                              top
-                            </span>
-                          )}
-                          {isWorst && (
-                            <span
-                              className="shrink-0 rounded-sm bg-red-500/15 px-1 text-[8px] font-bold uppercase tracking-wide text-red-400"
-                              title="Worst average day this month"
-                            >
-                              worst
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={cn(
-                            'text-[11px] font-bold tnum leading-tight',
-                            s.days === 0
-                              ? 'text-muted-foreground'
-                              : avg >= 0
-                                ? 'text-emerald-400'
-                                : 'text-red-400',
-                          )}
-                        >
-                          {s.days > 0 ? `${avg >= 0 ? '+' : ''}${formatCurrencyIn('table', avg)}` : '—'}
-                        </span>
-                        <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden" aria-hidden>
-                          {s.days > 0 && (
-                            <div
-                              className={cn(
-                                'h-full rounded-full transition-[width]',
-                                avg >= 0 ? 'bg-emerald-500/70' : 'bg-red-500/70',
-                              )}
-                              style={{ width: `${barW}%` }}
-                            />
-                          )}
-                        </div>
-                        <span className="text-[9px] text-muted-foreground tnum leading-none">
-                          {winPct !== null ? `${winPct.toFixed(0)}% win` : 'no trades'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </Card>
-          )}
         </>
       )}
 
@@ -2618,6 +2473,14 @@ export function CalendarPage() {
         </Card>
       )}
 
+      {/* CALENDAR-UPGRADE-1 — Ask AI About Your Performance (spec §H): the
+          in-page Q&A grounded on the visible month's real journal via
+          /api/ai/calendar (mode: ask). Suggested questions, evidence-cited
+          answers, honest degraded/no-data states. */}
+      {view === 'month' && (
+        <AskAiPanel month={monthKeyStr} monthLabel={monthName} accountId={selectedAccountId} />
+      )}
+
       {/* Legend */}
       <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
@@ -2698,160 +2561,6 @@ function fmtCellPnlCompact(v: number) {
   if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`
   return `${sign}${Math.round(abs)}`
-}
-
-// ---------- Month grid day cell ----------
-// The bespoke Journal-grid cell: P&L heat background, trade count, W/L,
-// release dots, note pen, day-number → Day Explore deep link, body → peek.
-function DayCell({
-  date,
-  dayData,
-  hasNote,
-  dayNews,
-  isToday,
-  isFuture,
-  hoverWd,
-  setHoverWd,
-  onOpenDay,
-  onDayExplore,
-  gridMaxAbsPnl,
-}: {
-  date: Date
-  dayData: any
-  hasNote: boolean
-  dayNews: any[] | undefined
-  isToday: boolean
-  isFuture: boolean
-  hoverWd: number | null
-  setHoverWd: (wd: number | null) => void
-  onOpenDay: (date: Date, dayData?: any) => void
-  onDayExplore: (date: Date) => void
-  gridMaxAbsPnl: number
-}) {
-  const hasNews = !!dayNews && dayNews.length > 0
-  const isClickable = (dayData && dayData.trades > 0) || hasNote || hasNews
-  const intensity = dayData ? Math.min(Math.abs(dayData.pnl) / gridMaxAbsPnl, 1) : 0
-  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-
-  return (
-    <div
-      key={key}
-      role="button"
-      tabIndex={isClickable ? 0 : -1}
-      title={
-        [
-          dayData
-            ? `${dayData.trades} trade${dayData.trades === 1 ? '' : 's'} · ${dayData.wins}W / ${dayData.losses}L · ${Array.from(dayData.symbols).slice(0, 5).join(', ')}${dayData.symbols.size > 5 ? ` +${dayData.symbols.size - 5} more` : ''}`
-            : hasNote
-              ? 'Day note · no trades'
-              : null,
-          ...(dayNews || []).slice(0, 4).map(
-            (e: any) =>
-              `${e.impact === 'high' ? '🔴' : e.impact === 'medium' ? '🟠' : e.impact === 'holiday' ? '🟣' : '⚪'} ${new Date(e.eventTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} ${e.currency} ${e.title}${e.forecast ? ` (fcst ${e.forecast})` : ''}`,
-          ),
-          hasNews && dayNews!.length > 4 ? `+${dayNews!.length - 4} more releases` : null,
-        ]
-          .filter(Boolean)
-          .join('\n') || undefined
-      }
-      aria-label={`${date.toDateString()}${dayData ? `, ${dayData.trades} trades, P&L ${dayData.pnl >= 0 ? '+' : ''}${Math.round(dayData.pnl)}` : ', no trades'}${hasNote ? ', has day note' : ''}${hasNews ? `, ${dayNews!.length} news releases` : ''}`}
-      onClick={() => onOpenDay(date, dayData)}
-      onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && isClickable) {
-          e.preventDefault()
-          onOpenDay(date, dayData)
-        }
-      }}
-      // the hover link runs BOTH ways: a grid day under the cursor makes its
-      // weekday strip cell answer with an amber ring (mirror of strip→grid).
-      onMouseEnter={() => setHoverWd(date.getDay())}
-      onMouseLeave={() => setHoverWd(null)}
-      className={cn(
-        'group aspect-square md:aspect-[4/3] rounded-md border p-1 md:p-1.5 flex flex-col gap-0.5 relative overflow-hidden outline-none',
-        !dayData && !hasNote && 'border-border bg-muted/20',
-        !dayData && hasNote && 'border-amber-500/20 bg-amber-500/[0.04]',
-        isToday && 'ring-2 ring-emerald-500',
-        isFuture && 'opacity-50',
-        isClickable &&
-          'cursor-pointer hover:scale-[1.04] hover:shadow-lg hover:shadow-black/20 hover:z-10 focus-visible:ring-2 focus-visible:ring-emerald-400 transition-[transform,box-shadow,border-color]',
-        hoverWd !== null &&
-          date.getDay() === hoverWd &&
-          'ring-1 ring-amber-400/60 border-amber-400/40',
-      )}
-      style={
-        dayData
-          ? {
-              background: dayData.pnl > 0
-                ? `rgba(16, 185, 129, ${0.1 + intensity * 0.3})`
-                : `rgba(239, 68, 68, ${0.1 + intensity * 0.3})`,
-              borderColor: dayData.pnl > 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-            }
-          : {}
-      }
-    >
-      <div className="flex items-center justify-between">
-        {/* the day NUMBER opens Day Explore for this date; the cell body
-            keeps the peek. */}
-        <button
-          type="button"
-          data-testid="cal-day-explore"
-          aria-label={`Open ${date.toDateString()} in Day Explore`}
-          title="Day Explore — open this trading day"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDayExplore(date)
-          }}
-          className="cursor-pointer rounded px-0.5 text-[10px] md:text-xs font-medium text-muted-foreground transition-colors hover:bg-sky-500/20 hover:text-sky-300"
-        >
-          {date.getDate()}
-        </button>
-        <span className="flex items-center gap-1">
-          {hasNote && (
-            <NotebookPen className="h-2.5 w-2.5 text-amber-400/90" aria-label="Has day note" />
-          )}
-          {dayData && <span className="text-[9px] text-muted-foreground">{dayData.trades}t</span>}
-        </span>
-      </div>
-      {(dayData || hasNews) && (
-        <div className="mt-auto">
-          {dayData && (
-            <>
-              <p className={cn(
-                'text-[10px] md:text-xs font-bold tnum leading-tight',
-                dayData.pnl > 0 ? 'text-emerald-400' : 'text-red-400',
-              )}>
-                {/* MOBILE-3 — compact number-only P&L on the phone-sized
-                    cell (the full table format clips at 44px; color is the
-                    sign cue); the full format stays on md+. */}
-                <span className="md:hidden">
-                  {fmtCellPnlCompact(dayData.pnl)}
-                </span>
-                <span className="hidden md:inline">
-                  {dayData.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', dayData.pnl)}
-                </span>
-              </p>
-              <p className="text-[9px] text-muted-foreground tnum">
-                <span className="md:hidden">{dayData.wins}W/{dayData.losses}L</span>
-                <span className="hidden md:inline">{dayData.wins}W / {dayData.losses}L</span>
-              </p>
-            </>
-          )}
-          {/* release dots: one per impact tier present, max three, then an
-              overflow count. Colors match the radar. */}
-          {hasNews && (
-            <div className="flex items-center gap-[3px] pt-0.5" aria-hidden>
-              {[...new Set(dayNews!.map((e: any) => e.impact))].slice(0, 3).map((imp: string) => (
-                <span key={imp} className={cn('h-1.5 w-1.5 rounded-full', ECON_DOT_CLS[imp] ?? 'bg-slate-400')} />
-              ))}
-              {dayNews!.length > 3 && (
-                <span className="text-[8px] leading-none text-muted-foreground tnum">{dayNews!.length}</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ---------- Month heat panel (quarter mini-map + Year view) ----------

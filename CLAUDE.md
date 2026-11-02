@@ -158,6 +158,22 @@ at the bottom of this file.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 
+- CALENDAR-UPGRADE-1 lessons: when upgrading a large page, extract a shared
+  typed contract lib FIRST (calendar-intel.ts) and have parallel subagents
+  build against it — zero contract drift across 8 new components. AI panels
+  must always receive a deterministic digest alongside the narrative so
+  degraded mode still shows verified numbers (never a blank or a spin).
+  The app shell scrolls inside <main>, not window — E2E screenshots must
+  scroll the main element; Radix Tabs TRIGGERS need real clicks (synthetic
+  .click() is ignored, same class of quirk as Radix menu triggers). The
+  bot-guard blocks automated login POSTs by design — minted-session cookies
+  are the E2E path. tsc OOM-killed the dev server twice this session;
+  always curl-check 200 after every tsc run and restart via setsid if down.
+  Superseding legacy sections is fine IF every drill/function survives in
+  the replacement (weekday peek → analytics callback, best/worst day →
+  monthly summary) — removal without preservation is a functionality
+  regression.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
