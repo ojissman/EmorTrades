@@ -87,3 +87,23 @@ db/custom.db-wal
 # ENFORCE-2 (2026-10-31): local marker of the day-start gate (new-day
 # PULL-FIRST protocol). Written by scripts/day-start.ts; local truth only.
 .day-state
+
+# RECOVERY-1 (2026-11-02): sandbox-platform and one-time-codemod artifacts.
+# These exist on every platform-restored sandbox but are NOT project code and
+# were never tracked in origin/main — left untracked they permanently count
+# as "unpushed work" for the ENFORCE-4 drift guard (ritual-state reads git
+# status), which locks the owner's preview after every push. The two orphaned
+# ADMIN-2-era src files (admin/theme.ts, admin/topbar.tsx — zero imports,
+# superseded) were deleted rather than ignored: dead code should not sit in
+# the tree. One-time codemods/migrations stay on disk, ignored.
+.verify/
+agent-ctx/
+db/backups/
+download/
+examples/
+mini-services/
+scripts/auth-codemod.ts
+scripts/auth2-bootstrap.ts
+scripts/dev-keepalive.sh
+scripts/migrate-trading-plans.ts
+scripts/tp2-add-marks-tables.ts

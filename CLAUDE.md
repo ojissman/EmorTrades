@@ -137,6 +137,21 @@ at the bottom of this file.
   demo executions sit outside it — an honest empty state, not missing
   data); Radix menu TRIGGERS need real agent-browser clicks, menu
   ITEMS accept synthetic ones.
+- RECOVERY-1 (2026-11-02, owner: "Pull Github latest" + PAT + passphrase)
+  added the outage discipline: when production is DARK (export pull
+  fails AND the public landing is down), `bun run sync:prod` anchors to
+  the committed mirror DB via the PRODUCTION-DARK path — loud logs,
+  `mode=production-dark` marker, mirror provenance sha — and the
+  publish proceeds (aborting would deadlock the recovery: no pull →
+  build aborts → production can never come back). If production's
+  landing is UP and only the export fails, the pull still hard-fails.
+  NEVER use `git push --no-verify` — that escape stays owner-authorized
+  only; the dark path is the sanctioned, auditable outage route. After
+  production returns, the FIRST sync:prod must be a live one (the dark
+  path only triggers during a real outage). Also: never-returning
+  helpers must be function DECLARATIONS when reachability depends on
+  them (TS ignores never-returning const arrows in control-flow
+  analysis — tsc 2454).
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 

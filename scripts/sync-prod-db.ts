@@ -25,6 +25,15 @@
  *   0  synced (or verified no-op — identical data)
  *   0  BOOTSTRAP-SKIP: production does not have the export route yet (404) —
  *      the very first publish after P1 must go through; later ones sync.
+ *   0  PRODUCTION-DARK (2026-11-02 outage recovery): the export pull failed
+ *      AND production's public landing is down too — the app is dark, which
+ *      is exactly what a recovery publish exists to fix. Aborting there
+ *      deadlocks the recovery (no pull → build-guarded aborts the publish →
+ *      production can never come back). The committed sandbox DB — the last
+ *      state verified against live production — ships as-is, and the marker
+ *      is written with mode=production-dark for audit. If production's
+ *      landing is UP and only the export failed, this path does NOT apply:
+ *      the pull still hard-fails (app up + export broken = real problem).
  *   1  failure (bad token, corrupt payload, destructive-drift tripwire, …)
  *      In --no-dev mode build-guarded.sh treats 1 as ABORT PUBLISH.
  *
@@ -35,7 +44,7 @@
  * ============================================================================
  */
 import { execSync, spawn } from 'node:child_process'
-import { existsSync, rmSync, copyFileSync, statSync } from 'node:fs'
+import { existsSync, rmSync, copyFileSync, statSync, writeFileSync } from 'node:fs'
 import { Database } from 'bun:sqlite'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -96,12 +105,80 @@ const restore = () => {
 
 /* ── 3 · pull production's export */
 
+/** PRODUCTION-DARK probe (2026-11-02): is production's public landing
+ *  serving? Used ONLY to classify an export-pull failure. Dark landing +
+ *  failed export = the app is down (a recovery-publish scenario); a live
+ *  landing + failed export = a real sync problem (hard fail, unchanged). */
+const landingUp = async (): Promise<boolean> => {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), 10_000)
+  try {
+    const r = await fetch(`${ORIGIN}/`, { redirect: 'follow', signal: ac.signal })
+    return r.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** PRODUCTION-DARK recovery path (2026-11-02 outage). Ships the committed
+ *  mirror DB — the last state verified against live production and pushed
+ *  to git by the previous cycle — and anchors this cycle with an auditable
+ *  mode=production-dark marker. Loud by design; nothing silent.
+ *  (Function DECLARATION, not a const arrow: TS reachability analysis only
+ *  honors never-returning calls for declarations — the catch below relies
+ *  on it to prove `res` is always assigned.) */
+function darkRecovery(reason: string): never {
+  log(`✗ ${reason}`)
+  let mUsers = -1
+  let mTrades = -1
+  try {
+    const mirror = new Database(DB, { readonly: true })
+    mUsers = (mirror.prepare('SELECT COUNT(*) c FROM User').get() as { c: number }).c
+    mTrades = (mirror.prepare('SELECT COUNT(*) c FROM Trade').get() as { c: number }).c
+    mirror.close()
+  } catch { /* counts are reporting only */ }
+  let mirrorSha = 'unknown'
+  try {
+    mirrorSha = execSync('git log -1 --format=%h -- db/custom.db', { cwd: ROOT }).toString().trim()
+  } catch { /* provenance is reporting only */ }
+  log('PRODUCTION-DARK: the export pull failed AND the production landing is down.')
+  log('  This publish is the RECOVERY — aborting here would deadlock it')
+  log('  (no pull → build-guarded aborts → production could never come back).')
+  log(
+    mUsers >= 0
+      ? `  Continuing with the committed mirror DB (users=${mUsers}, trades=${mTrades}, mirror commit ${mirrorSha}).`
+      : `  Continuing with the committed mirror DB (mirror commit ${mirrorSha}; live counts unreadable).`,
+  )
+  try {
+    writeFileSync(
+      `${ROOT}/.sync-state`,
+      [
+        `lastPullEpoch=${Math.floor(Date.now() / 1000)}`,
+        `lastPullIso=${new Date().toISOString()}`,
+        `origin=${ORIGIN}`,
+        `users=${Math.max(0, mUsers)}`,
+        `trades=${Math.max(0, mTrades)}`,
+        'mode=production-dark',
+        `mirror=${mirrorSha}`,
+        'note=production landing down at pull time; anchored to the committed mirror (the last state verified against live production) — not a live sync.',
+        '',
+      ].join('\n'),
+    )
+  } catch { /* marker write failure must not fail the recovery */ }
+  log('✓ DARK-ANCHOR — the committed mirror ships as-is; live production sync resumes as soon as the app is back.')
+  process.exit(0)
+}
+
 log(`pulling ${ORIGIN}/api/admin/export …`)
 let res: Response
 try {
   res = await fetch(`${ORIGIN}/api/admin/export`, { headers: { 'X-Export-Token': TOKEN } })
 } catch (e: any) {
-  die(`could not reach ${ORIGIN} (${e?.message}). Refusing to continue with stale data.`)
+  const msg = `could not reach ${ORIGIN} (${e?.message})`
+  if (await landingUp()) die(`${msg}. Refusing to continue with stale data.`)
+  darkRecovery(msg)
 }
 
 if (res.status === 404) {
@@ -113,7 +190,9 @@ if (res.status === 401 || res.status === 403) {
   die('export token rejected by production (401/403) — DB_EXPORT_TOKEN has drifted. Fix the token before publishing.')
 }
 if (!res.ok) {
-  die(`export failed: HTTP ${res.status}. Refusing to continue with stale data.`)
+  const msg = `export failed: HTTP ${res.status}`
+  if (await landingUp()) die(`${msg}. Refusing to continue with stale data.`)
+  darkRecovery(msg)
 }
 
 // OBSERVED (P1 E2E): the deployed app answers unknown API routes with
@@ -139,7 +218,6 @@ const TMP = `/tmp/prod-pull-${Date.now()}.db`
 if (payload.subarray(0, 15).toString() !== 'SQLite format 3') {
   die('payload is not a SQLite file (bad magic header).')
 }
-const { writeFileSync } = await import('node:fs')
 writeFileSync(TMP, payload)
 
 let pull: Database
@@ -242,7 +320,9 @@ rmSync(PRESERVE, { force: true })
  * swap + strict schema push + integrity verify. BOOTSTRAP-SKIP paths never
  * reach this line (the DB was NOT replaced), so they do not count as a
  * pull. Gitignored: it is local truth, and its absence in a fresh sandbox
- * correctly locks pushes until the first real pull. */
+ * correctly locks pushes until the first real pull. The PRODUCTION-DARK
+ * path (section 3) writes its own explicitly-labelled mode=production-dark
+ * marker — a different, auditable anchor for outage-recovery cycles. */
 try {
   writeFileSync(
     `${ROOT}/.sync-state`,
