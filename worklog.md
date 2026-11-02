@@ -7786,6 +7786,104 @@ visual defect surfaced by VLM design review.
 production pull; the single VLM-flagged polish defect fixed; no other
 changes (no schema, no API, no .env — LOCK 1 unaffected).
 
+## Task ID: CALENDAR-UPGRADE-2 (owner feedback: Day/Week/Year tabs <5%, quarter map "childish", missing behavioral/AI features)
+
+**Agent:** main session (contract + API + page surgery + E2E) + three parallel
+full-stack subagents (Task 4-a intelligence family; 4-b week + quarter-map
+family; 4-c year family) — same shared-contract-first pattern as UPGRADE-1.
+
+**Task:** Rebuild the Day, Week and Year tabs to the Month tab's premium
+standard, replace the day-dot quarter map with an institutional design, and
+add the missing intelligence features from the owner's reference list:
+behavioral pattern detection (revenge trading, after-loss tilt, early exits,
+overtrading), session intelligence on Day + Week, win/loss distribution,
+AI confidence scores, AI weekly + yearly narratives.
+
+**Work Log:**
+
+1. CONTRACT: calendar-intel.ts extended — CalendarTrade.bestExitPnl/multiplier;
+   BehavioralSignals + behavioralSignals() (revenge = entry ≤30min after a
+   loss closed; afterLoss/afterWin chronological expectancy contrast;
+   earlyExits from bestExitPnl ≥50%/≥$50 below best; overtrading >2× the
+   account's avg traded day); confidenceLevel() (low <10 / medium <30 / high
+   ≥30 — surfaced as violet chips on every AI/heuristic panel);
+   winLossDistribution() 7 honest buckets; monthBreakdown()/quarterBreakdown()/
+   equityCurve()/yearlySeries() + MonthRow/QuarterRow/WeekDigest/YearDigest.
+   monthBreakdown PF is TRADE-level gross (matches computePeriodStats — a
+   day-level gross produced PF 2.88 vs the card's 1.66 on the same month).
+2. API: /api/ai/calendar modes 'weekly' + 'yearly' (server-loaded rows, same
+   honesty contract; behavioral fields inside the week digest; year digest
+   with months/quarters/streaks/records; thin-sample + year-in-progress
+   honesty in the prompts; cache key extended). BUG FIXED en route: server
+   Prisma rows carry entryTime as Date objects — String(date).slice(0,10) is
+   NOT the ISO day key; dayKeyOf() helper routes Date→toISOString (weekly
+   dayRows + yearly months were silently empty before it).
+3. NEW components (3 parallel subagents, each tsc/eslint clean on arrival):
+   behavioral-panel (revenge/after-loss-vs-after-win/early-exits/overtrading/
+   mistakes + confidence chip + honest all-clear state), ai-period-panel
+   (weekly/yearly violet AI panel: digest facts ALWAYS, narrative when the
+   provider answers, degraded + empty + retry states), day-session-strip
+   (per-day session windows from /api/sessions-analytics),
+   week-breakdown-cards (WeekDailyBreakdown hand-rolled 7-bar chart,
+   WeekSessionIntel, WinLossDistribution histogram, WeekTopSetups,
+   WeekTopSymbols), quarter-map-premium (institutional 3-column month
+   comparison: signed zero-axis bars, per-month stats, VIEWING/TODAY chips,
+   quarter rollup footer — replaces the day-dot trio), year-view-premium
+   (YearMonthlyTable 12-row institutional table with year-total footer,
+   YearEquityCurve recharts area + 6 records (best/worst day, green/red
+   streaks, biggest win/loss), YearQuarterCards).
+4. PAGE SURGERY: metric cards now on EVERY view (day vs prev TRADED day with
+   per-trade cumulative sparkline; week vs prev week; year vs prev year);
+   Day view = slim context bar + split layout (timeline + session strip +
+   behavioral + note | Day/AI/Patterns tabs — the Month panel grammar);
+   Week view = strip + split (time-grid/agenda + recap | AI weekly +
+   behavioral) + 5 analytics families; Year view = equity curve + records +
+   monthly table beside the AI year panel + quarter cards (old hero/bars/
+   12-panel grid superseded, every drill preserved: rows/columns → Month);
+   Month view quarter map → QuarterMapPremium. Removed: MonthHeatPanel,
+   buildMonthPanel, legacy year aggregates.
+5. DATA COMPLETENESS: the main fetch follows the global 180d envelope — the
+   Year view would have read Jan–Apr as "no trades" while the year AI panel
+   (server, full year) cited them. Fixed with a DEDICATED full-year fetch
+   (year + prev year, same filters, explicit dates) feeding every year
+   surface + the toolbar delta; quarter map stays envelope-scoped (same as
+   the release it replaces). Session fetches fixed for the API's
+   UTC-midnight endDate semantics (endDate = next day, else empty range).
+6. POLISH: metrics-row PF shows ∞ (title: no losing trades) instead of an
+   em-dash that read as missing data (VLM finding); view-pill tooltips
+   rewritten for the new surfaces.
+7. E2E (minted read-only demo cookie, 381-trade account): Day Oct 2 —
+   cards +$2,504.56/100%/3t/∞ with +$1,673 delta vs Oct 1, timeline,
+   session strip (3t off-session — honest), behavioral (LOW confidence ·
+   3 trades; 1 early exit ~$628.75 left; after-win +$830.41/trade), AI
+   daily narrative, patterns. Week Sep 27–Oct 3 — 7/7 surfaces, AI weekly
+   (MEDIUM · 14 trades; after-win +$286.86/trade vs after-loss −$17.34;
+   best day Fri +$2,504.56, worst Tue −$263.09), sessions, distribution,
+   setups/symbols. Year 2026 — table 10/12 months with best/worst days
+   (Jan +$5,484 … Sep +$8,999 — the full-year fetch working past the
+   envelope), equity curve + records (best Aug 20 +$2,890, streaks 6/5,
+   biggest win AAPL +$3,057), Q1–Q4 cards (Q3 +$17,576.72), AI year review
+   (HIGH · 317 trades, +$36,753.55, cites Sep + Q3). Month regression:
+   analytics/summary/Ask AI/heat grid intact; Q3 quarter map PFs match the
+   API digest. Mobile 390×844: Day/Week/Year zero overflow, FC never
+   mounts (agenda instead), all families present. Zero console/page errors
+   on every view. VLM: Day A-, Week B+, Year B+/A, overall A- (its "blank
+   chart" flag was a sub-pixel full-page-screenshot artifact — focused
+   check confirms legible; PF ∞ fixed from its finding). lint 0; tsc 0.
+   Dev server OOM-killed by tsc three times — reaper-proof setsid
+   double-fork restart each time (documented method).
+8. RITUAL: pull 20:22:24Z LIVE (users=4, trades=386) BEFORE the E2E —
+   the ENFORCE-4 drift guard locked the preview mid-task when work preceded
+   the cycle's pull; the sync unlocked it exactly as designed (first time
+   the guard fired on this codebase — it worked).
+
+**Stage Summary:** All four Calendar tabs now share the same premium
+grammar — metric cards, AI panels with confidence, behavioral detection,
+session intelligence and institutional analytics on every timeframe; the
+quarter map is a Bloomberg-style month comparison; the Year view sees the
+complete year regardless of the global filter envelope. No schema changes;
+no .env changes (LOCK 1 unaffected); no other pages touched.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

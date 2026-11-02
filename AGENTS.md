@@ -766,6 +766,30 @@ monthly-summary Best/Worst day cell now stacks its two dated values as
 separate rows (the old single-line truncate ellipsized both inside the
 8-col cell); each row stays clickable to open that day on the calendar.
 
+CALENDAR-UPGRADE-2 (owner feedback round: Day/Week/Year tabs rated <5%,
+quarter map "childish", behavioral/confidence/session features missing):
+all four tabs now share one premium grammar. Architecture to know:
+(1) calendar-intel.ts carries the behavioral layer — behavioralSignals()
+(revenge = entry ≤30 min after a loss CLOSED; afterLoss/afterWin
+expectancy contrast; earlyExits from bestExitPnl), confidenceLevel()
+(low <10 / medium <30 / high ≥30 — violet chips on every AI panel),
+winLossDistribution(), monthBreakdown/quarterBreakdown/equityCurve/
+yearlySeries. (2) /api/ai/calendar now has FIVE modes — daily/pattern/
+ask/weekly/yearly; the year view also runs a DEDICATED full-year fetch
+(calendar-year query: year + prev year, explicit dates) because the main
+fetch follows the global 180d envelope and would read early months as
+"no trades" while the server AI cites them. (3) New components:
+behavioral-panel, ai-period-panel, day-session-strip, week-breakdown-
+cards (5 exports), quarter-map-premium (replaced the day-dot trio),
+year-view-premium (table + equity curve + quarter cards). Metric cards
+render on EVERY view now. (4) GOTCHAS learned: server Prisma rows carry
+entryTime as Date objects — String(date).slice(0,10) is NOT the ISO day
+key (use toISOString; this silently emptied the weekly/yearly digests
+until caught in E2E); /api/sessions-analytics parses endDate as UTC
+midnight lte — always pass the NEXT day as endDate; component-level
+TDZ: helpers used by mid-component computation blocks (fmtKeyShort,
+wFmt) must be declared BEFORE the block, not in a later section.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

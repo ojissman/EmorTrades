@@ -36,6 +36,10 @@ export interface CalendarTrade {
   timeInProfit?: number | null
   planFollowed?: boolean | null
   adherenceStatus?: string | null
+  /** risk-constrained optimal-exit P&L — powers the early-exit (exit quality) signal */
+  bestExitPnl?: number | null
+  /** contract multiplier (futures) — powers position-size (notional) discipline */
+  multiplier?: number | null
   setup?: { id: string; name: string } | null
   mistakes?: { mistake: { name: string; color?: string } }[]
   journal?: { mood?: string | null; emotion?: string | null; confidence?: number | null } | null
@@ -197,13 +201,127 @@ export interface PatternResult {
   days: PatternDay[]
 }
 
+// ---------------------------------------------------------------------------
+// CALENDAR-UPGRADE-2 — behavioral signals, confidence, distributions, week/
+// year digests (the Day/Week/Year premium tabs + AI weekly/yearly modes)
+// ---------------------------------------------------------------------------
+
+/** One win/loss distribution bucket (edges in raw account-currency units;
+ *  the presentation layer formats the labels). */
+export interface WinLossBucket {
+  /** lower bound (exclusive); null = unbounded below */
+  from: number | null
+  /** upper bound (inclusive); null = unbounded above */
+  to: number | null
+  count: number
+  tone: 'loss' | 'flat' | 'win'
+}
+
+/** Journal-timestamp behavioral heuristics — observations, never diagnoses. */
+export interface BehavioralSignals {
+  /** entries opened ≤30 min after a losing trade closed (the revenge window) */
+  revenge: { trades: number; pnl: number } | null
+  /** trades whose immediately-preceding CLOSED trade was a loss / a win */
+  afterLoss: { trades: number; pnl: number } | null
+  afterWin: { trades: number; pnl: number } | null
+  /** winners closed ≥50% (and ≥$50) below their recorded best exit;
+   *  null = best-exit data was never recorded on these trades */
+  earlyExits: { count: number; missed: number } | null
+  /** period trade count vs the account's average traded day */
+  overtrading: { trades: number; avg: number; ratio: number } | null
+  topMistakes: { name: string; count: number }[]
+  /** how many trades the signals were computed on */
+  sample: number
+}
+
+/** Sample-size based reliability label for AI/heuristic panels. */
+export interface Confidence {
+  level: 'low' | 'medium' | 'high'
+  n: number
+  note: string
+}
+
+/** One month's row in the year table / quarter map. */
+export interface MonthRow {
+  month: number // 0–11
+  label: string // 'Jan'
+  pnl: number
+  trades: number
+  wins: number
+  losses: number
+  winRate: number
+  profitFactor: number | null
+  greenDays: number
+  redDays: number
+  bestDay: { date: string; pnl: number } | null
+  worstDay: { date: string; pnl: number } | null
+}
+
+export interface QuarterRow {
+  q: 1 | 2 | 3 | 4
+  pnl: number
+  trades: number
+  winRate: number
+  bestMonth: { label: string; pnl: number } | null
+  /** first month index (0–11) — the zoom target */
+  startMonth: number
+}
+
+/** Deterministic week digest — server-computed in /api/ai/calendar (mode
+ *  'weekly'), rendered as-is by the AI weekly panel. Day rows follow the
+ *  SAME UTC entry-day key convention as the grid. */
+export interface WeekDigest {
+  weekStart: string
+  label: string
+  dayRows: { date: string; label: string; pnl: number; trades: number; wins: number; losses: number }[]
+  netPnl: number
+  trades: number
+  wins: number
+  losses: number
+  winRate: number
+  profitFactor: number | null
+  bestDay: { date: string; label: string; pnl: number } | null
+  worstDay: { date: string; label: string; pnl: number } | null
+  symbols: { symbol: string; pnl: number; trades: number }[]
+  setups: { name: string; pnl: number; trades: number }[]
+  revengeTrades: number
+  revengePnl: number
+  afterLoss: { trades: number; pnl: number } | null
+  afterWin: { trades: number; pnl: number } | null
+  sample: number
+}
+
+/** Deterministic year digest — server-computed in /api/ai/calendar (mode 'yearly'). */
+export interface YearDigest {
+  year: number
+  months: { month: number; label: string; pnl: number; trades: number; winRate: number }[]
+  netPnl: number
+  trades: number
+  wins: number
+  losses: number
+  winRate: number
+  profitFactor: number | null
+  bestMonth: { label: string; pnl: number } | null
+  worstMonth: { label: string; pnl: number } | null
+  bestDay: { date: string; pnl: number } | null
+  worstDay: { date: string; pnl: number } | null
+  quarters: { q: number; pnl: number; trades: number }[]
+  bestGreenStreak: number
+  worstRedStreak: number
+  symbols: { symbol: string; pnl: number; trades: number }[]
+  setups: { name: string; pnl: number; trades: number }[]
+  sample: number
+}
+
 /** POST /api/ai/calendar response (all modes). */
 export interface CalendarAiResponse {
   ok: boolean
   error?: string
-  mode?: 'daily' | 'ask' | 'pattern'
+  mode?: 'daily' | 'ask' | 'pattern' | 'weekly' | 'yearly'
   digest?: DayDigest
   pattern?: PatternResult
+  week?: WeekDigest
+  year?: YearDigest
   text?: string | null
   degraded?: boolean
   reason?: 'rate-limited' | 'no-data'
@@ -534,4 +652,234 @@ export function median(values: number[]): number | null {
   const s = [...values].sort((a, b) => a - b)
   const mid = Math.floor(s.length / 2)
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+// ---------------------------------------------------------------------------
+// CALENDAR-UPGRADE-2 aggregators
+// ---------------------------------------------------------------------------
+
+/**
+ * Win/loss distribution — fixed honest buckets in raw account-currency
+ * units (the presentation layer formats the edges): ≤−500, −500…−100,
+ * −100…0, flat, 0…100, 100…500, ≥500.
+ */
+export function winLossDistribution(trades: CalendarTrade[]): WinLossBucket[] {
+  const defs: { from: number | null; to: number | null; tone: WinLossBucket['tone'] }[] = [
+    { from: null, to: -500, tone: 'loss' },
+    { from: -500, to: -100, tone: 'loss' },
+    { from: -100, to: 0, tone: 'loss' },
+    { from: 0, to: 0, tone: 'flat' },
+    { from: 0, to: 100, tone: 'win' },
+    { from: 100, to: 500, tone: 'win' },
+    { from: 500, to: null, tone: 'win' },
+  ]
+  return defs.map(({ from, to, tone }) => {
+    const count = trades.filter((t) => {
+      const p = t.pnl ?? 0
+      if (tone === 'flat') return p === 0
+      if (from === null) return p <= to!
+      if (to === null) return p > from
+      return p > from && p <= to
+    }).length
+    return { from, to, count, tone }
+  })
+}
+
+/**
+ * Behavioral signals from journal timestamps — deliberately conservative,
+ * fully observable heuristics (never diagnoses):
+ *   · revenge   — an entry opened ≤30 min after a LOSS closed
+ *   · afterLoss/afterWin — the trade that immediately followed a closed
+ *     loss / win in chronological order (the expectancy contrast exposes tilt)
+ *   · earlyExits — winners that closed ≥50% (and ≥$50) below the recorded
+ *     best-exit P&L; null when best-exit data was never recorded
+ *   · overtrading — period trade count > 2× the account's average traded day
+ */
+export function behavioralSignals(
+  trades: CalendarTrade[],
+  avgDayTrades: number | null,
+): BehavioralSignals | null {
+  if (trades.length === 0) return null
+  const chrono = [...trades].sort((a, b) => (a.entryTime < b.entryTime ? -1 : a.entryTime > b.entryTime ? 1 : 0))
+
+  let revengeCount = 0
+  let revengePnl = 0
+  let alCount = 0
+  let alPnl = 0
+  let awCount = 0
+  let awPnl = 0
+  let earlyCount = 0
+  let earlyMissed = 0
+  const hasExitData = chrono.some((t) => typeof t.bestExitPnl === 'number')
+
+  for (let i = 0; i < chrono.length; i++) {
+    const t = chrono[i]
+    const entry = new Date(t.entryTime).getTime()
+    // latest PRIOR trade that had already CLOSED before this entry
+    let lastClosed: CalendarTrade | null = null
+    for (let j = i - 1; j >= 0; j--) {
+      const pj = chrono[j]
+      if (pj.exitTime && new Date(pj.exitTime).getTime() <= entry) {
+        lastClosed = pj
+        break
+      }
+    }
+    if (lastClosed) {
+      if (lastClosed.pnl < 0) {
+        alCount++
+        alPnl += t.pnl ?? 0
+        const gap = entry - new Date(lastClosed.exitTime!).getTime()
+        if (gap <= 30 * 60_000) {
+          revengeCount++
+          revengePnl += t.pnl ?? 0
+        }
+      } else if (lastClosed.pnl > 0) {
+        awCount++
+        awPnl += t.pnl ?? 0
+      }
+    }
+    if (t.pnl > 0 && typeof t.bestExitPnl === 'number' && t.bestExitPnl > t.pnl) {
+      const missed = t.bestExitPnl - t.pnl
+      if (missed >= Math.max(50, t.pnl * 0.5)) {
+        earlyCount++
+        earlyMissed += missed
+      }
+    }
+  }
+
+  const mistakes = new Map<string, number>()
+  for (const t of chrono) {
+    for (const m of t.mistakes ?? []) {
+      mistakes.set(m.mistake.name, (mistakes.get(m.mistake.name) ?? 0) + 1)
+    }
+  }
+
+  return {
+    revenge: revengeCount > 0 ? { trades: revengeCount, pnl: +revengePnl.toFixed(2) } : null,
+    afterLoss: alCount > 0 ? { trades: alCount, pnl: +alPnl.toFixed(2) } : null,
+    afterWin: awCount > 0 ? { trades: awCount, pnl: +awPnl.toFixed(2) } : null,
+    earlyExits: hasExitData
+      ? earlyCount > 0
+        ? { count: earlyCount, missed: +earlyMissed.toFixed(2) }
+        : { count: 0, missed: 0 }
+      : null,
+    overtrading:
+      avgDayTrades != null && avgDayTrades > 0 && chrono.length > avgDayTrades * 2
+        ? { trades: chrono.length, avg: +avgDayTrades.toFixed(1), ratio: +(chrono.length / avgDayTrades).toFixed(1) }
+        : null,
+    topMistakes: Array.from(mistakes.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4),
+    sample: chrono.length,
+  }
+}
+
+/** Sample-size reliability label (n = trades the signal was computed on). */
+export function confidenceLevel(n: number): Confidence {
+  if (n < 10) return { level: 'low', n, note: 'thin sample — treat as anecdotal' }
+  if (n < 30) return { level: 'medium', n, note: 'moderate sample' }
+  return { level: 'high', n, note: 'strong sample' }
+}
+
+/** Average trades per traded day — the account baseline for overtrading. */
+export function avgTradesPerDay(days: DayEntry[]): number | null {
+  if (days.length === 0) return null
+  return days.reduce((s, d) => s + d.trades, 0) / days.length
+}
+
+/** 12 month rows for the year table (untraded months return zeroed rows). */
+export function monthBreakdown(days: DayEntry[], year: number): MonthRow[] {
+  const byMonth = new Map<number, DayEntry[]>()
+  for (const d of days) {
+    if (d.date.getFullYear() !== year) continue
+    const list = byMonth.get(d.date.getMonth()) ?? []
+    list.push(d)
+    byMonth.set(d.date.getMonth(), list)
+  }
+  const out: MonthRow[] = []
+  for (let m = 0; m < 12; m++) {
+    const list = (byMonth.get(m) ?? []).sort((a, b) => (a.key < b.key ? -1 : 1))
+    const label = new Date(year, m, 1).toLocaleDateString('en-US', { month: 'short' })
+    if (list.length === 0) {
+      out.push({
+        month: m, label, pnl: 0, trades: 0, wins: 0, losses: 0, winRate: 0,
+        profitFactor: null, greenDays: 0, redDays: 0, bestDay: null, worstDay: null,
+      })
+      continue
+    }
+    let pnl = 0, trades = 0, wins = 0, losses = 0, gp = 0, gl = 0
+    let best: MonthRow['bestDay'] = null
+    let worst: MonthRow['worstDay'] = null
+    for (const d of list) {
+      pnl += d.pnl
+      trades += d.trades
+      wins += d.wins
+      losses += d.losses
+      // trade-level gross (matches computePeriodStats + the metric cards —
+      // day-level gross would show a different PF than every other surface)
+      for (const t of d.tradesList) {
+        if (t.pnl > 0) gp += t.pnl
+        else if (t.pnl < 0) gl += Math.abs(t.pnl)
+      }
+      if (!best || d.pnl > best.pnl) best = { date: d.key, pnl: +d.pnl.toFixed(2) }
+      if (!worst || d.pnl < worst.pnl) worst = { date: d.key, pnl: +d.pnl.toFixed(2) }
+    }
+    out.push({
+      month: m,
+      label,
+      pnl: +pnl.toFixed(2),
+      trades,
+      wins,
+      losses,
+      winRate: trades > 0 ? +((wins / trades) * 100).toFixed(1) : 0,
+      profitFactor: gl > 0 ? +(gp / gl).toFixed(2) : gp > 0 ? null : 0,
+      greenDays: list.filter((d) => d.pnl > 0).length,
+      redDays: list.filter((d) => d.pnl < 0).length,
+      bestDay: best,
+      worstDay: worst,
+    })
+  }
+  return out
+}
+
+/** Quarter rollup of the 12 month rows. */
+export function quarterBreakdown(months: MonthRow[]): QuarterRow[] {
+  const out: QuarterRow[] = []
+  for (let q = 0; q < 4; q++) {
+    const rows = months.filter((m) => Math.floor(m.month / 3) === q)
+    const traded = rows.filter((r) => r.trades > 0)
+    const trades = rows.reduce((s, r) => s + r.trades, 0)
+    const wins = rows.reduce((s, r) => s + r.wins, 0)
+    const pnl = +rows.reduce((s, r) => s + r.pnl, 0).toFixed(2)
+    const bestTraded = traded.length ? traded.reduce((a, b) => (a.pnl > b.pnl ? a : b)) : null
+    out.push({
+      q: (q + 1) as QuarterRow['q'],
+      pnl,
+      trades,
+      winRate: trades > 0 ? +((wins / trades) * 100).toFixed(1) : 0,
+      bestMonth: bestTraded && bestTraded.pnl > 0 ? { label: bestTraded.label, pnl: bestTraded.pnl } : null,
+      startMonth: q * 3,
+    })
+  }
+  return out
+}
+
+/** Cumulative equity curve over the period's trading days (x = sequence). */
+export function equityCurve(days: DayEntry[]): { x: number; date: string; cum: number }[] {
+  const sorted = [...days].sort((a, b) => (a.key < b.key ? -1 : 1))
+  let cum = 0
+  return sorted.map((d, i) => {
+    cum += d.pnl
+    return { x: i + 1, date: d.key, cum: +cum.toFixed(2) }
+  })
+}
+
+/** 12-point monthly series for the year metrics row (x = month 1..12). */
+export function yearlySeries(months: MonthRow[]): MonthlyPoint[] {
+  let cumulative = 0
+  return months.map((m, i) => {
+    cumulative += m.pnl
+    return { day: i + 1, pnl: m.pnl, cumulative: +cumulative.toFixed(2) }
+  })
 }

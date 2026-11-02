@@ -4,7 +4,14 @@ import { requireUser } from '@/lib/server/auth'
 import { callZai } from '@/lib/ai-suite'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
 import { utcDayBounds } from '@/lib/day-bounds'
-import { median, type CalendarTrade, type DayDigest, type PatternResult } from '@/lib/calendar-intel'
+import {
+  median,
+  type CalendarTrade,
+  type DayDigest,
+  type PatternResult,
+  type WeekDigest,
+  type YearDigest,
+} from '@/lib/calendar-intel'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * ============================================================================
  * CALENDAR AI — the Calendar page's grounded intelligence backend.
  * ============================================================================
- * Three modes, all grounded on REAL trade rows loaded here (never on
+ * Five modes, all grounded on REAL trade rows loaded here (never on
  * client-sent numbers), all sharing one honesty contract:
  *
  *   daily   — deterministic day digest + short AI narrative (AI Daily panel)
@@ -20,6 +27,10 @@ export const dynamic = 'force-dynamic'
  *             AI narrative (Historical Pattern panel)
  *   ask     — free-text Q&A grounded on the month's aggregate context
  *             (Ask AI About Your Performance panel)
+ *   weekly  — deterministic week digest + AI weekly narrative (CALENDAR-
+ *             UPGRADE-2, Week view's AI weekly analysis panel)
+ *   yearly  — deterministic year digest + AI year-in-review narrative
+ *             (CALENDAR-UPGRADE-2, Year view's AI panel)
  *
  * Every response carries the deterministic payload regardless of AI health —
  * degraded:true means the UI shows the numbers without the narrative, never
@@ -66,9 +77,11 @@ function rateLimited(ip: string): boolean {
 // ---- Request body ----------------------------------------------------------
 
 interface Body {
-  mode?: 'daily' | 'ask' | 'pattern'
+  mode?: 'daily' | 'ask' | 'pattern' | 'weekly' | 'yearly'
   date?: string // YYYY-MM-DD — daily/pattern
   month?: string // YYYY-MM — ask
+  weekStart?: string // YYYY-MM-DD (Sunday) — weekly
+  year?: number // YYYY — yearly
   question?: string
   accountId?: string
   side?: string
@@ -113,7 +126,6 @@ const TRADE_SELECT = {
   mistakes: { select: { mistake: { select: { name: true } } } },
   journal: { select: { mood: true, emotion: true, confidence: true } },
 } as const
-
 // ---- Deterministic digest builders ----------------------------------------
 
 function fmtMoney(n: number): string {
@@ -538,6 +550,337 @@ async function runAsk(userId: string, b: Body) {
   })
 }
 
+// ---- Mode: weekly (CALENDAR-UPGRADE-2) --------------------------------------
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+/** UTC day key from a Prisma Date OR a JSON string (server rows are Date
+ *  objects — String(date) is NOT the ISO slice, it must go through toISOString). */
+function dayKeyOf(t: { entryTime: Date | string }): string {
+  return (t.entryTime instanceof Date ? t.entryTime.toISOString() : String(t.entryTime)).slice(0, 10)
+}
+
+async function runWeekly(userId: string, b: Body) {
+  const weekKey = b.weekStart ?? ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekKey)) {
+    return NextResponse.json({ ok: false, error: 'Invalid weekStart' }, { status: 400 })
+  }
+  const [y, m, d] = weekKey.split('-').map(Number)
+  const start = new Date(Date.UTC(y, m - 1, d))
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 7)
+
+  const trades = (await db.trade.findMany({
+    where: { ...buildWhere(userId, b), entryTime: { gte: start, lt: end } },
+    select: TRADE_SELECT,
+    orderBy: { entryTime: 'asc' },
+  })) as unknown as CalendarTrade[]
+
+  // deterministic digest — UTC day keys, same convention as the grid
+  const byDay = new Map<string, { pnl: number; trades: number; wins: number; losses: number }>()
+  let grossProfit = 0
+  let grossLoss = 0
+  const symbols = new Map<string, { pnl: number; trades: number }>()
+  const setups = new Map<string, { pnl: number; trades: number }>()
+  for (const t of trades) {
+    const key = dayKeyOf(t)
+    const e = byDay.get(key) ?? { pnl: 0, trades: 0, wins: 0, losses: 0 }
+    e.pnl += t.pnl ?? 0
+    e.trades++
+    if (t.pnl > 0) {
+      e.wins++
+      grossProfit += t.pnl
+    } else if (t.pnl < 0) {
+      e.losses++
+      grossLoss += Math.abs(t.pnl)
+    }
+    byDay.set(key, e)
+    const sy = symbols.get(t.symbol) ?? { pnl: 0, trades: 0 }
+    sy.pnl += t.pnl ?? 0
+    sy.trades++
+    symbols.set(t.symbol, sy)
+    const setupName = (t as { setup?: { name: string } | null }).setup?.name
+    if (setupName) {
+      const st = setups.get(setupName) ?? { pnl: 0, trades: 0 }
+      st.pnl += t.pnl ?? 0
+      st.trades++
+      setups.set(setupName, st)
+    }
+  }
+
+  const dayRows: WeekDigest['dayRows'] = []
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(start)
+    dt.setUTCDate(dt.getUTCDate() + i)
+    const key = dt.toISOString().slice(0, 10)
+    const e = byDay.get(key)
+    dayRows.push({
+      date: key,
+      label: WEEKDAY_SHORT[dt.getUTCDay()],
+      pnl: +(e?.pnl ?? 0).toFixed(2),
+      trades: e?.trades ?? 0,
+      wins: e?.wins ?? 0,
+      losses: e?.losses ?? 0,
+    })
+  }
+  const traded = dayRows.filter((r) => r.trades > 0)
+  const best = traded.length ? traded.reduce((a, r) => (a.pnl > r.pnl ? a : r)) : null
+  const worst = traded.length ? traded.reduce((a, r) => (a.pnl < r.pnl ? a : r)) : null
+  const netPnl = trades.reduce((s, t) => s + (t.pnl ?? 0), 0)
+  const wins = trades.filter((t) => t.pnl > 0).length
+
+  // behavioral (same definitions as the client's behavioralSignals)
+  let revengeTrades = 0
+  let revengePnl = 0
+  let alCount = 0
+  let alPnl = 0
+  let awCount = 0
+  let awPnl = 0
+  for (let i = 0; i < trades.length; i++) {
+    const t = trades[i]
+    const entry = new Date(t.entryTime).getTime()
+    let lastClosed: CalendarTrade | null = null
+    for (let j = i - 1; j >= 0; j--) {
+      const pj = trades[j]
+      if (pj.exitTime && new Date(pj.exitTime).getTime() <= entry) {
+        lastClosed = pj
+        break
+      }
+    }
+    if (!lastClosed) continue
+    if (lastClosed.pnl < 0) {
+      alCount++
+      alPnl += t.pnl ?? 0
+      if (entry - new Date(lastClosed.exitTime!).getTime() <= 30 * 60_000) {
+        revengeTrades++
+        revengePnl += t.pnl ?? 0
+      }
+    } else if (lastClosed.pnl > 0) {
+      awCount++
+      awPnl += t.pnl ?? 0
+    }
+  }
+
+  const endLabel = new Date(end)
+  endLabel.setUTCDate(endLabel.getUTCDate() - 1)
+  const fmtDay = (dt: Date) =>
+    dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+  const digest: WeekDigest = {
+    weekStart: weekKey,
+    label: `${fmtDay(start)} – ${fmtDay(endLabel)}, ${endLabel.getUTCFullYear()}`,
+    dayRows,
+    netPnl: +netPnl.toFixed(2),
+    trades: trades.length,
+    wins,
+    losses: trades.length - wins,
+    winRate: trades.length > 0 ? +((wins / trades.length) * 100).toFixed(1) : 0,
+    profitFactor: grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? null : 0,
+    bestDay: best ? { date: best.date, label: best.label, pnl: best.pnl } : null,
+    worstDay: worst ? { date: worst.date, label: worst.label, pnl: worst.pnl } : null,
+    symbols: Array.from(symbols.entries())
+      .map(([symbol, s]) => ({ symbol, pnl: +s.pnl.toFixed(2), trades: s.trades }))
+      .sort((a, b2) => b2.pnl - a.pnl)
+      .slice(0, 5),
+    setups: Array.from(setups.entries())
+      .map(([name, s]) => ({ name, pnl: +s.pnl.toFixed(2), trades: s.trades }))
+      .sort((a, b2) => b2.pnl - a.pnl)
+      .slice(0, 5),
+    revengeTrades,
+    revengePnl: +revengePnl.toFixed(2),
+    afterLoss: alCount > 0 ? { trades: alCount, pnl: +alPnl.toFixed(2) } : null,
+    afterWin: awCount > 0 ? { trades: awCount, pnl: +awPnl.toFixed(2) } : null,
+    sample: trades.length,
+  }
+
+  if (trades.length === 0) {
+    return NextResponse.json({ ok: true, mode: 'weekly', week: digest, text: null, degraded: false })
+  }
+
+  const thin = trades.length < 5
+  const userPrompt = [
+    `Trading week ${digest.label} — complete journal digest:`,
+    JSON.stringify(digest),
+    thin
+      ? 'Sample is thin (fewer than 5 trades): acknowledge that openly and keep the analysis to 2 short sentences.'
+      : 'Write a concise weekly performance analysis (max 110 words): what drove the week (best/worst day, symbol or setup concentration), one consistency observation (day-to-day spread), plus ONE behavioral observation if the digest supports one (revenge entries, after-loss expectancy vs after-win). End with ONE actionable consideration framed as a consideration, not advice.',
+    'Rules: only use the digest facts; no market-condition claims; separate observations from the recommendation; plain text, no markdown headings, no bullet characters.',
+  ].join('\n')
+
+  const ai = await callZai(
+    `${AI_VOICE_RULE}\nYou are the weekly performance analyst of a trading-journal calendar. You ground EVERY claim in the provided week digest; you never invent trades, prices, sessions, or market conditions. You distinguish observations from recommendations. Plain text only.`,
+    userPrompt,
+    { temperature: 0.55, maxTokens: 500 },
+  )
+
+  return NextResponse.json({
+    ok: true,
+    mode: 'weekly',
+    week: digest,
+    text: ai.text || null,
+    degraded: ai.degraded,
+    reason: ai.reason,
+  })
+}
+
+// ---- Mode: yearly (CALENDAR-UPGRADE-2) --------------------------------------
+
+async function runYearly(userId: string, b: Body) {
+  const yr = b.year ?? 0
+  if (!Number.isInteger(yr) || yr < 1970 || yr > 2100) {
+    return NextResponse.json({ ok: false, error: 'Invalid year' }, { status: 400 })
+  }
+  const start = new Date(Date.UTC(yr, 0, 1))
+  const end = new Date(Date.UTC(yr + 1, 0, 1))
+
+  const trades = (await db.trade.findMany({
+    where: { ...buildWhere(userId, b), entryTime: { gte: start, lt: end } },
+    select: { ...TRADE_SELECT, exitTime: true },
+    orderBy: { entryTime: 'asc' },
+  })) as unknown as CalendarTrade[]
+
+  // month rows
+  const byMonth = new Map<number, { pnl: number; trades: number; wins: number }>()
+  const byDay = new Map<string, { pnl: number }>()
+  const symbols = new Map<string, { pnl: number; trades: number }>()
+  const setups = new Map<string, { pnl: number; trades: number }>()
+  let grossProfit = 0
+  let grossLoss = 0
+  for (const t of trades) {
+    const key = dayKeyOf(t)
+    const mo = Number(key.slice(5, 7)) - 1
+    const mr = byMonth.get(mo) ?? { pnl: 0, trades: 0, wins: 0 }
+    mr.pnl += t.pnl ?? 0
+    mr.trades++
+    if (t.pnl > 0) {
+      mr.wins++
+      grossProfit += t.pnl
+    } else if (t.pnl < 0) {
+      grossLoss += Math.abs(t.pnl)
+    }
+    byMonth.set(mo, mr)
+    const dr = byDay.get(key) ?? { pnl: 0 }
+    dr.pnl += t.pnl ?? 0
+    byDay.set(key, dr)
+    const sy = symbols.get(t.symbol) ?? { pnl: 0, trades: 0 }
+    sy.pnl += t.pnl ?? 0
+    sy.trades++
+    symbols.set(t.symbol, sy)
+    const setupName = (t as { setup?: { name: string } | null }).setup?.name
+    if (setupName) {
+      const st = setups.get(setupName) ?? { pnl: 0, trades: 0 }
+      st.pnl += t.pnl ?? 0
+      st.trades++
+      setups.set(setupName, st)
+    }
+  }
+
+  const months: YearDigest['months'] = []
+  for (let mo = 0; mo < 12; mo++) {
+    const r = byMonth.get(mo)
+    months.push({
+      month: mo,
+      label: new Date(Date.UTC(yr, mo, 1)).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
+      pnl: +(r?.pnl ?? 0).toFixed(2),
+      trades: r?.trades ?? 0,
+      winRate: r && r.trades > 0 ? +((r.wins / r.trades) * 100).toFixed(1) : 0,
+    })
+  }
+  const tradedMonths = months.filter((r) => r.trades > 0)
+  const bestMonth = tradedMonths.length ? tradedMonths.reduce((a, r) => (a.pnl > r.pnl ? a : r)) : null
+  const worstMonth = tradedMonths.length ? tradedMonths.reduce((a, r) => (a.pnl < r.pnl ? a : r)) : null
+
+  // day records + streaks (chronological day sequence)
+  const dayKeys = Array.from(byDay.keys()).sort()
+  let bestDay: YearDigest['bestDay'] = null
+  let worstDay: YearDigest['worstDay'] = null
+  let runGreen = 0
+  let runRed = 0
+  let bestGreenStreak = 0
+  let worstRedStreak = 0
+  for (const key of dayKeys) {
+    const pnl = byDay.get(key)!.pnl
+    if (!bestDay || pnl > bestDay.pnl) bestDay = { date: key, pnl: +pnl.toFixed(2) }
+    if (!worstDay || pnl < worstDay.pnl) worstDay = { date: key, pnl: +pnl.toFixed(2) }
+    if (pnl > 0) {
+      runGreen++
+      runRed = 0
+    } else if (pnl < 0) {
+      runRed++
+      runGreen = 0
+    } else {
+      runGreen = 0
+      runRed = 0
+    }
+    bestGreenStreak = Math.max(bestGreenStreak, runGreen)
+    worstRedStreak = Math.max(worstRedStreak, runRed)
+  }
+
+  const wins = trades.filter((t) => t.pnl > 0).length
+  const quarters = [0, 1, 2, 3].map((q) => {
+    const rows = months.filter((r) => Math.floor(r.month / 3) === q)
+    return {
+      q: q + 1,
+      pnl: +rows.reduce((s, r) => s + r.pnl, 0).toFixed(2),
+      trades: rows.reduce((s, r) => s + r.trades, 0),
+    }
+  })
+
+  const digest: YearDigest = {
+    year: yr,
+    months,
+    netPnl: +trades.reduce((s, t) => s + (t.pnl ?? 0), 0).toFixed(2),
+    trades: trades.length,
+    wins,
+    losses: trades.length - wins,
+    winRate: trades.length > 0 ? +((wins / trades.length) * 100).toFixed(1) : 0,
+    profitFactor: grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? null : 0,
+    bestMonth: bestMonth && bestMonth.pnl > 0 ? { label: bestMonth.label, pnl: bestMonth.pnl } : null,
+    worstMonth: worstMonth && worstMonth.pnl < 0 ? { label: worstMonth.label, pnl: worstMonth.pnl } : null,
+    bestDay,
+    worstDay,
+    quarters,
+    bestGreenStreak,
+    worstRedStreak,
+    symbols: Array.from(symbols.entries())
+      .map(([symbol, s]) => ({ symbol, pnl: +s.pnl.toFixed(2), trades: s.trades }))
+      .sort((a, b2) => b2.pnl - a.pnl)
+      .slice(0, 5),
+    setups: Array.from(setups.entries())
+      .map(([name, s]) => ({ name, pnl: +s.pnl.toFixed(2), trades: s.trades }))
+      .sort((a, b2) => b2.pnl - a.pnl)
+      .slice(0, 5),
+    sample: trades.length,
+  }
+
+  if (trades.length === 0) {
+    return NextResponse.json({ ok: true, mode: 'yearly', year: digest, text: null, degraded: false })
+  }
+
+  const partial = end.getTime() > Date.now() // year still in progress
+  const userPrompt = [
+    `Trading year ${yr}${partial ? ' (year in progress — only closed months are complete)' : ''} — complete journal digest:`,
+    JSON.stringify(digest),
+    'Write a year-in-review analysis (max 130 words): the headline result, what carried the year (best month/quarter, symbol or setup concentration), consistency (month-to-month spread, streaks), and ONE behavioral observation if the digest supports one. If the sample is thin, say so.',
+    'Rules: only use the digest facts; no market-condition claims; separate observations from considerations; plain text, no markdown headings, no bullet characters.',
+  ].join('\n')
+
+  const ai = await callZai(
+    `${AI_VOICE_RULE}\nYou are the year-in-review analyst of a trading-journal calendar. You ground EVERY claim in the provided year digest; you never invent trades, prices, or market conditions. Plain text only.`,
+    userPrompt,
+    { temperature: 0.55, maxTokens: 550 },
+  )
+
+  return NextResponse.json({
+    ok: true,
+    mode: 'yearly',
+    year: digest,
+    text: ai.text || null,
+    degraded: ai.degraded,
+    reason: ai.reason,
+  })
+}
+
 // ---- Handler ---------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
@@ -552,18 +895,20 @@ export async function POST(req: NextRequest) {
     const userId = auth.user.id
 
     const b = (await req.json().catch(() => ({}))) as Body
-    if (!b.mode || !['daily', 'ask', 'pattern'].includes(b.mode)) {
+    if (!b.mode || !['daily', 'ask', 'pattern', 'weekly', 'yearly'].includes(b.mode)) {
       return NextResponse.json({ ok: false, error: 'Invalid mode' }, { status: 400 })
     }
 
     // cache key: user + mode + params (answers are grounded on the same rows)
-    const key = `${userId}:${b.mode}:${b.date ?? ''}:${b.month ?? ''}:${b.question ?? ''}:${b.accountId ?? ''}:${b.side ?? ''}:${b.outcome ?? ''}:${b.symbol ?? ''}:${b.setupId ?? ''}`
+    const key = `${userId}:${b.mode}:${b.date ?? ''}:${b.month ?? ''}:${b.weekStart ?? ''}:${b.year ?? ''}:${b.question ?? ''}:${b.accountId ?? ''}:${b.side ?? ''}:${b.outcome ?? ''}:${b.symbol ?? ''}:${b.setupId ?? ''}`
     const hit = cacheGet<Record<string, unknown>>(key)
     if (hit) return NextResponse.json({ ...hit, cached: true })
 
     let res: NextResponse
     if (b.mode === 'daily') res = await runDaily(userId, b)
     else if (b.mode === 'pattern') res = await runPattern(userId, b)
+    else if (b.mode === 'weekly') res = await runWeekly(userId, b)
+    else if (b.mode === 'yearly') res = await runYearly(userId, b)
     else res = await runAsk(userId, b)
 
     // cache only clean, AI-answered responses (errors/429 pass through)

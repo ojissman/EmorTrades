@@ -180,6 +180,23 @@ at the bottom of this file.
   screenshot review catches it. Rule: one value per truncate line, or
   stack the rows. Also: VLM letter-grades are a cheap post-ship QA
   layer — one real defect found per full-page screenshot review.
+- CALENDAR-UPGRADE-2 lessons: (a) SERVER Prisma rows carry DateTime as
+  Date objects — `String(d).slice(0,10)` yields "Mon Oct 02…" garbage,
+  NOT the ISO day key; route through toISOString (this silently
+  zeroed the weekly/yearly AI digests until browser E2E caught it —
+  API-probe E2E, not just UI). (b) /api/sessions-analytics parses
+  endDate as UTC midnight (lte) — a same-day range is EMPTY; always
+  pass the next day. (c) Component-body TDZ: when a mid-component
+  computation block uses helpers defined in a LATER section
+  (fmtKeyShort, wFmt), tsc is silent on some paths and the app dies at
+  runtime with "Cannot access before initialization" — declare
+  helpers above their first use. (d) The ENFORCE-4 drift guard locks
+  the preview the moment work exists without this cycle's pull — run
+  sync:prod BEFORE E2E, not just before the push (first real firing:
+  2026-11-02, the lock worked exactly as designed). (e) A view whose
+  AI panel is server-grounded on full-period rows needs its OWN
+  full-period fetch — the global 180d envelope made the year table
+  contradict the year AI (Jan "no trades" vs Jan +$5,484).
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

@@ -11,14 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  LayoutGrid,
-  TrendingUp,
-  TrendingDown,
   NotebookPen,
   Sparkles,
-  BarChart3,
   ArrowUpRight,
   ArrowDownRight,
   Newspaper,
@@ -53,12 +47,34 @@ import { PatternRecognitionPanel } from '@/components/calendar/pattern-recogniti
 import { AskAiPanel } from '@/components/calendar/ask-ai-panel'
 import { CalendarAnalytics } from '@/components/calendar/calendar-analytics'
 import { MonthlySummary } from '@/components/calendar/monthly-summary'
+// CALENDAR-UPGRADE-2 — the Day/Week/Year premium families + the behavioral/
+// confidence layer. Same shared intel contract, same filtered fetch.
+import { BehavioralPanel } from '@/components/calendar/behavioral-panel'
+import { AiPeriodPanel } from '@/components/calendar/ai-period-panel'
+import { DaySessionStrip } from '@/components/calendar/day-session-strip'
+import {
+  WeekDailyBreakdown,
+  WeekSessionIntel,
+  WinLossDistribution,
+  WeekTopSetups,
+  WeekTopSymbols,
+  type WeekDayRow,
+} from '@/components/calendar/week-breakdown-cards'
+import { QuarterMapPremium, type QuarterMonthStat } from '@/components/calendar/quarter-map-premium'
+import { YearMonthlyTable, YearEquityCurve, YearQuarterCards } from '@/components/calendar/year-view-premium'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   computePeriodStats,
   monthlySeries,
+  behavioralSignals,
+  avgTradesPerDay,
+  monthBreakdown,
+  quarterBreakdown,
+  yearlySeries,
+  groupTradesByDay,
   type CalendarTrade,
   type DayEntry,
+  type MonthRow,
 } from '@/lib/calendar-intel'
 // honest fetch-failure state (same card the metrics pages use)
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
@@ -256,6 +272,30 @@ export function CalendarPage() {
       // stays LAST: day cells group by entry day, and open trades have none.
       const params = new URLSearchParams(filterStore.toQueryParams())
       params.set('accountId', selectedAccountId)
+      params.set('limit', '5000')
+      params.set('status', 'closed')
+      const res = await fetch(`/api/trades?${params}`)
+      if (!res.ok) throw new Error('Failed')
+      return res.json()
+    },
+  })
+
+  // CALENDAR-UPGRADE-2 — dedicated FULL-YEAR fetch for the Year view (current
+  // + previous year, same global filters, explicit date scope). The main fetch
+  // follows the global date envelope (default 180d) which would silently read
+  // earlier months as "no trades"; the year surfaces (table, equity curve,
+  // quarter cards, metric deltas, AI panel grounding) must see all 12 months.
+  // Same pattern as the year-scoped news fetch below.
+  const { data: yearData } = useQuery({
+    queryKey: ['calendar-year', selectedAccountId, String(cursor.getFullYear()), filterStore.toQueryParams()],
+    enabled: view === 'year',
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const yr = cursor.getFullYear()
+      const params = new URLSearchParams(filterStore.toQueryParams())
+      params.set('accountId', selectedAccountId)
+      params.set('startDate', `${yr - 1}-01-01`)
+      params.set('endDate', `${yr}-12-31`)
       params.set('limit', '5000')
       params.set('status', 'closed')
       const res = await fetch(`/api/trades?${params}`)
@@ -514,26 +554,8 @@ export function CalendarPage() {
   )
   const weekStats = aggDays(weekDays)
   const prevWeekStats = aggDays(prevWeekDays)
-
-  // Year aggregate: key scan (cheaper than 365 lookups).
-  let yearStats = { pnl: 0, trades: 0, wins: 0, losses: 0 }
-  for (const [key, val] of tradesByDay.entries()) {
-    if (Number(key.slice(0, 4)) === year) {
-      yearStats.pnl += val.pnl
-      yearStats.trades += val.trades
-      yearStats.wins += val.wins
-      yearStats.losses += val.losses
-    }
-  }
-  let prevYearStats = { pnl: 0, trades: 0, wins: 0, losses: 0 }
-  for (const [key, val] of tradesByDay.entries()) {
-    if (Number(key.slice(0, 4)) === year - 1) {
-      prevYearStats.pnl += val.pnl
-      prevYearStats.trades += val.trades
-      prevYearStats.wins += val.wins
-      prevYearStats.losses += val.losses
-    }
-  }
+  // (Year aggregate: superseded by the dedicated full-year fetch — the
+  // yearIntelDays/prevYearIntelDays block below owns the Year numbers now.)
 
   // Month-over-month delta (from the SAME loaded trade set — the chip only
   // hides when the previous month genuinely has no closed trades).
@@ -553,19 +575,165 @@ export function CalendarPage() {
   const monthDeltaPct = prevPnl !== 0 ? (monthDelta / Math.abs(prevPnl)) * 100 : null
   const weekDelta = weekStats.pnl - prevWeekStats.pnl
   const weekDeltaPct = prevWeekStats.pnl !== 0 ? (weekDelta / Math.abs(prevWeekStats.pnl)) * 100 : null
-  const yearDelta = yearStats.pnl - prevYearStats.pnl
-  const yearDeltaPct = prevYearStats.pnl !== 0 ? (yearDelta / Math.abs(prevYearStats.pnl)) * 100 : null
+
+  // ---------- CALENDAR-UPGRADE-2: premium period stats for Day/Week/Year ----
+  // The same intelByDay layer that feeds the month — every new surface (the
+  // per-view metric cards, behavioral panels, week analytics families, year
+  // table/curve/quarters) recalculates together on filter/account changes.
+  // NOTE: plain computations (no memo) matching the legacy per-view stats —
+  // the map rebuilds per fetch, render work is trivial.
+
+  // 'YYYY-MM-DD' → 'Oct 2' (defined here — the quarter-map stats below and
+  // the Day view rail both use it; must precede every use)
+  function fmtKeyShort(k: string) {
+    const [yy, mm, dd] = k.split('-').map(Number)
+    return new Date(yy, mm - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // account baseline for the overtrading signal: average trades/traded day
+  const allIntelDays = Array.from(intelByDay.values())
+  const accountAvgDayTrades = avgTradesPerDay(allIntelDays)
+
+  // ---- Day ----
+  const dayIntel = intelByDay.get(dayKey) ?? null
+  const dayPeriodStats = dayIntel
+    ? computePeriodStats(dayIntel.tradesList, [dayIntel])
+    : computePeriodStats([], [])
+  const prevTradedDayIntel = (() => {
+    const keys = Array.from(intelByDay.keys()).filter((k) => k < dayKey).sort()
+    const k = keys[keys.length - 1]
+    return k ? (intelByDay.get(k) ?? null) : null
+  })()
+  const prevTradedDayStats = prevTradedDayIntel
+    ? computePeriodStats(prevTradedDayIntel.tradesList, [prevTradedDayIntel])
+    : null
+  const prevTradedDayLabel = prevTradedDayIntel
+    ? (() => {
+        const [yy, mm, dd] = prevTradedDayIntel.key.split('-').map(Number)
+        return new Date(yy, mm - 1, dd).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      })()
+    : 'vs prev traded day'
+  // per-trade cumulative P&L — the day metrics card sparkline
+  const daySeriesData = (() => {
+    const chrono = [...dayTrades].sort((a, b) => (String(a.entryTime) < String(b.entryTime) ? -1 : 1))
+    let cum = 0
+    return chrono.map((t, i) => {
+      cum += t.pnl ?? 0
+      return { day: i + 1, pnl: t.pnl ?? 0, cumulative: cum }
+    })
+  })()
+  const dayBehavioral = behavioralSignals(dayIntel?.tradesList ?? [], accountAvgDayTrades)
+
+  // ---- Week ----
+  const weekIntelDays = weekDays
+    .map((d) => intelByDay.get(toIsoDate(d)))
+    .filter((x): x is DayEntry => !!x)
+  const prevWeekIntelDays = prevWeekDays
+    .map((d) => intelByDay.get(toIsoDate(d)))
+    .filter((x): x is DayEntry => !!x)
+  const weekTradesAll = weekIntelDays.flatMap((d) => d.tradesList)
+  const weekPeriodStats = computePeriodStats(weekTradesAll, weekIntelDays)
+  const prevWeekPeriodStats = prevWeekIntelDays.length
+    ? computePeriodStats(prevWeekIntelDays.flatMap((d) => d.tradesList), prevWeekIntelDays)
+    : null
+  const weekSeriesData = monthlySeries(weekIntelDays)
+  const weekBehavioral = behavioralSignals(weekTradesAll, accountAvgDayTrades)
+  const weekBreakdownRows: WeekDayRow[] = weekDays.map((d) => {
+    const k = toIsoDate(d)
+    const dd = tradesByDay.get(k)
+    return {
+      key: k,
+      date: d,
+      pnl: dd?.pnl ?? 0,
+      trades: dd?.trades ?? 0,
+      wins: dd?.wins ?? 0,
+      losses: dd?.losses ?? 0,
+      isToday: d.toDateString() === today.toDateString(),
+    }
+  })
+  const weekStartDateKey = toIsoDate(weekDays[0])
+  const weekEndDateKey = toIsoDate(weekDays[6])
+  // local week label (wFmt/weekEndDate are declared later in the component —
+  // this block must not depend on them)
+  const weekLabelForAi = (() => {
+    const f = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const end = weekDays[6]
+    return `${f(weekStartDate)} – ${f(end)}${end.getFullYear() !== weekStartDate.getFullYear() ? ` ${end.getFullYear()}` : ''}`
+  })()
+
+  // ---- Year ----
+  // Full-year source: the dedicated year fetch when the Year view mounted it
+  // (complete 12 months + prev year regardless of the envelope), else the
+  // envelope-scoped intel map (the quarter map + other views stay envelope-
+  // scoped exactly as before).
+  const yearIntelSource = useMemo(() => {
+    if (view === 'year' && yearData?.trades) {
+      return groupTradesByDay(yearData.trades as CalendarTrade[])
+    }
+    return intelByDay
+  }, [view, yearData, intelByDay])
+  const allYearDays = Array.from(yearIntelSource.values())
+  const yearIntelDays = allYearDays.filter((d) => d.date.getFullYear() === year)
+  const prevYearIntelDays = allYearDays.filter((d) => d.date.getFullYear() === year - 1)
+  const yearTradesAll = yearIntelDays.flatMap((d) => d.tradesList)
+  const yearPeriodStats = computePeriodStats(yearTradesAll, yearIntelDays)
+  const prevYearPeriodStats = prevYearIntelDays.length
+    ? computePeriodStats(prevYearIntelDays.flatMap((d) => d.tradesList), prevYearIntelDays)
+    : null
+  const yearMonthRows: MonthRow[] = monthBreakdown(allYearDays, year)
+  const yearSeriesData = yearlySeries(yearMonthRows)
+  const yearQuarterRows = quarterBreakdown(yearMonthRows)
+
+  // ---- Quarter map (Month view) — rich stats from the shared MonthRow layer
+  const qStartMonth = Math.floor(month / 3) * 3
+  const quarterMonthStats: QuarterMonthStat[] = [qStartMonth, qStartMonth + 1, qStartMonth + 2].map(
+    (m) => {
+      const row = yearMonthRows[m]
+      return {
+        m,
+        label: row.label,
+        pnl: row.pnl,
+        trades: row.trades,
+        wins: row.wins,
+        losses: row.losses,
+        winRate: row.winRate,
+        profitFactor: row.profitFactor,
+        bestDay: row.bestDay
+          ? { label: fmtKeyShort(row.bestDay.date), pnl: row.bestDay.pnl }
+          : null,
+        isCursor: m === month,
+        isTodayMonth: m === today.getMonth() && year === today.getFullYear(),
+      }
+    },
+  )
+  const quarterPnlTotal = quarterMonthStats.reduce((s, qm) => s + qm.pnl, 0)
+  const quarterTradesTotal = quarterMonthStats.reduce((s, qm) => s + qm.trades, 0)
+  const quarterBestDay = (() => {
+    const candidates = quarterMonthStats
+      .map((qm) => qm.bestDay)
+      .filter((x): x is { label: string; pnl: number } => !!x && x.pnl > 0)
+    return candidates.length ? candidates.reduce((a, b) => (a.pnl > b.pnl ? a : b)) : null
+  })()
 
   // The active period's numbers + delta chip config (drives the toolbar).
+  // Year uses the dedicated full-year fetch's stats (consistent with the
+  // metric cards + the year table) instead of the envelope aggregate.
   const periodStats = view === 'day' ? {
     pnl: dayData?.pnl ?? 0, trades: dayData?.trades ?? 0, wins: dayData?.wins ?? 0, losses: dayData?.losses ?? 0,
-  } : view === 'week' ? weekStats : view === 'year' ? yearStats : monthStats
+  } : view === 'week' ? weekStats : view === 'year' ? {
+    pnl: yearPeriodStats.netPnl, trades: yearPeriodStats.trades, wins: yearPeriodStats.wins, losses: yearPeriodStats.losses,
+  } : monthStats
+  const yearDeltaFull = yearPeriodStats.netPnl - (prevYearPeriodStats?.netPnl ?? 0)
+  const yearDeltaPctFull =
+    prevYearPeriodStats && prevYearPeriodStats.netPnl !== 0
+      ? (yearDeltaFull / Math.abs(prevYearPeriodStats.netPnl)) * 100
+      : null
   const delta = view === 'month'
     ? { label: `vs ${prevMonthName}`, show: prevTrades > 0, delta: monthDelta, pct: monthDeltaPct }
     : view === 'week'
       ? { label: 'vs last week', show: prevWeekStats.trades > 0, delta: weekDelta, pct: weekDeltaPct }
       : view === 'year'
-        ? { label: `vs ${year - 1}`, show: prevYearStats.trades > 0, delta: yearDelta, pct: yearDeltaPct }
+        ? { label: `vs ${year - 1}`, show: (prevYearPeriodStats?.trades ?? 0) > 0, delta: yearDeltaFull, pct: yearDeltaPctFull }
         : null
   const pnlLabel = view === 'day' ? 'Day P&L' : view === 'week' ? 'Week P&L' : view === 'year' ? 'Year P&L' : 'Month P&L'
   const winRate = periodStats.trades > 0 ? (periodStats.wins / periodStats.trades) * 100 : 0
@@ -709,68 +877,12 @@ export function CalendarPage() {
     s.wins += d.wins
   }
 
-  // ---------- Month panels (quarter mini-map + Year view) ----------
-  // One builder for both: the quarter map shows the cursor's three months;
-  // the Year view shows all twelve. All panels of one context share ONE
-  // intensity scale so a big day stays comparable across month boundaries.
-  function buildMonthPanel(m: number) {
-    const first = new Date(year, m, 1)
-    const days = new Date(year, m + 1, 0).getDate()
-    let pnl = 0
-    let trades = 0
-    let wins = 0
-    let losses = 0
-    const dayCells: { d: number; pnl: number; traded: boolean; hasNote: boolean }[] = []
-    for (let d = 1; d <= days; d++) {
-      // padded UTC day keys (the tradesByDay format).
-      const key = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      const dd = tradesByDay.get(key)
-      if (dd) {
-        pnl += dd.pnl
-        trades += dd.trades
-        wins += dd.wins
-        losses += dd.losses
-        dayCells.push({ d, pnl: dd.pnl, traded: true, hasNote: false })
-      } else {
-        dayCells.push({ d, pnl: 0, traded: false, hasNote: noteDays.has(key) })
-      }
-    }
-    return {
-      m,
-      label: first.toLocaleDateString('en-US', { month: 'short' }),
-      offset: first.getDay(),
-      pnl,
-      trades,
-      wins,
-      losses,
-      dayCells,
-      isCursor: m === month,
-      isTodayMonth: m === today.getMonth() && year === today.getFullYear(),
-    }
-  }
-  const qStartMonth = Math.floor(month / 3) * 3
-  const quarterMonths = [qStartMonth, qStartMonth + 1, qStartMonth + 2].map(buildMonthPanel)
-  const quarterMaxAbs = Math.max(
-    ...quarterMonths.flatMap((qm) => qm.dayCells.map((c) => Math.abs(c.pnl))),
-    1,
-  )
-  const quarterPnl = quarterMonths.reduce((s, qm) => s + qm.pnl, 0)
-  const quarterTrades = quarterMonths.reduce((s, qm) => s + qm.trades, 0)
-  let qBest: { label: string; pnl: number } | null = null
-  for (const qm of quarterMonths)
-    for (const c of qm.dayCells)
-      if (c.traded && (!qBest || c.pnl > qBest.pnl))
-        qBest = { label: `${qm.label} ${c.d}`, pnl: c.pnl }
-
-  const yearPanels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(buildMonthPanel)
-  const yearMaxAbs = Math.max(
-    ...yearPanels.flatMap((p) => p.dayCells.map((c) => Math.abs(c.pnl))),
-    1,
-  )
-  const tradedMonths = yearPanels.filter((p) => p.trades > 0)
-  const greenMonths = yearPanels.filter((p) => p.pnl > 0).length
-  const bestMonthP = tradedMonths.length ? tradedMonths.reduce((a, b) => (a.pnl > b.pnl ? a : b)) : null
-  const worstMonthP = tradedMonths.length ? tradedMonths.reduce((a, b) => (a.pnl < b.pnl ? a : b)) : null
+  // ---------- Month panels: superseded by CALENDAR-UPGRADE-2 ----------
+  // The day-dot MonthHeatPanel trio (quarter map) and the 12-panel year grid
+  // are replaced by QuarterMapPremium / YearMonthlyTable + YearEquityCurve +
+  // YearQuarterCards, all fed from the shared MonthRow layer computed above
+  // (quarterMonthStats / yearMonthRows). The weekday aggregates above stay —
+  // the weekday peek drill still reads them.
 
   // ---------- Navigation ----------
   function navigate(dir: number) {
@@ -1023,15 +1135,9 @@ export function CalendarPage() {
     cursor.getFullYear() === today.getFullYear() &&
     cursor.getMonth() === today.getMonth() &&
     cursor.getDate() === today.getDate()
-  const bestTrade = dayTrades.length > 0 ? dayTrades.reduce((a, b) => (a.pnl > b.pnl ? a : b)) : null
-  const worstTrade = dayTrades.length > 0 ? dayTrades.reduce((a, b) => (a.pnl < b.pnl ? a : b)) : null
   const allDayKeys = Array.from(tradesByDay.keys()).sort()
   const prevTradedKey = allDayKeys.filter((k) => k < dayKey).pop()
   const nextTradedKey = allDayKeys.find((k) => k > dayKey)
-  const fmtKeyShort = (k: string) => {
-    const [yy, mm, dd] = k.split('-').map(Number)
-    return new Date(yy, mm - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
   // news filters are a subset of the feed → tell the user the list is shaped
   const newsFiltered =
     (econImpacts.length > 0 && econImpacts.length < 4) || econCurrencies.length > 0
@@ -1127,11 +1233,11 @@ export function CalendarPage() {
                   aria-pressed={view === v}
                   title={
                     v === 'day'
-                      ? 'Day view — intraday timeline, trades, releases, note'
+                      ? 'Day view — intraday timeline, sessions, behavioral patterns, AI daily analysis'
                       : v === 'week'
-                        ? 'Week view — time-grid of entries/exits + releases'
+                        ? 'Week view — time-grid, daily breakdown, session intelligence, AI weekly analysis'
                         : v === 'year'
-                          ? 'Year view — 12-month heat map + monthly P&L bars'
+                          ? 'Year view — equity curve, monthly table, quarterly cards, AI year in review'
                           : 'Month view — P&L heat grid with week totals'
                   }
                   className={cn(
@@ -1238,17 +1344,42 @@ export function CalendarPage() {
         </div>
       </Card>
 
-      {/* CALENDAR-UPGRADE-1 — the four premium period metric cards (spec §B):
-          Net P&L + sparkline, Win Rate, Total Trades, Profit Factor. Fed by
-          the shared intel layer, so they recalculate on every month/filter/
-          account change. Month view only (Week keeps its recap, Day its hero
-          insights, Year its own strip). */}
+      {/* CALENDAR-UPGRADE-2 — the four premium period metric cards (spec §B)
+          now on EVERY view: Net P&L + sparkline, Win Rate, Total Trades,
+          Profit Factor, each with its honest previous-period delta. Fed by
+          the shared intel layer, so they recalculate on every filter/account
+          change. Day compares against the previous TRADED day; Year against
+          last year (hidden when the filter envelope has no last-year rows). */}
       {view === 'month' && (
         <CalendarMetricsRow
           stats={monthPeriodStats}
           prev={prevMonthPeriodStats}
           prevLabel={`vs ${prevMonthLong}`}
           series={monthSeriesData}
+        />
+      )}
+      {view === 'day' && (
+        <CalendarMetricsRow
+          stats={dayPeriodStats}
+          prev={prevTradedDayStats}
+          prevLabel={`vs ${prevTradedDayLabel}`}
+          series={daySeriesData}
+        />
+      )}
+      {view === 'week' && (
+        <CalendarMetricsRow
+          stats={weekPeriodStats}
+          prev={prevWeekPeriodStats}
+          prevLabel="vs prev week"
+          series={weekSeriesData}
+        />
+      )}
+      {view === 'year' && (
+        <CalendarMetricsRow
+          stats={yearPeriodStats}
+          prev={prevYearPeriodStats}
+          prevLabel={`vs ${year - 1}`}
+          series={yearSeriesData}
         />
       )}
 
@@ -1272,65 +1403,66 @@ export function CalendarPage() {
       {/* ================= DAY VIEW ================= */}
       {view === 'day' && (
         <>
-          {/* Day hero */}
-          <Card className="p-4" data-testid="day-hero">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-x-6 gap-y-3 flex-1 min-w-0">
-                <MiniInsight
-                  label="Net P&L"
-                  value={`${dayData?.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', dayData?.pnl ?? 0)}`}
-                  hint={dayData ? `${dayData.trades} trades` : 'flat day'}
-                  tone={dayData ? (dayData.pnl > 0 ? 'good' : dayData.pnl < 0 ? 'bad' : 'neutral') : 'neutral'}
-                />
-                <MiniInsight
-                  label="Win rate"
-                  value={dayData && dayData.trades > 0 ? `${((dayData.wins / dayData.trades) * 100).toFixed(0)}%` : '—'}
-                  hint={dayData ? `${dayData.wins}W / ${dayData.losses}L` : 'no trades'}
-                />
-                <MiniInsight
-                  label="Best trade"
-                  value={bestTrade ? `${bestTrade.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', bestTrade.pnl)}` : '—'}
-                  hint={bestTrade ? bestTrade.symbol : '—'}
-                  tone={bestTrade && bestTrade.pnl > 0 ? 'good' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Worst trade"
-                  value={worstTrade ? formatCurrencyIn('table', worstTrade.pnl) : '—'}
-                  hint={worstTrade ? worstTrade.symbol : '—'}
-                  tone={worstTrade && worstTrade.pnl < 0 ? 'bad' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Symbols"
-                  value={dayData ? String(dayData.symbols.size) : '—'}
-                  hint={dayData ? Array.from(dayData.symbols).slice(0, 3).join(', ') : '—'}
-                />
-                <MiniInsight
-                  label="Releases"
-                  value={hasDayNews ? String(dayNews.length) : '—'}
-                  hint={hasDayNews ? `${dayNews.filter((e: any) => e.impact === 'high').length} high impact` : 'none scheduled'}
-                  tone={hasDayNews && dayNews.some((e: any) => e.impact === 'high') ? 'bad' : 'neutral'}
-                />
+          {/* CALENDAR-UPGRADE-2 — slim day context bar. The four premium
+              metric cards above replaced the old six-MiniInsight hero;
+              this bar carries identity + fast navigation instead. */}
+          <Card className="flex flex-wrap items-center justify-between gap-2 p-2.5 md:p-3" data-testid="day-context-bar">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {cursor.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+                <p className="truncate text-[10px] text-muted-foreground tnum">
+                  {dayData
+                    ? `${dayData.trades} trades · ${dayData.wins}W / ${dayData.losses}L · ${Array.from(dayData.symbols).length} symbol${Array.from(dayData.symbols).length === 1 ? '' : 's'}`
+                    : 'no trades this day'}
+                  {hasDayNews ? ` · ${dayNews.length} release${dayNews.length === 1 ? '' : 's'}` : ''}
+                </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => drillToDay(dayKey)}
-                  title="Full day breakdown in Day Explore"
-                >
-                  <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
-                  Day Explore
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => spaNavigate('/notes/day-notes')}>
-                  <NotebookPen className="h-3.5 w-3.5 mr-1" />
-                  {dayNote ? 'Edit note' : 'Write note'}
-                </Button>
-              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={!prevTradedKey}
+                onClick={() => prevTradedKey && jumpToKey(prevTradedKey)}
+                title={prevTradedKey ? `Previous traded day — ${fmtKeyShort(prevTradedKey)}` : 'No earlier traded day in the current filter'}
+                aria-label="Previous traded day"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                disabled={!nextTradedKey}
+                onClick={() => nextTradedKey && jumpToKey(nextTradedKey)}
+                title={nextTradedKey ? `Next traded day — ${fmtKeyShort(nextTradedKey)}` : 'No later traded day in the current filter'}
+                aria-label="Next traded day"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => drillToDay(dayKey)} title="Full day breakdown in Day Explore">
+                <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
+                Day Explore
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => spaNavigate('/notes/day-notes')}>
+                <NotebookPen className="mr-1 h-3.5 w-3.5" />
+                {dayNote ? 'Edit note' : 'Write note'}
+              </Button>
             </div>
           </Card>
 
           {dayTrades.length > 0 ? (
-            <>
+            /* CALENDAR-UPGRADE-2 — split layout (the Month view grammar):
+               intraday timeline + sessions + behavior + note on the left,
+               the Day / AI Analysis / Patterns intelligence tabs on the
+               right. Every drill the old flat layout had survives (trade
+               peek via the timeline + trades deck, Day Explore, notes). */
+            <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+              <div className="min-w-0 space-y-3 md:space-y-4">
               {/* Intraday timeline — every trade's entry→exit span on a 24h
                   local axis. Overnight holds clamp at midnight (title keeps
                   the true exit). */}
@@ -1448,64 +1580,98 @@ export function CalendarPage() {
                 </p>
               </Card>
 
-              {/* Trades list */}
-              <Card className="p-3 md:p-4" data-testid="day-trades">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <BarChart3 className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Trades — {dayTrades.length}
-                    </span>
+              {/* CALENDAR-UPGRADE-2 — session windows for this day */}
+              <DaySessionStrip dateKey={dayKey} accountId={selectedAccountId} />
+
+              {/* behavioral pattern detection — revenge entries, after-loss
+                  tilt, early exits, overtrading — with the AI confidence chip */}
+              <BehavioralPanel
+                signals={dayBehavioral}
+                periodLabel={cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              />
+
+              {/* Day note — traded days keep it beside the timeline (empty
+                  days render it in the standalone rail below) */}
+              {dayNote && (
+                <Card className="border-amber-500/20 p-3 md:p-4" data-testid="day-note-card">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <NotebookPen className="h-3.5 w-3.5 text-amber-400" aria-hidden />
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Day note</span>
+                      {dayNote.mood && (
+                        <span className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300">
+                          {dayNote.mood}
+                        </span>
+                      )}
+                      {dayNote.rating != null && (
+                        <span className="rounded-sm border border-border bg-white/5 px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground tnum">
+                          {dayNote.rating}/5
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => spaNavigate('/notes/day-notes')}
+                      className="shell-accent-btn inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium"
+                    >
+                      <ArrowUpRight className="h-3 w-3" />
+                      Open Day Notes
+                    </button>
                   </div>
-                  <span className="text-[10px] text-muted-foreground/70">click a row for the trade peek</span>
-                </div>
-                <div className="max-h-96 overflow-y-auto shell-scroll -mx-1 px-1">
-                  <div className="divide-y divide-border/50">
-                    {dayTrades.map((t) => {
-                      const es = new Date(t.entryTime)
-                      const ee = t.exitTime ? new Date(t.exitTime) : null
-                      const dur = ee ? ee.getTime() - es.getTime() : null
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => tradePeek(t)}
-                          aria-label={`${t.symbol} ${t.side}, entered ${fmtClock(es)}, P&L ${t.pnl > 0 ? '+' : ''}${Math.round(t.pnl)}`}
-                          className="w-full grid grid-cols-[3.5rem_1fr_auto] sm:grid-cols-[3.5rem_1fr_auto_auto] md:grid-cols-[3.5rem_1fr_9rem_5rem_auto] items-center gap-x-3 px-1 py-2 text-left hover:bg-white/[0.03] transition-colors rounded-sm cursor-pointer"
-                        >
-                          <span className="text-[10px] text-muted-foreground tnum">{fmtClock(es)}</span>
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-xs font-semibold truncate">{t.symbol}</span>
-                            <span
-                              className={cn(
-                                'shrink-0 rounded-sm border px-1 text-[8px] font-bold uppercase',
-                                t.side === 'short'
-                                  ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
-                                  : 'border-sky-500/40 bg-sky-500/10 text-sky-300',
-                              )}
-                            >
-                              {t.side}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground tnum hidden sm:inline truncate">
-                              {t.quantity} @ {fmtPrice(t.entryPrice)}
-                            </span>
-                          </span>
-                          <span className="hidden sm:inline text-[10px] text-muted-foreground tnum">
-                            {t.exitPrice != null ? `${fmtPrice(t.entryPrice)} → ${fmtPrice(t.exitPrice)}` : fmtPrice(t.entryPrice)}
-                          </span>
-                          <span className="hidden md:inline text-[10px] text-muted-foreground tnum">
-                            {dur != null ? fmtDuration(dur) : '—'}
-                          </span>
-                          <span className={cn('text-xs font-bold tnum text-right', pnlColor(t.pnl))}>
-                            {t.pnl > 0 ? '+' : ''}{formatCurrencyIn('table', t.pnl)}
-                          </span>
-                        </button>
-                      )
-                    })}
+                  {dayNote.title && <p className="text-sm font-semibold">{dayNote.title}</p>}
+                  {dayNote.content && (
+                    <p className="shell-scroll mt-1 max-h-40 overflow-y-auto whitespace-pre-line text-xs text-muted-foreground">
+                      {dayNote.content}
+                    </p>
+                  )}
+                </Card>
+              )}
+              </div>
+
+              {/* Day / AI Analysis / Patterns — the same tabbed intelligence
+                  panel the Month view mounts, bound to the cursor day. The
+                  Day tab carries the 12-cell summary, trades deck (trade
+                  peek on every row), execution quality, mistakes/journal and
+                  the day's releases. */}
+              <Card className="overflow-hidden p-0" data-testid="day-view-intelligence">
+                <Tabs defaultValue="day">
+                  <div className="flex items-center justify-between gap-2 border-b border-[var(--border-strong)] px-3 py-2">
+                    <TabsList className="h-8 p-0.5">
+                      <TabsTrigger value="day" className="px-2.5 text-xs">
+                        Day
+                      </TabsTrigger>
+                      <TabsTrigger value="ai" className="gap-1 px-2.5 text-xs">
+                        <Sparkles className="h-3 w-3 text-violet-400" aria-hidden />
+                        AI Analysis
+                      </TabsTrigger>
+                      <TabsTrigger value="pattern" className="px-2.5 text-xs">
+                        Patterns
+                      </TabsTrigger>
+                    </TabsList>
+                    <span className="tnum text-[10px] text-muted-foreground">{dayKey}</span>
                   </div>
-                </div>
+                  <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-3">
+                    <TabsContent value="day" className="mt-0">
+                      <DayIntelligencePanel
+                        dayKey={dayKey}
+                        dayEntry={dayIntel}
+                        hasNote={noteDays.has(dayKey)}
+                        dayNews={dayNews}
+                        onTradeClick={tradePeek}
+                        onDayExplore={drillToDay}
+                        onFocusNote={focusDayNote}
+                      />
+                    </TabsContent>
+                    <TabsContent value="ai" className="mt-0">
+                      <AiDailyPanel dayKey={dayKey} accountId={selectedAccountId} hasNote={noteDays.has(dayKey)} />
+                    </TabsContent>
+                    <TabsContent value="pattern" className="mt-0">
+                      <PatternRecognitionPanel dayKey={dayKey} accountId={selectedAccountId} />
+                    </TabsContent>
+                  </div>
+                </Tabs>
               </Card>
-            </>
+            </div>
           ) : (
             /* empty day — offer the nearest traded days */
             <Card className="p-6 md:p-8 text-center" data-testid="day-empty">
@@ -1540,6 +1706,11 @@ export function CalendarPage() {
             </Card>
           )}
 
+          {/* CALENDAR-UPGRADE-2 — the standalone releases + note rail now
+              renders only on EMPTY days (traded days surface releases inside
+              the right panel's Day tab and the note beside the timeline). */}
+          {dayTrades.length === 0 && (
+            <>
           {/* Day releases */}
           <Card className="p-3 md:p-4" data-testid="day-news">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
@@ -1643,11 +1814,13 @@ export function CalendarPage() {
               </div>
               {dayNote.title && <p className="text-sm font-semibold">{dayNote.title}</p>}
               {dayNote.content && (
-                <p className="mt-1 text-xs text-muted-foreground whitespace-pre-line max-h-40 overflow-y-auto shell-scroll">
+                <p className="shell-scroll mt-1 max-h-40 overflow-y-auto whitespace-pre-line text-xs text-muted-foreground">
                   {dayNote.content}
                 </p>
               )}
             </Card>
+          )}
+            </>
           )}
         </>
       )}
@@ -1724,6 +1897,13 @@ export function CalendarPage() {
               click a day to open Day view · the grid below runs {viewTitle}
             </p>
           </Card>
+
+          {/* CALENDAR-UPGRADE-2 — split layout for the Week view: the
+              FullCalendar time-grid (desktop) / native agenda (mobile) + the
+              week recap on the left, AI weekly analysis + behavioral
+              detection on the right; the analytics families below. */}
+          <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="min-w-0 space-y-3 md:space-y-4">
 
           {/* Week time-grid — MOBILE-4: below lg the FullCalendar never
               mounts; the week renders as the stacked per-day agenda instead
@@ -1836,6 +2016,42 @@ export function CalendarPage() {
               </div>
             </Card>
           )}
+            </div>
+
+            {/* right rail — the week's AI + behavioral intelligence */}
+            <div className="min-w-0 space-y-3 md:space-y-4">
+              <AiPeriodPanel
+                mode="weekly"
+                weekStart={weekStartDateKey}
+                accountId={selectedAccountId}
+                periodLabel={weekLabelForAi}
+              />
+              <BehavioralPanel signals={weekBehavioral} periodLabel={`week of ${wFmt(weekStartDate)}`} />
+            </div>
+          </div>
+
+          {/* CALENDAR-UPGRADE-2 — the week analytics families: daily
+              breakdown (click → Day view), session intelligence, win/loss
+              distribution, then strategies + instruments. */}
+          <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <WeekDailyBreakdown
+              rows={weekBreakdownRows}
+              onDayClick={(k) => {
+                jumpToKey(k)
+                setView('day')
+              }}
+            />
+            <WeekSessionIntel
+              startDate={weekStartDateKey}
+              endDate={weekEndDateKey}
+              accountId={selectedAccountId}
+            />
+            <WinLossDistribution trades={weekTradesAll} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
+            <WeekTopSetups trades={weekTradesAll} />
+            <WeekTopSymbols trades={weekTradesAll} />
+          </div>
         </>
       )}
 
@@ -1996,241 +2212,58 @@ export function CalendarPage() {
             onOpenDay={handleSelectDay}
           />
 
-          {/* Quarter mini-map: the zoomed-out context a single month can't
-              give. Three day-dot heat panels (one shared intensity scale),
-              quarter totals, and one-click month jumps. */}
-          <Card className="p-3 md:p-4" data-testid="quarter-map">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div className="flex items-center gap-1.5">
-                <LayoutGrid className="h-3.5 w-3.5 text-sky-400" aria-hidden />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Q{Math.floor(month / 3) + 1} {year} · quarter map
-                </span>
-              </div>
-              <div className="flex items-center gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setCursor(new Date(year, qStartMonth - 3, 1))}
-                  title="Previous quarter"
-                  aria-label="Previous quarter"
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setCursor(new Date(year, qStartMonth + 3, 1))}
-                  title="Next quarter"
-                  aria-label="Next quarter"
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {quarterMonths.map((qm) => (
-                <MonthHeatPanel
-                  key={qm.m}
-                  label={qm.label}
-                  year={year}
-                  offset={qm.offset}
-                  dayCells={qm.dayCells}
-                  pnl={qm.pnl}
-                  trades={qm.trades}
-                  wins={qm.wins}
-                  losses={qm.losses}
-                  maxAbs={quarterMaxAbs}
-                  isViewing={qm.isCursor}
-                  isTodayMonth={qm.isTodayMonth}
-                  todayDate={today}
-                  showViewingChip
-                  onClick={() => setCursor(new Date(year, qm.m, 1))}
-                />
-              ))}
-            </div>
-            <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-              <span>
-                Quarter:{' '}
-                <span className={cn('font-bold tnum', pnlColor(quarterPnl))}>
-                  {quarterPnl > 0 ? '+' : ''}
-                  {formatCurrencyIn('table', quarterPnl)}
-                </span>
-              </span>
-              <span className="tnum">{quarterTrades} trades</span>
-              {qBest && (
-                <span>
-                  Best day:{' '}
-                  <span className="font-bold text-emerald-400 tnum">
-                    {qBest.label} · {formatCurrencyIn('table', qBest.pnl)}
-                  </span>
-                </span>
-              )}
-              <span className="ml-auto hidden md:inline">
-                click a month to zoom the grid
-              </span>
-            </div>
-          </Card>
+          {/* CALENDAR-UPGRADE-2 — premium quarter map (replaces the day-dot
+              panel trio): three institutional month columns with signed
+              bars, per-month stats and one-click zoom, plus the quarter
+              rollup. Same data layer (MonthRow), no more toy heat panels. */}
+          <QuarterMapPremium
+            year={year}
+            quarter={(Math.floor(month / 3) + 1) as 1 | 2 | 3 | 4}
+            months={quarterMonthStats}
+            quarterPnl={quarterPnlTotal}
+            quarterTrades={quarterTradesTotal}
+            bestDay={quarterBestDay}
+            onPrevQuarter={() => setCursor(new Date(year, qStartMonth - 3, 1))}
+            onNextQuarter={() => setCursor(new Date(year, qStartMonth + 3, 1))}
+            onZoomMonth={(m) => setCursor(new Date(year, m, 1))}
+          />
         </>
       )}
 
       {/* ================= YEAR VIEW ================= */}
+      {/* CALENDAR-UPGRADE-2 — the premium year in review: the four metric
+          cards (rendered above with every view), the cumulative equity curve
+          + year records, the institutional 12-month table beside the AI
+          year-in-review panel, then the quarterly cards. The old six-MiniInsight
+          strip, the basic month bars and the 12 day-dot panels are superseded
+          (every drill survives: month row/quarter click → Month view). */}
       {view === 'year' && (
         <>
-          {/* Year stats */}
-          <Card className="p-3 md:p-4" data-testid="year-stats">
-            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {year} · year in review
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 flex-1 min-w-0">
-                <MiniInsight
-                  label="Net P&L"
-                  value={`${yearStats.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', yearStats.pnl)}`}
-                  hint={`${yearStats.trades} trades`}
-                  tone={yearStats.pnl > 0 ? 'good' : yearStats.pnl < 0 ? 'bad' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Win rate"
-                  value={yearStats.trades > 0 ? `${((yearStats.wins / yearStats.trades) * 100).toFixed(0)}%` : '—'}
-                  hint={`${yearStats.wins}W / ${yearStats.losses}L`}
-                  tone={yearStats.trades > 0 && yearStats.wins / yearStats.trades >= 0.5 ? 'good' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Green months"
-                  value={`${greenMonths} / 12`}
-                  hint="months with net profit"
-                  tone={greenMonths >= 7 ? 'good' : greenMonths > 0 ? 'neutral' : 'bad'}
-                />
-                <MiniInsight
-                  label="Best month"
-                  value={bestMonthP ? `${bestMonthP.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', bestMonthP.pnl)}` : '—'}
-                  hint={bestMonthP ? bestMonthP.label : '—'}
-                  tone={bestMonthP && bestMonthP.pnl > 0 ? 'good' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Worst month"
-                  value={worstMonthP ? formatCurrencyIn('table', worstMonthP.pnl) : '—'}
-                  hint={worstMonthP ? worstMonthP.label : '—'}
-                  tone={worstMonthP && worstMonthP.pnl < 0 ? 'bad' : 'neutral'}
-                />
-                <MiniInsight
-                  label="Avg / month"
-                  value={
-                    tradedMonths.length > 0
-                      ? `${yearStats.pnl >= 0 ? '+' : ''}${formatCurrencyIn('table', yearStats.pnl / tradedMonths.length)}`
-                      : '—'
-                  }
-                  hint={`${tradedMonths.length} traded month${tradedMonths.length === 1 ? '' : 's'}`}
-                  tone={yearStats.pnl > 0 ? 'good' : yearStats.pnl < 0 ? 'bad' : 'neutral'}
-                />
-              </div>
-            </div>
-          </Card>
+          <YearEquityCurve days={yearIntelDays} />
 
-          {/* Monthly P&L bars */}
-          <Card className="p-3 md:p-4" data-testid="year-monthly-bars">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div className="flex items-center gap-1.5">
-                <BarChart3 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Monthly P&L — {year}
-                </span>
-              </div>
-              <span className="text-[10px] text-muted-foreground/70">click a bar → Month view</span>
+          <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0">
+              <YearMonthlyTable
+                months={yearMonthRows}
+                currentMonth={year === today.getFullYear() ? today.getMonth() : undefined}
+                onMonthClick={(m) => {
+                  setCursor(new Date(year, m, 1))
+                  setView('month')
+                }}
+              />
             </div>
-            <div className="flex items-end gap-1.5 sm:gap-2 h-28 border-b border-white/5" role="img" aria-label={`Monthly P&L for ${year}`}>
-              {yearPanels.map((p) => {
-                const h = Math.max(3, (Math.abs(p.pnl) / yearMaxAbs) * 100)
-                const isNow = p.isTodayMonth
-                return (
-                  <button
-                    key={p.m}
-                    type="button"
-                    onClick={() => {
-                      setCursor(new Date(year, p.m, 1))
-                      setView('month')
-                    }}
-                    title={`${new Date(year, p.m, 1).toLocaleDateString('en-US', { month: 'long' })} ${year}: ${p.trades} trade${p.trades === 1 ? '' : 's'} · ${p.wins}W / ${p.losses}L · ${p.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', p.pnl)}`}
-                    aria-label={`${new Date(year, p.m, 1).toLocaleDateString('en-US', { month: 'long' })} ${year}: ${p.trades} trades, P&L ${p.pnl >= 0 ? '+' : ''}${Math.round(p.pnl)}${isNow ? ', current month' : ''}`}
-                    className={cn(
-                      'flex-1 h-full min-w-0 flex flex-col justify-end cursor-pointer group rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
-                      isNow && 'ring-1 ring-emerald-400/50',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'block rounded-t-[3px] transition-[filter] group-hover:brightness-125',
-                        p.pnl > 0
-                          ? 'bg-emerald-500/60 group-hover:bg-emerald-400/80'
-                          : p.pnl < 0
-                            ? 'bg-red-500/60 group-hover:bg-red-400/80'
-                            : 'bg-white/10',
-                      )}
-                      style={{ height: `${h}%` }}
-                    />
-                  </button>
-                )
-              })}
+            <div className="min-w-0">
+              <AiPeriodPanel mode="yearly" year={year} accountId={selectedAccountId} periodLabel={String(year)} />
             </div>
-            <div className="flex gap-1.5 sm:gap-2 mt-1">
-              {yearPanels.map((p) => (
-                <span
-                  key={p.m}
-                  className={cn(
-                    'flex-1 text-center text-[9px] uppercase tnum',
-                    p.isTodayMonth ? 'text-emerald-400 font-bold' : 'text-muted-foreground',
-                  )}
-                >
-                  {p.label[0]}
-                </span>
-              ))}
-            </div>
-          </Card>
+          </div>
 
-          {/* 12-month heat map */}
-          <Card className="p-3 md:p-4" data-testid="year-months">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div className="flex items-center gap-1.5">
-                <LayoutGrid className="h-3.5 w-3.5 text-sky-400" aria-hidden />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {year} — all months
-                </span>
-              </div>
-              <span className="text-[10px] text-muted-foreground/70">
-                click a month → Month view{cursor.getFullYear() === year ? ' · ringed = your last month' : ''}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-              {yearPanels.map((p) => (
-                <MonthHeatPanel
-                  key={p.m}
-                  label={p.label}
-                  year={year}
-                  offset={p.offset}
-                  dayCells={p.dayCells}
-                  pnl={p.pnl}
-                  trades={p.trades}
-                  wins={p.wins}
-                  losses={p.losses}
-                  maxAbs={yearMaxAbs}
-                  isViewing={p.isCursor}
-                  isTodayMonth={p.isTodayMonth}
-                  todayDate={today}
-                  showViewingChip={false}
-                  onClick={() => {
-                    setCursor(new Date(year, p.m, 1))
-                    setView('month')
-                  }}
-                />
-              ))}
-            </div>
-          </Card>
+          <YearQuarterCards
+            quarters={yearQuarterRows}
+            onQuarterClick={(startMonth) => {
+              setCursor(new Date(year, startMonth, 1))
+              setView('month')
+            }}
+          />
         </>
       )}
 
@@ -2563,127 +2596,10 @@ function fmtCellPnlCompact(v: number) {
   return `${sign}${Math.round(abs)}`
 }
 
-// ---------- Month heat panel (quarter mini-map + Year view) ----------
-// Day-dot heat grid with one shared intensity scale, month totals, and a
-// one-click zoom into the month. Journaled-but-untraded days show amber.
-function MonthHeatPanel({
-  label,
-  year,
-  offset,
-  dayCells,
-  pnl,
-  trades,
-  wins,
-  losses,
-  maxAbs,
-  isViewing,
-  isTodayMonth,
-  todayDate,
-  showViewingChip,
-  onClick,
-}: {
-  label: string
-  year: number
-  offset: number
-  dayCells: { d: number; pnl: number; traded: boolean; hasNote: boolean }[]
-  pnl: number
-  trades: number
-  wins: number
-  losses: number
-  maxAbs: number
-  isViewing: boolean
-  isTodayMonth: boolean
-  todayDate: Date
-  showViewingChip: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={isViewing}
-      aria-label={`View ${label} ${year}: ${trades} trades, P&L ${pnl >= 0 ? '+' : ''}${Math.round(pnl)}`}
-      className={cn(
-        'rounded-md border p-2 text-left transition-[transform,box-shadow,background-color,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60',
-        isViewing
-          ? 'border-sky-400/40 bg-sky-400/[0.04] ring-1 ring-sky-400/30'
-          : 'border-border bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/15 cursor-pointer hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20',
-      )}
-    >
-      <div className="flex items-center justify-between mb-1.5 gap-2">
-        <span className="text-xs font-semibold flex items-center gap-1.5 min-w-0">
-          <span className="truncate">{label}</span>
-          {showViewingChip && isViewing && (
-            <span className="shrink-0 rounded-sm bg-sky-500/15 px-1 text-[8px] font-bold uppercase tracking-wide text-sky-400">
-              viewing
-            </span>
-          )}
-          {isTodayMonth && (!showViewingChip || !isViewing) && (
-            <span className="shrink-0 rounded-sm bg-emerald-500/15 px-1 text-[8px] font-bold uppercase tracking-wide text-emerald-400">
-              today
-            </span>
-          )}
-        </span>
-        <span
-          className={cn(
-            'text-xs font-bold tnum shrink-0',
-            trades === 0 ? 'text-muted-foreground' : pnlColor(pnl),
-          )}
-        >
-          {trades > 0 ? `${pnl > 0 ? '+' : ''}${formatCurrencyIn('table', pnl)}` : '—'}
-        </span>
-      </div>
-      <div
-        className="grid grid-cols-7 gap-[2.5px]"
-        role="img"
-        aria-label={`${label} ${year} daily P&L heat`}
-      >
-        {Array.from({ length: offset }).map((_, i) => (
-          <div key={`blank-${i}`} aria-hidden />
-        ))}
-        {dayCells.map((c) => {
-          const intensity = c.traded ? Math.min(Math.abs(c.pnl) / maxAbs, 1) : 0
-          const isTodayDot =
-            isTodayMonth &&
-            todayDate.getFullYear() === year &&
-            c.d === todayDate.getDate()
-          return (
-            <div
-              key={c.d}
-              title={
-                c.traded
-                  ? `${label} ${c.d}: ${c.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', c.pnl)}`
-                  : c.hasNote
-                    ? `${label} ${c.d}: day note · no trades`
-                    : `${label} ${c.d}: no trades`
-              }
-              className={cn(
-                'aspect-square rounded-[2px]',
-                !c.traded && (c.hasNote ? 'bg-amber-500/25' : 'bg-white/[0.06]'),
-                isTodayDot && 'ring-1 ring-emerald-400',
-              )}
-              style={
-                c.traded
-                  ? {
-                      background:
-                        c.pnl > 0
-                          ? `rgba(16, 185, 129, ${0.25 + intensity * 0.6})`
-                          : `rgba(239, 68, 68, ${0.25 + intensity * 0.6})`,
-                    }
-                  : undefined
-              }
-            />
-          )
-        })}
-      </div>
-      <div className="mt-1.5 text-[9px] text-muted-foreground tnum">
-        {trades > 0
-          ? `${trades} trade${trades === 1 ? '' : 's'} · ${wins}W / ${losses}L`
-          : 'no trades this month'}
-      </div>
-    </button>
-  )
-}
+// ---------- Month heat panel — REMOVED (CALENDAR-UPGRADE-2) ----------
+// The day-dot MonthHeatPanel (quarter map trio + 12-panel year grid) was
+// superseded by QuarterMapPremium and the Year view's table/curve/quarter
+// cards — same data layer (MonthRow), institutional presentation.
 
 // ---------- Month insights helpers ----------
 

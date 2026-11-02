@@ -230,8 +230,19 @@ export function CalendarMetricsRow({ stats, prev, prevLabel, series }: Props) {
           ) : undefined
         }
       >
-        <p className={cn('mt-2 text-2xl font-bold tnum tracking-tight', stats.profitFactor === null ? 'text-muted-foreground' : stats.profitFactor >= 1 ? 'text-profit' : 'text-loss')}>
-          {stats.profitFactor === null ? '—' : stats.profitFactor.toFixed(2)}
+        <p
+          className={cn('mt-2 text-2xl font-bold tnum tracking-tight', stats.profitFactor === null ? 'text-muted-foreground' : stats.profitFactor >= 1 ? 'text-profit' : 'text-loss')}
+          title={
+            stats.profitFactor === null && stats.grossProfit > 0
+              ? 'No losing trades this period — profit factor is mathematically infinite'
+              : undefined
+          }
+        >
+          {stats.profitFactor === null
+            ? stats.grossProfit > 0
+              ? '∞'
+              : '—'
+            : stats.profitFactor.toFixed(2)}
         </p>
         <p className="mt-0.5 text-[11px] text-muted-foreground tnum">
           GP {formatCurrencyIn('chart', stats.grossProfit)} / GL {formatCurrencyIn('chart', stats.grossLoss)}
