@@ -7980,6 +7980,56 @@ DD labeling, stop-risk multiplier) are documented decisions in
 AUDIT_REPORT §6, none faking or breaking functionality. No schema
 changes; no .env changes (LOCK 1 unaffected).
 
+## Task ID: CYCLE-CLOSE-2026-11-02 (owner: "push to my GitHub repo — logging out for today"; session restart → "Pull GitHub latest")
+
+**Agent:** main session alone — protocol recovery only; no code changed
+this cycle (tree at 8471188's audited state, so nothing to re-verify
+beyond live app health).
+
+**Task:** Close the open cycle the dying session left behind, push
+everything to GitHub, then run the owner's day-start gate so the owner
+can log out for the day.
+
+**Work Log:**
+
+1. TIMELINE (git + .sync-state; every fact from the repo itself): the
+   phase-5 cycle closed at 21:53:59Z (8471188 pushed, its pull 21:44:51Z
+   preceding it as the hook requires). The platform Auto-Backup then
+   committed that pull's DB drift as aed940d at 21:54:33Z — 34 seconds
+   later. No push followed: the owner's logout push request was
+   interrupted by a sandbox session restart (dev server killed, port
+   3000 dark) — an open cycle by ENFORCE-4's definition, never to be
+   buried by a new day.
+2. STATE ON RECOVERY: tree clean, 1 ahead (aed940d, db only), origin at
+   8471188. LOCK 1 verified live (envSha256 match, rotation committed).
+   LOCK 2 demanded a fresh pull (lastPull 21:44:51 < tip 21:53:59) —
+   which is ENFORCE-4's step 1 regardless.
+3. PRESCRIPTION EXECUTED IN ORDER: (1) sync:prod 22:07:36Z — production
+   export 1634304 bytes (users=4, trades=386, generated 22:07:36Z),
+   integrity ok, schema push additive, dev restarted double-fork
+   (survives session ends) serving 200 at 22:07:58Z; (2) verified live:
+   guard lock lifted to the honest WARN ("Unpushed work — GitHub is
+   behind by 1 commit"), authenticated dashboard renders the equity
+   curve + KPIs from the pulled DB, zero console/page errors (dev-mode
+   lines only); (3) this entry, inserted above the block; (4) AGENTS.md
+   + CLAUDE.md — no protocol or agent changes this cycle, blocks verified
+   in place untouched; (5) commit + push — aed940d rides to GitHub with
+   this commit, and the pre-push hook re-proves all three locks
+   (env-manifest / pull-epoch / ritual-block) at push time.
+4. NEXT, AFTER THIS PUSH (no code involved): the owner's day-start gate —
+   "Pull GitHub latest" with a fresh GitHub key + the owner passphrase on
+   stdin. Its result (DAY START STATE + CLEARED TO WORK) is reported to
+   the owner directly; .day-state records it. Its closing sync leaves
+   db/custom.db riding dirty by design — the documented day-start
+   exemption; the next task's commit carries it to GitHub.
+
+**Stage Summary:** Session-restart residue closed exactly per the
+ENFORCE-4 prescription — fresh production pull first, live verification,
+worklog above the block, then the push. No code, schema, or .env changes
+(LOCK 1 unaffected). The dev server now runs double-forked and survives
+agent session ends. GitHub holds the complete audited state plus this
+cycle's production pull.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
