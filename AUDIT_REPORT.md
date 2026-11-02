@@ -191,14 +191,85 @@ Performed in Phase 5 (after fixes) and recorded in §5 — the audit walked: log
 
 ---
 
-## PHASE 4 — FIXES APPLIED
+## PHASE 4 — FIXES APPLIED (commit 69b735a + final commit)
 
-(filled during Phase 4 — see §4 change log below)
+### 4.1 Security (all verified live in Phase 5)
 
-## PHASE 5 — VERIFICATION
+| # | Fix | Files |
+|---|---|---|
+| S1 | Session guard + userId ownership added to all 13 unauthenticated mutating handlers: goals PUT/PATCH/DELETE (batch reorder now uses userId-scoped `updateMany`, response reports the true updated count), journal DELETE (+ body.id update ownership), day-notes DELETE (+ body.id), day-plans DELETE, misc-notes DELETE (+ body.id), missed-trades PATCH+DELETE, mistakes DELETE, challenges DELETE, watchlists PATCH+DELETE (ownership via parent watchlist), trade-news GET+POST (session + trade ownership), economic-calendar POST | each route file |
+| S2 | IDOR closed: `/api/ai/trade-review` now authenticates FIRST and fetches the trade with `{ id, userId }` (both POST and GET); day-tags DELETE tag-branch ownership | ai/trade-review, day-tags |
+| S3 | **Central CSRF origin gate** in `loadSessionUser` (auth.ts): when a valid session cookie is presented and the request carries an Origin header, the origin must match PUBLIC_ORIGIN / DEV_ORIGIN / localhost — covers requireUser, requireAdmin AND requirePermission in one place. Fail-open only when unpinned or no request context | lib/server/auth.ts |
+| S4 | Market proxy rate limits: quotes 60/min/IP, candles 30/min/IP | api/market/* |
+| S5 | admin/stats → `requirePermission('dashboard.view')`; admin/users/[id]/reset-password → `requirePermission('users.edit')`; import templates now PER-USER (userId on every row, all reads/writes scoped; legacy unowned rows invisible) | admin routes, lib/import/templates.ts + callers |
+| F1 | **`POST /api/admin/gmail/test` implemented** (the UI called a route that never existed): sameOrigin + requireAdmin + rate limit + audit log + real send via connected Gmail (default recipient = connected address). 401 unauth / 409 not-connected verified | api/admin/gmail/test/route.ts |
 
-(filled during Phase 5)
+### 4.2 Data correctness
+
+| # | Fix | Verified |
+|---|---|---|
+| F7/M3 | `endBoundFromParam()` wired into /api/trades, /api/metrics, /api/sessions-analytics; three sessions callers that passed "next day" as an exclusive bound adjusted to the inclusive contract; calendar year envelope now correctly includes Dec 31 | Live: `startDate=2026-10-15&endDate=2026-10-15` returns 6 trades all ON Oct 15 (previously 0) |
+| M1/M2 | Hardcoded 25000 replaced in Monthly + Yearly Explore with the real baseline computed exactly like /api/dashboard (Σ active-account startingBalance → user.startingCapital → 0), 0-capital safe | Live: Yearly Explore DD 10.1% = $5,404.91/$53,514 peak — consistent with the real $40,000 account (old code showed a fictional ~14% against 25k) |
+| M6 | Profiler expectancy: `(wins/total)·avgWin − (losses/total)·avgLoss` (BE neither) | numeric proof [10,0,−5] → 1.67 = net/total |
+| M7 | "Net after Costs" preset (double-subtracted fees on already-net PnL) → **"Gross P&L (before costs)"** = PnL + Fees + Commission | label/formula |
+| M8 | Futures multiplier applied to open-position exposure (metrics openSummary total/oldest/bySymbol) and exposure + unrealized (open-trades page, direction-aware, basis scales so unrealizedPct stays correct) | cross-checked vs live open book |
+| M4 | Trade-level BE streaks unified to "BE skipped" in analytics.ts, overview-stats.ts, risk-page.tsx (day-level green-day streaks untouched — BE day legitimately ends a green streak) | runtime proofs per engine |
+| F9 | sessions-analytics hour bucketing → `getUTCHours()` (TZ-independent; session windows documented as UTC) | code |
+| F2 | **Trade modal status derived from exit presence** — "Leave empty for open" placeholder now truthful; options structures close only when every leg has an exit | Live: empty exit saved as `open`; adding exit 110 → `closed`, pnl $100=(110−100)×10, +10% ✓ |
+| F8 | Not changed (dashboard "today" chip = entry-day activity incl. open; Risk Tools = exit-anchored realized) — both defensible, documented | see §6 |
+
+### 4.3 Wiring / UX
+
+- **F3** plans-hub create/duplicate/archive mutations now toast on failure (were silent).
+- **F4** alerts read-state now POSTs to `/api/alerts/read` (route was orphaned; GET side already unioned readIds) — read marks survive devices. Live: 200 + readIds echoed.
+- Import parse pipeline threads the session user through template matching (per-user fix companion).
+
+### 4.4 Dead code removed (proof = fresh zero-reference rg before each deletion, recorded by agent 4-b)
+
+- **Files (3):** advanced-filter-panel.tsx (superseded by global-filters-drawer), shell/widget-card.tsx (≠ ai-widget-card which is live), lib/trade-day.ts (convention reimplemented inline; doc comments elsewhere updated where misleading).
+- **Orphan routes (4):** /api/day-tags/days, /api/systems/[id]/copy, /api/trades/[id]/warnings, /api/trading-plans/migrate — deleted; deleted paths 404, kept siblings still guarded.
+- **Scripts (5):** auth-codemod, auth2-bootstrap, migrate-trading-plans, tp2-add-marks-tables, gen-pwa-icons (mint-session + seed-blog kept).
+- **Dependencies (15):** @dnd-kit/core/sortable/utilities, @fullcalendar/list, @hookform/resolvers, @mdxeditor/editor, @reactuses/core, @tanstack/react-table, date-fns, lightweight-charts, next-auth, next-intl, react-syntax-highlighter, uuid, sharp (zero code refs, zero next/image usage). Kept: react-hook-form/cmdk/react-day-picker/input-otp/embla/react-resizable-panels (back the kept shadcn ui set), @fullcalendar core+used plugins.
+- **Kept deliberately:** 20 unused shadcn ui components (standard library set), `Dashboard` prisma model + `User.displayMode` column (see §6), use-mobile.ts (used by kept ui/sidebar.tsx).
+- **Docs:** README.md created (setup/run/deploy/security, no secrets); .env.example created (all 20 vars documented, placeholders only); .gitignore `!.env.example` negation added.
+
+---
+
+## PHASE 5 — VERIFICATION RESULTS
+
+| Check | Result |
+|---|---|
+| `bunx tsc --noEmit` | **0 errors** |
+| `bun run lint` | **0 errors** |
+| `bun run test` (vitest) | **131/131 pass** (12 files) |
+| Dev server | 200 on `/`; only SIGTERM restarts in log (sync-controlled); zero runtime errors across the E2E session |
+| **KPI hand-check** (raw DB vs /api/metrics) | **10/10 exact match**: 369 closed · 185W · 182L · 2BE · net $36,253.45 · WR 50.1% · PF 1.63 · avgWin $506.04 · avgLoss $315.18 · expectancy $98.25 |
+| Trade CRUD E2E (browser) | create→open ✓ (F2), edit→closed pnl $100 ✓, delete 200 ✓ |
+| Security E2E (live) | unauth journal/goals/trade-news/econ mutations → 401 ✓✓✓✓✓; foreign-origin POST with valid session → 403 CSRF ✓; foreign-user AI trade review → 404 IDOR ✓ |
+| gmail/test E2E | 401 unauth; 409 "Gmail is not connected." with admin at pinned origin ✓ |
+| Alerts persistence E2E | POST /api/alerts/read → 200, readIds echoed ✓ |
+| Import parse E2E | sample CSV parses through the pipeline (per-user template path) ✓ |
+| Page walkthrough | 11 app pages + admin console: all render real data, **zero console errors** |
+| Mobile 390×844 | zero horizontal overflow on Overview/Trades/Calendar; zero console errors |
+| Sticky footer | public pages use min-h-screen flex-col + mt-auto; long pages push footer naturally (verified live); app shell is a full-height workspace with no footer by design |
+| Responsive + visual (VLM) | Overview design grade **A-** ("polished dark UI, sharp hierarchy, consistent card alignment") |
+| Ritual | `bun run sync:prod` pulled (users=4, trades=386, schema in sync, dev server restarted by the script); ENFORCE-4 lock cleared as designed |
+
+**Test-code note:** per this environment's policy no new automated test files were written; verification is E2E-browser + hand-check based (above). The 131 existing tests all pass unchanged except zero required updates (none encoded old behavior).
+
+---
 
 ## 6. REMAINING / NEEDS OWNER DECISION
 
-(filled at the end)
+1. **`Dashboard` prisma model + `User.displayMode` column (0 rows / unused):** dropping them requires `--accept-data-loss`, which `scripts/sync-prod-db.ts` deliberately never uses (strict additive push). Removing them means coordinating a one-time prod migration with the sync pipeline — deferred, documented, harmless (empty table + unused column).
+2. **Equity/DD baseline across AI routes:** /api/dashboard + drawdown + explore pages now use Σ account startingBalance; the AI narrative routes (briefing/coach/insights) still use `user.startingCapital` (25k default vs 40k account). Numbers can differ between a chart and an AI sentence until the AI routes adopt the shared baseline — recommend a follow-up that extracts one `equityBaselineFor(userId)` helper and routes everything through it.
+3. **4 max-drawdown definitions remain by design:** trade-granularity (analytics/metrics), EOD-day incl. deposits (equities curve), below-start (prop-firm — intentional prop semantics), and cum-pnl (metrics running). All share the "Max drawdown" label; recommend a future labeling pass ("Max equity drawdown" vs "Below-start drawdown").
+4. **`hourFrom/hourTo` drill in /api/trades** still uses server-local `getHours()` (identical to UTC in current deployments; flagged for a future pass alongside any user-timezone work).
+5. **Open-position stop-risk math** (worstCaseRisk / row risk) still omits the futures multiplier (exposure + unrealized now include it) — same family as M8, scoped out to keep the fix surgical.
+6. **Executions remain import-only** (no manual add/partial-close UI) — scope decision, not a defect.
+7. **`/api/seed` misleading name** (returns current user) — harmless legacy alias; renaming would break nothing but touches many callers; left as-is.
+8. **Billing buttons toast "not available in this local build"** — intentional honest-build behavior (no Stripe keys in this deployment).
+9. **Session-cookie CSRF posture:** the origin gate closes the browser attack surface; non-browser clients without Origin are still admitted when they possess a valid cookie (by design — scripts/minted sessions). Rotate AUTH_SECRET if a cookie is ever suspected leaked.
+10. **Rate limiter is in-memory single-instance** — resets on restart; fine for the current single-instance deployment, worth Redis if horizontally scaled.
+
+**Production readiness verdict:** every flow audited and re-verified end-to-end (auth/session, trade CRUD, filters, analytics, calendar, explore, import parse, settings, admin, security guards, mobile, metrics math). The app is production-ready with the items above documented as follow-ups/decisions, none of which break or fake functionality.

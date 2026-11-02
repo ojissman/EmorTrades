@@ -7884,6 +7884,102 @@ quarter map is a Bloomberg-style month comparison; the Year view sees the
 complete year regardless of the global filter envelope. No schema changes;
 no .env changes (LOCK 1 unaffected); no other pages touched.
 
+## Task ID: FULL-APP-AUDIT (owner master prompt: audit the application itself, fix, wire, upgrade until production-ready)
+
+**Agent:** main session + two parallel subagents (4-a metrics fixes, 4-b
+dead-code/docs), ground-truth code reading + live browser E2E.
+
+**Task:** Five-phase audit of the whole app (inventory → full audit →
+dead code → fix/wire/upgrade → verify), trusting no comments or worklog
+claims. Full findings, evidence and dispositions in AUDIT_REPORT.md.
+
+**Work Log:**
+
+1. PHASE 1+2 (inventory + audit): 4 parallel inventory agents mapped 104
+   page-registry entries (0 stubs, 0 dead nav links), 139 API routes
+   (134 with UI callers), 62 prisma models (zero schema↔DB drift), ~15
+   read-time KPI engines, 38 modal/form surfaces, dead-code candidates.
+   Every critical claim then re-verified by direct code read.
+2. SECURITY (S1/S2 fixed): 13 mutating handlers had NO session guard
+   (goals PUT/PATCH/DELETE, journal/day-notes/day-plans/misc-notes/
+   missed-trades/mistakes/challenges/watchlists DELETE+, trade-news
+   GET+POST, economic-calendar POST) — all now requireUser + userId
+   ownership. IDOR closed: /api/ai/trade-review fetched the trade by
+   bare id BEFORE auth with no ownership check (cross-user AI reviews
+   incl. journal emotion) — now authed-first + scoped; notes-family
+   body.id updates + day-tags DELETE branch scoped too.
+3. CSRF (S3): session cookie is SameSite=None (preview-iframe
+   requirement) with no origin check anywhere — one central origin gate
+   now lives in loadSessionUser (covers requireUser + requireAdmin +
+   requirePermission): session cookie + Origin header present ⇒ origin
+   must match PUBLIC_ORIGIN/DEV_ORIGIN/localhost, else 403. Live-proven:
+   foreign-origin POST → 403, localhost POST → 200, app unaffected.
+4. RBAC (S5): admin/stats coarse requireAdmin → requirePermission
+   ('dashboard.view'); users/[id]/reset-password → users.edit; import
+   mapping-templates file was ONE GLOBAL store shared across users →
+   now per-user (userId on rows, scoped reads/writes/matches; legacy
+   unowned rows invisible).
+5. BROKEN FEATURE (F1): the admin settings "Test Gmail" button called
+   POST /api/admin/gmail/test which NEVER EXISTED (silent 404) — route
+   implemented (sameOrigin + requireAdmin + rate limit + audit log +
+   real send; default recipient = connected address). E2E: 401 unauth,
+   409 not-connected with admin at the pinned origin.
+6. METRICS (agent 4-a, all live-verified): endBoundFromParam() was dead
+   code — bare YYYY-MM-DD endDate became midnight-UTC lte, silently
+   DROPPING the entire end day (custom ranges, calendar Dec 31); wired
+   into trades/metrics/sessions-analytics + three "next-day" callers
+   adjusted to the inclusive contract (same-day window now returns 6
+   trades, previously 0). Monthly/Yearly Explore hardcoded 25000 capital
+   → real Σ active-account startingBalance (Year DD now 10.1% on the
+   real $40k baseline vs the old fictional ~14%). Profiler expectancy
+   used (1−winRate) as loss rate → wins/total·avgWin − losses/total·
+   avgLoss. "Net after Costs" custom-column preset double-subtracted
+   fees on already-net PnL → "Gross P&L (before costs)" = PnL+Fees+
+   Commission. Futures multiplier added to open-position exposure +
+   unrealized (metrics openSummary + open-trades page). Trade-level BE
+   streaks unified to skip-BE (analytics/overview-stats/risk-page; day-
+   level green-day streaks untouched). sessions-analytics hour buckets
+   → getUTCHours() (TZ-independent).
+7. TRADE MODAL (F2): the form ALWAYS submitted status 'closed', so
+   "Leave empty for open" was a lie — open trades were stored closed
+   with pnl 0. Status now DERIVED from exit presence (options close
+   only when every leg has an exit). E2E: empty exit → open; exit 110
+   added → closed, pnl $100=(110−100)×10, +10%.
+8. WIRING (F3/F4): plans-hub create/duplicate/archive mutations had NO
+   onError (silent failures) → error toasts; alerts read-state was
+   local-only (the POST /api/alerts/read route was ORPHANED) → the
+   bell now persists read marks (device-sync).
+9. DEAD CODE (agent 4-b, zero-reference proofs in AUDIT_REPORT §4.4):
+   deleted 3 dead files (advanced-filter-panel, shell/widget-card,
+   lib/trade-day), 4 orphan API routes (day-tags/days, systems/[id]/
+   copy, trades/[id]/warnings GET, trading-plans/migrate), 5 one-shot
+   scripts, 15 unused deps incl. next-auth/next-intl/date-fns/sharp
+   (bun.lock 80→66). Kept: 20 unused shadcn ui files (standard set),
+   use-mobile (backs kept ui/sidebar), Dashboard model + displayMode
+   column (strict sync-prod push is additive-only; dropping needs a
+   coordinated prod migration — documented decision).
+10. DOCS: README.md created (none existed — setup/run/deploy/security);
+    .env.example created (20 vars, placeholders only) + .gitignore
+    !.env.example negation.
+11. PHASE 5 VERIFICATION: lint 0 / tsc 0 / 131 tests pass. KPI HAND-
+    CHECK vs raw DB: 10/10 exact match (369 closed · 185W · 182L · 2BE
+    · net $36,253.45 · WR 50.1% · PF 1.63 · avgW $506.04 · avgL
+    $315.18 · expectancy $98.25). Browser E2E (minted session): trade
+    CRUD, security guards (5×401 unauth, CSRF 403, IDOR 404), gmail/
+    test 401/409, alerts persistence, import parse (per-user templates
+    path), 11 pages + admin console ZERO console errors, mobile 390
+    zero overflow, sticky-footer pattern verified, VLM overview grade
+    A-. Sandbox OOM'd the dev server twice during E2E (environment,
+    not app) — restarted, re-verified clean.
+
+**Stage Summary:** Every security hole closed and live-proven, every
+wrong-number fix verified against hand-computed DB math, the one
+never-existing route implemented, dead code removed with proofs, docs
+gap filled. Remaining items (equity-baseline unification for AI routes,
+DD labeling, stop-risk multiplier) are documented decisions in
+AUDIT_REPORT §6, none faking or breaking functionality. No schema
+changes; no .env changes (LOCK 1 unaffected).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

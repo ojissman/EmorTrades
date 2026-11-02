@@ -790,6 +790,45 @@ midnight lte — always pass the NEXT day as endDate; component-level
 TDZ: helpers used by mid-component computation blocks (fmtKeyShort,
 wFmt) must be declared BEFORE the block, not in a later section.
 
+61. FULL-APP-AUDIT (2026-11-02, five-phase owner master prompt — full
+    evidence + dispositions in AUDIT_REPORT.md): (1) SECURITY — 13
+    mutating handlers had NO session guard (every simple-CRUD route's
+    DELETE/PATCH siblings; the GET/POST got guards, the rest never
+    did) and /api/ai/trade-review fetched its trade BEFORE auth with
+    no ownership check (cross-user AI reviews incl. journal emotion).
+    ALL fixed with requireUser + userId scoping; live-proven (5×401
+    unauth, IDOR 404, CSRF 403). Pattern to keep: own the row first
+    (findFirst {id, userId}) then update through the OWNED id; batch
+    reorders use userId-scoped updateMany and report the true count.
+    (2) CSRF — SameSite=None cookies (preview iframe) had NO origin
+    check anywhere; ONE central gate in loadSessionUser now covers
+    requireUser+requireAdmin+requirePermission (session cookie +
+    Origin present ⇒ must match PUBLIC_ORIGIN/DEV_ORIGIN/localhost).
+    (3) The admin "Test Gmail" button called a route that NEVER
+    existed — implemented /api/admin/gmail/test. (4) METRICS —
+    endBoundFromParam() existed but was never imported (end dates
+    silently dropped the whole end day); ⚠ this SUPERSEDES the
+    CALENDAR-UPGRADE-2 gotcha "always pass the next day as endDate" —
+    the three sessions callers that did were migrated to the inclusive
+    contract, so same-day ranges now WORK on trades/metrics/sessions.
+    Monthly/Yearly Explore hardcoded 25000 capital (real account is
+    40k → DD% was fictional); trade modal ALWAYS submitted
+    status:'closed' so "leave empty for open" was false (now derived
+    from exit presence). (5) KPI hand-check discipline: compute the
+    metric set straight from prisma and diff against /api/metrics —
+    10/10 exact match is achievable and catches everything. (6) DEAD
+    CODE — reachability scan (fixpoint from entrypoints) + fresh rg
+    proof before every deletion; 15 unused deps removed (bun.lock
+    80→66); kept the 20 unused shadcn ui files + their peer deps
+    (standard set, future shadcn add). (7) Dashboard model +
+    User.displayMode stay: sync-prod's strict prisma db push is
+    additive-only BY DESIGN — destructive schema changes need a
+    coordinated prod migration, never sneak them in. (8) The 4GB
+    sandbox OOM-kills next dev when tsc/eslint/vitest/browser E2E
+    overlap — serialize heavy verification steps, restart dev in
+    background, and expect the ritual ENFORCE-4 lock after long work
+    stretches (sync:prod clears it as designed).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

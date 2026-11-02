@@ -198,6 +198,29 @@ at the bottom of this file.
   full-period fetch — the global 180d envelope made the year table
   contradict the year AI (Jan "no trades" vs Jan +$5,484).
 
+- FULL-APP-AUDIT lessons (2026-11-02): (a) The unauthenticated-handler
+  pattern: when a route file grows handlers over time, the LATE arrivals
+  (DELETEs especially) miss the guard the early ones got — audit every
+  exported method, not every file. (b) A UI button calling a
+  never-implemented route 404s SILENTLY (no toast) — grep every fetch
+  path against the route tree during audits. (c) SameSite=None + no
+  Origin check = textbook CSRF; one gate in loadSessionUser fixes all
+  three guards at once because requireAdmin/requirePermission delegate
+  to it. (d) endBoundFromParam wiring SUPERSEDES the "pass the next day
+  as endDate" gotcha — endDate is now inclusive (23:59:59.999Z) on
+  trades/metrics/sessions-analytics; same-day ranges work. (e) Hardcoded
+  baseline constants (25000) survive because each surface "looks
+  reasonable" — cross-page number consistency needs one shared baseline
+  source (Σ account startingBalance is the app's convention). (f) KPI
+  verification: hand-compute from prisma, diff against the API —
+  exact-match is the standard, not "close enough". (g) Before deleting
+  ANY file/dep/route: fresh zero-reference rg proof; shadcn ui files
+  and their peer deps are KEEPERS even when unused. (h) Sandbox 4GB:
+  dev server dies under concurrent tsc+vitest+browser loads — serialize
+  heavy steps and re-verify after every restart (a screenshot mid-crash
+  shows "Couldn't load" — that's the environment, not the app; reload
+  before concluding regression).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
