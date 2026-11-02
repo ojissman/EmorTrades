@@ -711,7 +711,13 @@ code; do not commit them. Pull = PRODUCTION-DARK dark-anchor 14:24:02Z
 (users=4, trades=386, mirror 38043f0) per the hook's documented
 failure procedure; lint 0; tsc 0; push closes the cycle. Owner next
 step: retry the deploy from the generation page; after production
-returns, the first sync:prod resumes live pulls.
+returns, the first sync:prod resumes live pulls. Addendum (same-day
+fix-up): the first dark-path commit left dev dark after a FULL-MODE
+manual sync (section 1 stops dev before the pull; the dark exit at
+section 3 never reaches the section-8 restart) — darkRecovery now
+relaunches dev itself in full mode (setsid, reaper-proof; --no-dev
+callers still own their dev lifecycle). Live re-tested 14:30:44Z, app
+200. Push closes the fix-up.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

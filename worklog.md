@@ -7598,6 +7598,20 @@ the pipeline is validated. Once production is back, the first
 `bun run sync:prod` resumes live pulls (the dark path only triggers
 during a real outage).
 
+**Addendum (same day, post-push fix-up — correction visible in git
+history, never silent):** the first dark-path commit had a gap:
+full-mode sync stops the dev server BEFORE the pull (section 1), and
+the dark path exits at section 3 — the section-8 restart is never
+reached, so a manual full-mode `bun run sync:prod` during the outage
+left the preview dark. Observed live at 14:27:55Z (app 000 after a
+re-anchor run). Fixed: darkRecovery now relaunches dev itself in full
+mode when dev is down (the same setsid double-fork as section 8,
+reaper-proof); in --no-dev mode the caller (build-guarded.sh) owns the
+dev lifecycle, unchanged. Live re-tested end to end at 14:30:44Z —
+dark path taken, "dev was stopped before the pull — relaunching it",
+app serving 200 within seconds. tsc 0 · lint 0 · this addendum above
+the block · commit + push last.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

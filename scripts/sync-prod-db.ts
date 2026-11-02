@@ -128,7 +128,14 @@ const landingUp = async (): Promise<boolean> => {
  *  mode=production-dark marker. Loud by design; nothing silent.
  *  (Function DECLARATION, not a const arrow: TS reachability analysis only
  *  honors never-returning calls for declarations — the catch below relies
- *  on it to prove `res` is always assigned.) */
+ *  on it to prove `res` is always assigned.)
+ *  FULL-MODE DEV RESTORE (addendum, same day): section 1 stops the dev
+ *  server BEFORE the pull, and this path exits at section 3 — the
+ *  section-8 restart is never reached. Observed live: dev left dark after
+ *  a full-mode dark-anchor run. In full mode (no --no-dev) this path now
+ *  relaunches dev itself (same setsid double-fork as section 8,
+ *  reaper-proof). In --no-dev mode the caller (build-guarded.sh) owns the
+ *  dev lifecycle and restores it — no restart here. */
 function darkRecovery(reason: string): never {
   log(`✗ ${reason}`)
   let mUsers = -1
@@ -167,6 +174,15 @@ function darkRecovery(reason: string): never {
       ].join('\n'),
     )
   } catch { /* marker write failure must not fail the recovery */ }
+  if (!NO_DEV && devDown()) {
+    log('full mode: dev was stopped before the pull — relaunching it (section 8 owns this on the live-sync path).')
+    try {
+      spawn('/bin/bash', ['-c', '( setsid bash -c "exec bun run dev" >>/tmp/next-dev.out 2>&1 </dev/null & )'], {
+        cwd: ROOT, detached: true, stdio: 'ignore',
+      }).unref()
+      log('dev server relaunching (setsid, reaper-proof) — serving again within seconds; check dev.log if the preview stays dark.')
+    } catch { /* the owner/agent can always `bun run dev` by hand */ }
+  }
   log('✓ DARK-ANCHOR — the committed mirror ships as-is; live production sync resumes as soon as the app is back.')
   process.exit(0)
 }

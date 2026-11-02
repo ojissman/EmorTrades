@@ -151,7 +151,10 @@ at the bottom of this file.
   path only triggers during a real outage). Also: never-returning
   helpers must be function DECLARATIONS when reachability depends on
   them (TS ignores never-returning const arrows in control-flow
-  analysis — tsc 2454).
+  analysis — tsc 2454). Full-mode dark-anchor runs own their dev
+  lifecycle: section 1 stops dev BEFORE the pull, so the dark exit
+  must relaunch it (setsid, reaper-proof) — never leave the preview
+  dark after a sync, whatever path it takes.
 - Before starting ANY task, also read the standing protocol at the top of
   `worklog.md` and the recent task entries at its bottom.
 
