@@ -8434,6 +8434,69 @@ AGENTS.md task entry above the block · CLAUDE.md discipline bullet
 above the block · commit + push last (genuine user-assigned task —
 Policy B satisfied; carries db/custom.db = the live production mirror).
 
+---
+
+## Task CLEANUP-4 — .git repack + repo slimming (download 58MB → ~35MB) + stale-tag purge
+
+**Agent:** main session (object-store forensics → safe gc → tag purge →
+junk deletion → live sync → ritual close).
+
+**Task:** Owner: "check .git for any unused/unwanted/irrelevant files and
+remove completely to free up storage — the workspace download is 58MB,
+reduce it without affecting the working application."
+
+**Work Log:**
+
+1. FORENSICS: .git was 52MB = 4MB packed + 48MB of 1,870 LOOSE objects
+   (never gc'd since repo birth). Dominant weight: ~25+ versions of
+   db/custom.db (1.6MB each) committed by Auto-Backup bot + task cycles,
+   stored uncompressed as loose blobs. Working tree tracked ≈ 6MB, so
+   the 58MB download ≈ .git + tree. Biggest single blobs: brand motion
+   video 5.2MB (USED — landing brand-intro animation, kept), db
+   versions, blog images (used, kept).
+2. GC (safe, zero history rewrite): reflog expire --expire-unreachable
+   (reachable reflog kept) → git gc --prune=now --aggressive → loose
+   objects delta-compressed into one pack: .git 52MB → 24MB (−54%).
+   DB versions delta-compress well (same-file page-level deltas).
+   fsck clean · hooks intact · status clean — no hash changed, audit
+   trail untouched.
+3. STALE TAG PURGE: 12 local `backup-2026102[89]-*` tags (pre-task
+   safety anchors from the Google-auth migration era) — verified ALL
+   are ancestors of main (zero exclusive objects) → deleted locally
+   AND on origin (12 remote refs removed; commits remain in main —
+   nothing lost, pure decluttering of both sides).
+4. PROJECT JUNK: db/backups/ 2.5MB DELETED (two pre-google-auth/
+   pre-google-creds snapshots from Oct 29 — migrations completed and
+   verified days ago; superseded by git mirror + production +
+   secrets.enc; grep-confirmed nothing reads/writes the path);
+   tsconfig.tsbuildinfo 756KB (regenerable typecheck cache);
+   .zscripts/dev.log + dev.pid (stale platform logs); dev.log
+   truncated (tee -a keeps appending).
+5. KEPT (evidence): skills/ 3.3MB — untracked platform skill-doc
+   cache powering the Skills system for future sessions (infrastructure,
+   not app junk — deleting it would degrade future agent capability);
+   public/ 8MB (all referenced: motion video, blog, og, icons);
+   src/ 8.4MB (the app); AUDIT_REPORT.md (tracked owner artifact);
+   worklog/AGENTS/CLAUDE (the protocol itself).
+6. LIVE SYNC after (production UP): users=4, trades=386, dev restarted
+   200. VERIFY: app 200 · production 200 · lint 0.
+7. RESULT: project dir (excl node_modules/.next/.git) 26MB → 23MB;
+   .git 24MB; raw total 78MB → 47MB → expected download zip ~33-36MB
+   (from 58MB). Deeper cuts would require history rewrite of the db/
+   custom.db versions — REJECTED unilaterally: it invalidates every
+   commit hash referenced across the audit trail (worklog/AGENTS/
+   CLAUDE cite dozens) and breaks the time-machine integrity; only an
+   explicit owner decision could authorize that (~12-14MB more at
+   most). Ongoing discipline: gc after future purge tasks; Auto-Backup
+   db commits are the steady-state growth (1.6MB per commit, delta-
+   packed fine).
+
+**Ritual:** pull = LIVE production sync 15:58:43Z (users=4, trades=386)
+· lint 0 · this entry above the block · AGENTS.md task entry above the
+block · CLAUDE.md discipline bullet above the block · commit + push
+last (genuine user-assigned task — Policy B satisfied; carries
+db/custom.db = the live production mirror).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

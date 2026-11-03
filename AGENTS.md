@@ -905,6 +905,24 @@ deploy-slot swap (15:36:20Z → 200 by 15:36:49Z) is a NEW code, not the
 API call (46MB) — not a bug if absent right after boot. /tmp steady
 state: 2.6MB root-owned undeletables only.
 
+Task CLEANUP-4 (2026-11-03, .git slimming): the 58MB workspace download
+was dominated by .git 52MB = 48MB of NEVER-GC'd loose objects (25+
+db/custom.db versions, 1.6MB each, from Auto-Backup + task commits).
+Fix: git reflog expire --expire-unreachable=now --all + git gc
+--prune=now --aggressive → .git 24MB (DB versions delta-pack well);
+zero history rewrite, no hash changed, fsck clean. 12 stale
+backup-2026102[89]-* tags (all ancestors of main — zero exclusive
+objects) deleted locally AND on origin. Junk deleted: db/backups/
+(2.5MB stale pre-migration snapshots), tsconfig.tsbuildinfo (regenerable),
+.zscripts/dev.{log,pid}; dev.log truncated. KEPT: skills/ 3.3MB
+(PLATFORM INFRASTRUCTURE — powers the Skills system, never delete),
+public/ assets (all referenced, incl. the 5.2MB brand motion video
+used by landing), AUDIT_REPORT.md. Steady-state discipline: run
+`git gc --prune=now` after each purge task; the DB mirror commit is
+load-bearing for dark-anchor recovery — do NOT strip it from history
+without explicit owner authorization (rewrites every hash cited in
+the audit trail; max ~12-14MB further gain).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

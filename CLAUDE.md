@@ -256,7 +256,13 @@ at the bottom of this file.
   delete contents; `upload/` (SINGULAR) = old chat-paste references —
   deleted per owner. A brief production 412 is the deploy-slot swap
   signature — wait ~30s before diagnosing; market-fetch-worker spawns
-  lazily on first market API call.
+  lazily on first market API call. Repo slimming (CLEANUP-4): .git bloat
+  = never-gc'd loose DB-mirror versions — `git reflog expire
+  --expire-unreachable=now --all && git gc --prune=now --aggressive`
+  after purge tasks (52MB→24MB, no history rewrite); skills/ is
+  platform infrastructure (never delete); the committed db/custom.db
+  mirror is load-bearing for dark-anchor recovery — never strip DB
+  history without explicit owner authorization.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
