@@ -856,6 +856,24 @@ wFmt) must be declared BEFORE the block, not in a later section.
     to Z.ai support. Watchdogs are NOT in the publish path (the v1
     keepalive was removed at owner request, v3/SWEEP-1).
 
+Task CLEANUP-1 (2026-11-03, owner-directed purge): sandbox/workspace
+junk permanently deleted with evidence-first discipline — /tmp failed-
+publish artifacts (~1.32GB: 3 × build_fullstack dirs+tars, db-preserve
+snapshots, tectonic, stale project copy, dead logs), ~/.bun/install
+package cache (1.2GB, node_modules untouched), orphan ~/.cache/puppeteer
+(608MB), untracked project scratch (download/ 13MB + .verify/ 800KB +
+agent-ctx/ 32KB), .next reset (1.1GB → ~0.7GB regen). Verified-live and
+KEPT: .venv 4.4G (gateway Python), .npm-global 551M (skills toolchain),
+ms-playwright + .agent-browser (browser tooling), tests/ (tracked,
+vitest-referenced, real coverage), upload/ (owner user data). Result:
+disk 3.6G→2.0G used; single clean dev instance; E2E re-verified through
+authenticated dashboard (anti-bot shield proven: 3 × 403 blocks then a
+clean login). Known trap: ~/.bun/install holds bun GLOBAL packages, not
+just cache — clearing it killed the agent-browser CLI (reinstalled
+0.41.1 + manual chmod + symlink). OOM kill #8 during verification
+(Chrome spike atop warm server) — same 4GB-ceiling class as DEPLOY-3:
+keep the box lean, restart dev fresh before publishing.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

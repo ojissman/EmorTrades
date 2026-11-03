@@ -234,7 +234,16 @@ at the bottom of this file.
   owner retries (sync dark-anchors, no deadlock); repeated identical
   failures are a platform incident for Z.ai support. Watchdogs have NO
   GitHub access (verified 2026-11-03, WATCHDOG-1) — do not re-litigate
-  without new evidence.
+  without new evidence. Cleanup discipline (CLEANUP-1, 2026-11-03):
+  evidence-first purge — inventory with du/ps/lsof/git ls-files BEFORE
+  deleting; /tmp build_fullstack_* artifacts are regenerable publish
+  staging (safe to delete when lsof-cold); ~/.bun/install holds bun
+  GLOBAL packages (not just cache — clearing it kills global CLIs);
+  NEVER delete .venv (gateway Python), .npm-global (skills toolchain),
+  ms-playwright/.agent-browser (browser tooling), tests/ (tracked,
+  vitest-referenced), upload/ (user data), backups/ (locks). Chrome +
+  warm dev server can breach the 4GB ceiling (OOM kill #8) — restart
+  dev fresh before publishing and before heavy browser verification.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

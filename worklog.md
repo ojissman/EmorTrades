@@ -8238,6 +8238,86 @@ procedure (inform owner + worklog, never silent); lint 0 · tsc 0 · this
 entry above the block · AGENTS.md task entry above the block · CLAUDE.md
 discipline bullet above the block · commit + push last.
 
+---
+
+## Task CLEANUP-1 — owner-directed workspace/sandbox purge (free RAM + storage; deployment kept failing)
+
+**Agent:** main session (survey → evidence-based deletion → .next reset →
+E2E re-verification → ritual close).
+
+**Task:** Permanently delete all unwanted/unused/dead/junk files from the
+sandbox and workspace WITHOUT touching the working application. Owner
+context: publish had failed again (14:42Z attempt, production dark since
+13:43Z per DEPLOY-3) and the box showed resource pressure.
+
+**Work Log:**
+
+1. SURVEY (nothing deleted before evidence): disk 3.6G/9.9G used, RAM
+   2993MB used / 1047MB available, single dev tree (no duplicates),
+   next-server RSS 2459MB (warm, heap-capped 1536MB). Junk inventory
+   built with du/ps/lsof/stat + git ls-files (tracked vs untracked).
+2. DELETED — /tmp (~1.32GB): 3 × build_fullstack_* dirs + tar.gz
+   (failed-publish assembly artifacts 13:41/13:43/14:42, ≈1.22GB —
+   lsof-verified cold); 4 × sandbox-db-preserve-*.db snapshots;
+   /tmp/tectonic 55M; /tmp/my-project contents (stale project copy,
+   34M — a 4KB corrupt dir shell remains, undeletable, no sudo for
+   root-owned /tmp/node-compile-cache 2.6M); boot-timeline.log;
+   standalone-boot-test.log; next-dev.out truncated.
+3. DELETED — caches (~1.8GB): /home/z/.bun/install/* (1.2GB package
+   cache; node_modules untouched — installs re-download on demand);
+   /home/z/.cache/puppeteer (608MB orphan — zero references anywhere;
+   ms-playwright KEPT for browser tooling).
+4. DELETED — project scratch (untracked, ~14MB): download/ (13MB Oct-29
+   auth/design verification screenshots), .verify/ (800KB same class),
+   agent-ctx/ (32KB dead subagent scratch; the 3 src/ comments citing
+   it are historical and reference an already-absent file).
+5. KEPT — verified live, NOT junk: /home/z/.venv 4.4G (gateway `uv run
+   main.py` Python); .npm-global 551M (skills toolchain: @mermaid-js/
+   docx/pdf-lib/pptxgenjs/sharp/playwright); .cache/ms-playwright 613M
+   + .agent-browser 404M (browser verification); node_modules 1.2G;
+   tests/ 156K (git-tracked, vitest-referenced, covers trading math +
+   auth — not dead code); upload/ 1.6M (owner's live user data);
+   mini-services/ (empty placeholder), examples/, .zscripts/, db/,
+   backups/ (locks + secrets.enc), .git, dev.log.
+6. .next RESET (1.1GB → regenerated ~0.7GB): dev tree killed cleanly
+   (0 survivors, port dark confirmed) → rm -rf .next → setsid restart.
+7. SIDE EFFECT FIXED: bun-global agent-browser CLI lived inside
+   ~/.bun/install/global → destroyed by step 3. Reinstalled
+   (agent-browser 0.41.1), chmod +x native binary (blocked postinstall),
+   ~/.bun/bin symlink restored. Lesson recorded: ~/.bun/install holds
+   global packages, not only cache.
+8. OOM KILL #8 (documented, environment-class): during browser
+   verification Chrome's launch spike (≈500-600MB) landed on top of the
+   freshly-warmed server (2715MB compiling full surface after cache
+   wipe) → kernel killed next-server (anon 2599MB, PID 13800). App was
+   healthy until the kill (all 200s). Restarted; verification re-run.
+   This is the same 4GB-ceiling pattern as DEPLOY-3 pressure: keep the
+   box lean; restart dev fresh before publishing.
+9. E2E RE-VERIFICATION (agent-browser): landing renders (nav/hero/CTAs)
+   ✓; login form + validation ✓; anti-bot shield PROVEN (3 × 403:
+   sub-second submit timing, then headlesschrome UA signature —
+   BOT_UA_RE + elapsedMs<1000ms both fired correctly); login with
+   realistic UA + 6s human timing → SUCCESS; authenticated dashboard
+   shell with live data (account selector "realized PnL $1,922.00",
+   econ-calendar live countdown, date range 2026-05-07→2026-11-03,
+   full sidebar) ✓; market-fetch-worker self-respawned via
+   instrumentation.ts ✓; /api/ritual-state 200 (locks intact) ✓;
+   lint 0 ✓.
+10. RESULT: disk 3.6G → 2.0G used (7.4G free; ≈1.6GB net, ≈2.6GB gross
+    deleted); RAM 1062MB available, single clean next-server 2485MB +
+    worker. No resurrected dead files (robots.txt/[...slug]/
+    gen-pwa-icons/admin-theme checks all clean). Production remains
+    dark since 13:43Z — owner publish retry remains the DEPLOY-3
+    remedy; this cleanup removes the resource pressure that compounds
+    it.
+
+**Ritual:** pull = HEAD (6bfba60, pushed this session) · no sync needed
+(production dark, dark-anchor path per DEPLOY-3) · lint 0 · this entry
+above the block · AGENTS.md task entry above the block · CLAUDE.md
+discipline bullet above the block · commit + push last (genuine
+user-assigned task — Policy B satisfied; carries db/custom.db ride-along
+= verification login's lastLoginAt write + owner's live-session writes).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
