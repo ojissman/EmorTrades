@@ -8376,6 +8376,64 @@ AGENTS.md task entry above the block · CLAUDE.md discipline bullet above
 the block · commit + push last (genuine user-assigned task — Policy B
 satisfied; carries db/custom.db = the live production mirror itself).
 
+---
+
+## Task CLEANUP-3 — third purge wave: owner-directed deletion of uploads + downloads + new staging (deploy 15:34Z)
+
+**Agent:** main session (verify-references → purge → live sync → verify →
+ritual close).
+
+**Task:** Owner explicitly widened scope: "remove and permanently delete
+ALL uploads, downloads and unwanted/unused/dead/junk files" — same
+protection rule for the working app.
+
+**Work Log:**
+
+1. SAFETY VERIFICATION BEFORE DELETION: the app's runtime upload storage
+   is `uploads/` (PLURAL — library-store.ts UPLOADS_DIR + import store
+   IMPORTS_DIR) — confirmed it DOES NOT EXIST (no user has library/
+   import files; nothing to protect, nothing lost). The deleted
+   `upload/` (SINGULAR, root-owned, git-ignored, 1.5MB) is chat-paste
+   reference material only (AI desk heatmap screenshots Nov 2 + pasted
+   texts Oct 31) — zero app-code references (grep-verified). Distinct
+   names, distinct fates: plural = live app storage (would be KEPT if
+   it existed); singular = old session artifacts (deleted per owner).
+2. DELETED: upload/ contents — 8 files (5 reference .jpg + 3 "Pasted
+   Content" .txt; 4KB root-owned dir shell remains, undeletable,
+   same class as /tmp/my-project); /tmp staging from the 15:34Z deploy
+   attempt (build_fullstack_1793720074 dir + 124MB tar.gz + HEAD.tar
+   59MB + db-preserve snapshot — lsof-cold, tar size-stable = deploy
+   finished); 8 node-gyp temp dirs (13:22–15:34); /tmp/my-project
+   restore-staging refill (platform refills it before every deploy —
+   19MB at 15:33, purged again); unused examples/ platform demo dir
+   (20KB, zero references); boot-timeline.log attempt; next-dev.out
+   truncated; post-sync db-preserve snapshot.
+3. DEPLOY-4 NOTE: the 15:34Z publish attempt put production briefly at
+   HTTP 412 (15:36:20Z — deploy-slot swap signature, NEW code, not the
+   500 dark class) then recovered to 200 by 15:36:49Z with full app
+   headers. Production healthy throughout the cleanup window; the
+   staging leftovers were deleted only after size-stability confirmed
+   the attempt was finished.
+4. LIVE SYNC (production UP): pulled fresh export 15:37:49Z (users=4,
+   trades=386) → DB swapped → additive schema → prisma regenerated →
+   integrity ok → dev restarted (200).
+5. VERIFY: app 200 · ritual-state 200 · market quotes 200 with
+   market-fetch-worker lazy-spawned on first call (46MB — by design)
+   · lint 0 · browser render: title + clean networkidle load ·
+   RAM 1399MB avail · disk 2.3G used / 7.1G free · /tmp 2.6MB
+   (root-owned undeletables only).
+6. RESULT: uploads+downloads+staging fully purged per owner
+   instruction. Recurring pattern now proven 3×: every publish
+   attempt (success OR fail) drops ~400MB staging + a /tmp/my-project
+   refill — purge after each. upload/ vs uploads/ distinction
+   documented so future cleanups never confuse the two.
+
+**Ritual:** pull = LIVE production sync 15:37:49Z (users=4, trades=386,
+.sync-state epoch 1793720269) · lint 0 · this entry above the block ·
+AGENTS.md task entry above the block · CLAUDE.md discipline bullet
+above the block · commit + push last (genuine user-assigned task —
+Policy B satisfied; carries db/custom.db = the live production mirror).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

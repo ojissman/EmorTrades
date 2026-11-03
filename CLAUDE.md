@@ -250,7 +250,13 @@ at the bottom of this file.
   /tmp copies of deleted app files) — purge them, but do NOT delete
   .next (~900MB warm) on repeat cleanups; it is the running app's live
   cache and regrows. Check production health before syncing: if UP →
-  live sync (real pull); if dark → dark-anchor path.
+  live sync (real pull); if dark → dark-anchor path. upload/ vs
+  uploads/ (CLEANUP-3, owner-directed):
+  `uploads/` (PLURAL) = app's LIVE runtime user-file storage — never
+  delete contents; `upload/` (SINGULAR) = old chat-paste references —
+  deleted per owner. A brief production 412 is the deploy-slot swap
+  signature — wait ~30s before diagnosing; market-fetch-worker spawns
+  lazily on first market API call.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

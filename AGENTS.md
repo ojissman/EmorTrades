@@ -887,6 +887,24 @@ sandbox mirrors production), dev restarted clean. .next (~900MB warm)
 is the running app's live cache, NOT junk — don't delete on repeat
 cleanups; only reset it when the server needs a fresh start anyway.
 
+Task CLEANUP-3 (2026-11-03, third wave — owner widened scope to ALL
+uploads+downloads): CRITICAL DISTINCTION — `uploads/` (PLURAL) is the
+app's live runtime storage (library-store.ts UPLOADS_DIR, import store
+IMPORTS_DIR); NEVER delete its contents if it exists (it currently does
+not — no user library/import files yet). `upload/` (SINGULAR,
+root-owned, git-ignored) was chat-paste reference material only —
+contents deleted per explicit owner instruction (8 files: AI desk
+heatmap screenshots + pasted texts; 4KB root shell remains). Also
+purged: 15:34Z deploy staging (build_fullstack dir + 124MB tar +
+HEAD.tar 59MB + db-preserve), 8 node-gyp temp dirs, /tmp/my-project
+refill (platform refills it before EVERY deploy — proven 3×), unused
+examples/ demo dir. DEPLOY-4 signature: brief HTTP 412 during
+deploy-slot swap (15:36:20Z → 200 by 15:36:49Z) is a NEW code, not the
+500 dark class — wait ~30s before diagnosing a 412. Live sync after
+(users=4, trades=386); market-fetch-worker lazy-spawns on first market
+API call (46MB) — not a bug if absent right after boot. /tmp steady
+state: 2.6MB root-owned undeletables only.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
