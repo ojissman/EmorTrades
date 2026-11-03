@@ -244,6 +244,13 @@ at the bottom of this file.
   vitest-referenced), upload/ (user data), backups/ (locks). Chrome +
   warm dev server can breach the 4GB ceiling (OOM kill #8) — restart
   dev fresh before publishing and before heavy browser verification.
+  Repeat cleanups (CLEANUP-2 rule): every FAILED publish leaves
+  ~400MB of /tmp staging (build_fullstack_* + HEAD.tar + db-preserve
+  snapshots) and platform restore debris (/tmp/my-project refill,
+  /tmp copies of deleted app files) — purge them, but do NOT delete
+  .next (~900MB warm) on repeat cleanups; it is the running app's live
+  cache and regrows. Check production health before syncing: if UP →
+  live sync (real pull); if dark → dark-anchor path.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

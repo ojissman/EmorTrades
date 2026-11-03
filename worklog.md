@@ -8318,6 +8318,64 @@ discipline bullet above the block · commit + push last (genuine
 user-assigned task — Policy B satisfied; carries db/custom.db ride-along
 = verification login's lastLoginAt write + owner's live-session writes).
 
+---
+
+## Task CLEANUP-2 — second purge wave + LIVE production resync (deploy 15:27Z failed; production UP on prior good deploy)
+
+**Agent:** main session (delta survey → purge → live sync → verify → ritual
+close).
+
+**Task:** Owner: "deployment works. deployment failed again" — clean the
+workspace/sandbox again, same rules as CLEANUP-1 (delete junk, never harm
+the working app).
+
+**Work Log:**
+
+1. CONTEXT RESOLVED: production is UP (HTTP 200) — the earlier publish
+   DID succeed; the 15:27Z attempt failed AFTER assembly (build_fullstack
+   dir + tar.gz both exist = platform-side failure class again, same as
+   DEPLOY-3). Production serves the previous good deploy; nothing dark.
+2. DELTA SURVEY (1h since CLEANUP-1): disk crept 2.1G → 2.8G from the
+   failed publish's regenerating artifacts — the exact pattern CLEANUP-1
+   documented. No app bloat: single dev tree, no stray browsers, no
+   resurrected app files (checked robots.txt/[...slug]/gen-pwa-icons/
+   admin-theme — all still absent from the app).
+3. DELETED (~465MB): /tmp/build_fullstack_1793719556 + tar.gz (386MB,
+   15:27Z failed-deploy staging, lsof-cold); /tmp/HEAD.tar (57MB,
+   platform snapshot, lsof-cold); 2 × sandbox-db-preserve snapshots
+   (15:07 dark-anchor + 15:27 deploy attempt) + the 15:30 live-sync one
+   after its swap verified; /tmp/my-project contents AGAIN (platform
+   refilled it at 15:07 — 19MB restore staging; undeletable 4KB shell
+   remains); resurrected /tmp copies of deliberately-deleted app files
+   (robots.txt, r.txt — the fa3cf2f robots content, harmless in /tmp,
+   deleted); prod.html, prod-robots.txt, README, LICENSE strays;
+   next-dev.out truncated; project tool-results/ (my own 52KB output
+   captures).
+4. KEPT (unchanged from CLEANUP-1, re-verified): .venv 4.4G (gateway),
+   .npm-global (skills), ms-playwright/.agent-browser (tooling),
+   node_modules, tests/, upload/, backups/, .next 928MB (live warm cache
+   of the running app — regrows to ~900MB when warm, deleting it just
+   forces a pointless 3-min recompile; not junk).
+5. LIVE SYNC (production UP → real pull, not dark-anchor): stopped dev →
+   pulled fresh export (users=4, trades=386, generated 15:30:17Z) →
+   swapped db/custom.db → strict additive schema push → prisma client
+   regenerated → integrity verified → dev restarted (200). Sandbox now
+   mirrors production exactly.
+6. VERIFY: app 200 · /api/ritual-state 200 (locks intact) · lint 0 ·
+   browser render check: full landing (hero/stats/desks/AI/security
+   sections) ✓ · single next-server + market worker · RAM 1221MB avail.
+7. RESULT: /tmp now 2.7MB total (only root-owned undeletables remain) ·
+   disk 2.3G used / 7.1G free · the 15:27 deploy failure remains
+   platform-side (assembly completed, failure after) — with production
+   UP and healthy, a retry replaces it; repeated identical failures =
+   Z.ai platform incident per DEPLOY-3 triage.
+
+**Ritual:** pull = LIVE production sync 15:30:17Z (users=4, trades=386,
+.sync-state epoch 1793719817) · lint 0 · this entry above the block ·
+AGENTS.md task entry above the block · CLAUDE.md discipline bullet above
+the block · commit + push last (genuine user-assigned task — Policy B
+satisfied; carries db/custom.db = the live production mirror itself).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

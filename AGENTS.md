@@ -874,6 +874,19 @@ just cache — clearing it killed the agent-browser CLI (reinstalled
 (Chrome spike atop warm server) — same 4GB-ceiling class as DEPLOY-3:
 keep the box lean, restart dev fresh before publishing.
 
+Task CLEANUP-2 (2026-11-03, second purge wave): each failed publish
+regenerates ~400MB of /tmp staging (build_fullstack dir + tar + HEAD.tar
++ db-preserve snapshots) — purge after every failed deploy; platform
+also refills /tmp/my-project restore staging and drops /tmp copies of
+deliberately-deleted app files (robots.txt etc.). This wave: ~465MB
+deleted, /tmp back to 2.7MB (root-owned undeletables only), disk 2.3G
+used / 7.1G free. Production was UP the whole time (the 15:27Z failure
+was AFTER assembly — platform-side, DEPLOY-3 class; production kept
+serving the previous good deploy) → live sync ran (users=4, trades=386,
+sandbox mirrors production), dev restarted clean. .next (~900MB warm)
+is the running app's live cache, NOT junk — don't delete on repeat
+cleanups; only reset it when the server needs a fresh start anyway.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
