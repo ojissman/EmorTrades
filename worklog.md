@@ -8110,6 +8110,134 @@ restart — if the app ever misbehaves right after a restart, the fix is
 one command (passphrase-encrypted restore); the token in the origin
 remote was also refreshed from the owner's message today.
 
+## Task WATCHDOG-1 — owner trust audit (GitHub access of every watchdog), PUSH POLICY B, DEPLOY-3 publish-failure diagnosis
+
+**Owner request (2026-11-03):** fear/distrust follow-up to the watchdog
+inventory, three questions. Q1: does any watchdog have write/pull access
+to the GitHub repo? (owner requirement: NO). Q2: does any watchdog have
+rights to PUSH? — with a new permanent policy the owner adopted by
+decision "2. B": **PUSH POLICY B — pushes only happen when a task is
+completed manually by the agent; sandbox resets and old-task recovery do
+NOT count as tasks (platform malfunctions, not proposed tasks).** Q3:
+publishing keeps failing — are the watchdogs responsible? Authorized:
+"1. go" (run the audit + diagnose publishing), "2. B" (adopt Policy B).
+
+**Q1 — GitHub access audit (evidence, not assurances):**
+- NO scheduler exists: the crontab binary is not even installed; zero
+  cron jobs, zero timers, zero background loops. Processes running at
+  audit time: the dev-server tree + market-fetch-worker (app
+  functionality) — nothing else.
+- dev-watchdog.sh: DORMANT — no process; dev-watchdog.log was never
+  created (it has never run). Even if started: port bind-probe + dev
+  restart only; zero git, zero network, zero GitHub.
+- purity-sweep.ts: unwired (the platform restored .zscripts/dev.sh to
+  stock); no process. Even if run: local dead-file deletion only.
+- day-start.ts: the ONLY code that touches GitHub — READ-ONLY
+  operations (git ls-remote, git fetch, git pull --ff-only), with an
+  owner-supplied --token, on manual invocation only. It can rewrite the
+  local origin URL (local config); it can never write anything on
+  GitHub.
+- sync-prod-db.ts: talks to production only (GET /api/admin/export);
+  zero GitHub access (grep-proof: no POST/PUT/PATCH/DELETE, no
+  api.github, no git).
+- ritual-guard / system-guard: local git-state display + in-process RSS
+  sampling; zero network egress.
+- git-hooks/pre-push: a GATE that executes only DURING a git push; it
+  cannot initiate one.
+- Platform Auto-Backup bot: commits db/custom.db LOCALLY, never pushes
+  — proof: b0e06eb (13:34:14Z) and dba19e8 (13:52:47Z) sat unpushed
+  until this task's push carried them (the first live Policy B
+  ride-along).
+- The GitHub token lives in exactly two places: the origin remote URL
+  (used by whatever git command an operator runs) and owner-supplied
+  --token arguments. Nothing reads it autonomously.
+
+**Q2 — can anything push autonomously? NO.** Repo-wide search: every
+`git push` match in the tree is instructional text (day-start's recovery
+prescription, hook documentation, UI copy) — zero executable autonomous
+pushes. The only pushes that have ever happened are agent-executed at
+task completion, each validated by the pre-push hook's three locks.
+HONEST DISCLOSURE: this session's two earlier pushes (c877dc2, 71d9017)
+were recovery cycle-closes prescribed by the OLD ENFORCE-4 text — under
+Policy B, adopted hours later, they would NOT have been pushed; they
+would have ridden with the next task's push exactly as b0e06eb/dba19e8
+now do. Policy B is codified in this entry + AGENTS.md + CLAUDE.md and
+ENFORCED in day-start.ts from this commit.
+
+**PUSH POLICY B (owner decision 2026-11-03 — permanent):**
+1. `git push` happens ONLY at the completion of a user-assigned task
+   (ritual steps 1-7; pre-push locks all green).
+2. Platform recovery (sandbox resets, .env restores, resurrected-file
+   cleanup, day-gate repair) NEVER pushes. Recovery is documented in
+   worklog.md and committed locally with a CYCLE-CLOSE/RECOVERY subject
+   prefix; its commit(s) ride to GitHub with the next completed task's
+   push.
+3. Auto-Backup bot commits (UUID subjects, db-only) are ride-along
+   residue — same rule, never pushed alone.
+4. day-start ENFORCE-4 now classifies: bot residue + documented recovery
+   = ride-along (gate proceeds with a loud notice); ANY other unpushed
+   commit = unknown agent work = gate still refuses (PROFILE-1
+   protection unchanged).
+5. The in-app drift guard may show a lock during a recovery window —
+   that is honest display of unpushed work; it lifts at the next task
+   push.
+
+**Q3 / DEPLOY-3 — why publishing keeps failing (watchdogs are NOT
+involved):**
+- Production has been fully dark since ~13:43Z: every route on
+  emortrade.space-z.ai answers the PLATFORM's own "Sorry, there was a
+  problem deploying the code" 500 page — the same failure class as the
+  2026-11-02 RECOVERY-1 outage.
+- Proven timeline: 13:33:49Z day-start's LIVE sync wrote .sync-state
+  (production healthy). The 13:43 publish's build-guarded sync did NOT
+  write .sync-state (it still read 13:33:49 at 14:24Z) → that sync
+  continued via the non-writing BOOTSTRAP-SKIP path (404/HTML-fallback
+  semantics) → production's app was ALREADY not-exporting at ~13:42,
+  before the build ran. The dark window opened between 13:33:49 and
+  ~13:42 (platform deploy-slot teardown or another spontaneous outage —
+  not distinguishable from inside the sandbox).
+- Every LOCAL step of the 13:43 publish succeeded: env gate 10 keys ✓;
+  sync continued ✓; .next/BUILD_ID 13:43:13 ✓ (build exit 0); standalone
+  assembled 13:43:15 ✓; dev restored 13:43:15 ✓ (ps lstart); the
+  platform's database-runtime-build step ran ✓ (db/custom.db copied into
+  the bundle — cp -a mtimes prove it).
+- The EXACT 13:43 standalone bundle was boot-tested locally on a spare
+  port: ready in 138ms; / 200; /robots.txt 200; /api/ritual-state 200;
+  system-guard healthy. The artifact is good.
+- Conclusion (by elimination — platform-internal deploy logs are not
+  visible from the sandbox): the deploy failed on the PLATFORM side
+  after our build. No watchdog exists anywhere in the publish path — the
+  only one ever there (the v1 keepalive) was REMOVED at the owner's
+  request (v3, SWEEP-1). The guards that ARE in the path (env gate, sync
+  abort, OOM-aware build) are what make publishes SAFE — they have never
+  aborted a healthy publish.
+- REMEDY (owner action): retry Publish from the generation page. The
+  retry cannot deadlock: build-guarded's sync step dark-anchors while
+  production is down — validated live at 14:31:35Z ("✓ DARK-ANCHOR",
+  mirror dba19e8, users=4, trades=386, .sync-state mode=production-dark)
+  — and the bundle is proven bootable. If the platform fails the retry
+  with the same all-local-green signature, it is a platform
+  infrastructure incident: report it to Z.ai support with this entry as
+  evidence.
+- Noted (deliberately NOT changed this cycle): during a dark-production
+  window the sync's BOOTSTRAP-SKIP path (404/HTML-fallback) can fire
+  before the dark-anchor classification, so an outage can log as
+  "bootstrap" and skip the mode=production-dark marker. Continuation
+  behavior is identical (the build proceeds); only the audit label
+  differs. No sync-logic changes mid-incident.
+
+**Work done:** the audit above; Policy B codified (this entry) +
+AGENTS.md item 62 + CLAUDE.md bullet; day-start.ts ENFORCE-4 amended to
+classify ride-along vs unknown work (PROFILE-1 protection unchanged);
+this push carries Auto-Backup ride-along b0e06eb + dba19e8.
+
+**Ritual:** pull = PRODUCTION-DARK dark-anchor 14:31:35Z (users=4,
+trades=386, mirror commit dba19e8) — production unreachable, resolved
+via the auditable outage path per the hook's own documented failure
+procedure (inform owner + worklog, never silent); lint 0 · tsc 0 · this
+entry above the block · AGENTS.md task entry above the block · CLAUDE.md
+discipline bullet above the block · commit + push last.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

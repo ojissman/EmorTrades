@@ -214,19 +214,45 @@ if (behind > 0) {
  * cycle (committed work that never reached GitHub — e.g. a session that died
  * mid-cycle and got snapshotted by the platform Auto-Backup) must NEVER be
  * buried by a new day. The GitHub disaster-recovery copy is behind; starting
- * new work on top of it is exactly how data rot begins. Complete the cycle
- * first, then re-run this gate. */
+ * new work on top of it is exactly how data rot begins.
+ *
+ * PUSH POLICY B (owner decision, 2026-11-03): "pushes only happen when a
+ * task is completed manually by the agent — sandbox resets and old-task
+ * recovery do NOT count as tasks." Recovery therefore never pushes on its
+ * own: Auto-Backup bot residue (UUID-subject, db-only commits) and
+ * documented recovery commits (subject prefixed CYCLE-CLOSE / RECOVERY,
+ * worklog entry above the ritual block) RIDE to GitHub with the next
+ * completed task's push. Any OTHER unpushed commit is unknown agent work —
+ * the gate still refuses exactly as before (PROFILE-1 protection). */
+const RIDE_ALONG_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const isPolicyBRideAlong = (subject: string): boolean =>
+  RIDE_ALONG_UUID.test(subject) || /^(CYCLE-CLOSE|RECOVERY)\b/.test(subject)
 if (ahead > 0) {
-  die(
-    `OPEN CYCLE: ${ahead} unpushed commit(s) from a previous cycle. A new day never buries an open cycle (ENFORCE-4).\n` +
-      '  Complete it first, then re-run: bun run day:start\n' +
-      '    1. bun run sync:prod   — the ritual pull (the pre-push hook requires it)\n' +
-      '    2. verify the task in the app (the ritual-lock page lifts once the pull lands)\n' +
-      '    3. append the worklog entry (ABOVE the ritual block)\n' +
-      '    4. update AGENTS.md + CLAUDE.md as applicable (ABOVE the block)\n' +
-      '    5. git add -A && git commit && git push\n' +
-      '  If the work is dead-session residue of UNKNOWN intent: reconstruct from\n' +
-      '  git + worklog.md (never from a session handoff), document it, then close.'
+  const aheadSubjects = run('git log --format=%s origin/main..main')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const unknown = aheadSubjects.filter((s) => !isPolicyBRideAlong(s))
+  if (unknown.length > 0) {
+    die(
+      `OPEN CYCLE: ${ahead} unpushed commit(s), of which ${unknown.length} are NOT Policy-B ride-along (unknown agent work). A new day never buries an open cycle (ENFORCE-4).\n` +
+        '  Complete the task first, then re-run: bun run day:start\n' +
+        '    1. bun run sync:prod   — the ritual pull (the pre-push hook requires it)\n' +
+        '    2. verify the task in the app (the ritual-lock page lifts once the pull lands)\n' +
+        '    3. append the worklog entry (ABOVE the ritual block)\n' +
+        '    4. update AGENTS.md + CLAUDE.md as applicable (ABOVE the block)\n' +
+        '    5. git add -A && git commit && git push\n' +
+        '  If the work is dead-session residue of UNKNOWN intent: reconstruct from\n' +
+        '  git + worklog.md (never from a session handoff), document it, then close.\n' +
+        '  Policy B (owner decision 2026-11-03): documented recovery commits\n' +
+        '  (CYCLE-CLOSE/RECOVERY subject + worklog entry) and Auto-Backup bot\n' +
+        '  commits ride with the next task push — they never push alone. Reclassify\n' +
+        '  residue ONLY by documenting it in worklog.md, never by deleting it.'
+    )
+  }
+  log(
+    `OPEN CYCLE — Policy B ride-along: ${ahead} unpushed commit(s) (Auto-Backup bot residue / documented recovery). ` +
+      'No recovery push (owner decision 2026-11-03): they ride to GitHub with the next completed task\'s push.'
   )
 }
 

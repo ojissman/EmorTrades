@@ -221,6 +221,21 @@ at the bottom of this file.
   shows "Couldn't load" — that's the environment, not the app; reload
   before concluding regression).
 
+- PUSH POLICY B (owner decision, 2026-11-03): `git push` happens ONLY
+  at the completion of a user-assigned task. Platform recovery (sandbox
+  resets, .env restores, residue cleanup, gate repairs) is NEVER pushed
+  on its own — document it in worklog.md, commit with a
+  CYCLE-CLOSE/RECOVERY subject prefix, and let it ride with the next
+  task's push; Auto-Backup bot commits (UUID subjects) ride the same
+  way. day-start enforces the ride-along vs unknown-work split
+  (PROFILE-1 protection unchanged). Publish failures: if the local
+  pipeline is all-green (env gate, sync, build, assembly) and the
+  standalone bundle boot-tests 200s, the failure is platform-side — the
+  owner retries (sync dark-anchors, no deadlock); repeated identical
+  failures are a platform incident for Z.ai support. Watchdogs have NO
+  GitHub access (verified 2026-11-03, WATCHDOG-1) — do not re-litigate
+  without new evidence.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

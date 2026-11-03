@@ -829,6 +829,33 @@ wFmt) must be declared BEFORE the block, not in a later section.
     background, and expect the ritual ENFORCE-4 lock after long work
     stretches (sync:prod clears it as designed).
 
+62. WATCHDOG-1 / PUSH POLICY B (2026-11-03, owner decision "2. B";
+    full evidence in the WATCHDOG-1 worklog entry): (a) GitHub access:
+    NOTHING autonomous reads or writes GitHub — no cron exists, no
+    watchdog daemon runs (dev-watchdog never started; purity-sweep
+    unwired), day-start is read-only + manual-invocation only,
+    sync-prod-db is a GET-only production pull, and the Auto-Backup bot
+    commits locally and never pushes. The ONLY pusher is the agent, at
+    task completion, behind the pre-push locks. (b) PUSH POLICY B —
+    PERMANENT: `git push` ONLY when a user-assigned task is completed.
+    Platform recovery (sandbox resets, .env restores, resurrected-file
+    cleanup, gate repairs) NEVER pushes on its own: document in
+    worklog.md, commit locally with a CYCLE-CLOSE/RECOVERY subject
+    prefix, ride with the next task's push. Auto-Backup bot commits
+    (UUID subjects) ride the same way. day-start's ENFORCE-4 enforces
+    the split: ride-along proceeds with a loud notice; ANY other
+    unpushed commit still refuses the gate (PROFILE-1 unchanged). The
+    in-app drift guard may lock the preview during a recovery window —
+    honest display; it lifts at the next task push. (c) Publish-failure
+    triage (DEPLOY-3): production dark + the platform's "problem
+    deploying the code" page + all-green local pipeline (env gate,
+    sync, build, assembly, standalone boot-test 200s) = platform-side
+    deploy incident. Remedy: the owner retries publish (cannot deadlock
+    — build-guarded's sync dark-anchors while production is down). If
+    the retry fails with the same signature → platform incident, report
+    to Z.ai support. Watchdogs are NOT in the publish path (the v1
+    keepalive was removed at owner request, v3/SWEEP-1).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
