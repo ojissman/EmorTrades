@@ -8030,6 +8030,86 @@ worklog above the block, then the push. No code, schema, or .env changes
 agent session ends. GitHub holds the complete audited state plus this
 cycle's production pull.
 
+## Task ID: CYCLE-CLOSE-2026-11-03 (owner: "Pull GitHub latest" + fresh PAT + passphrase; overnight platform damage)
+
+**Agent:** main session alone — environment recovery + residue
+disposition; no application code changed (the tree returns to HEAD
+exactly, so the audit's phase-5 verification stands).
+
+**Task:** The owner opened the day with the DAILY RITUAL ("Pull GitHub
+latest"). The gate could not run yet: the overnight platform restart(s)
+had left an open cycle AND destroyed the environment. Reconstructed from
+git + files (never from a session handoff), closed per ENFORCE-4, then
+the gate.
+
+**Work Log:**
+
+1. TIMELINE (every fact from git + filesystem): last night's cycle
+   closed at 22:10:05Z (c877dc2 pushed; its `git add -A` commit is
+   itself proof the tree had NO untracked files then). 22:15:46Z —
+   platform Auto-Backup committed an in-place DB write (04afe61, same
+   byte size) with no push → open cycle. Overnight — platform session
+   restart(s): `.env` was CLOBBERED to 50 bytes / 1 key (DATABASE_URL
+   only; mtime Nov 3 13:22 — the moment the platform bootstrapped this
+   session's dev server), and FOURTEEN files that git history had
+   deliberately deleted reappeared on disk with preserved mtimes
+   (public/robots.txt Oct 26 14:04, app/[...slug]/page.tsx Oct 31
+   12:15, gen-pwa-icons.ts Nov 2 14:15 …). The resurrection mechanism is
+   a platform-level event outside agent observability — the BEFORE/AFTER
+   boundary is proven by c877dc2's add -A; the exact snapshot/restore
+   path is honestly recorded as not reconstructable.
+2. DAMAGE (found in prescribed order): sync:prod refused to start —
+   DB_EXPORT_TOKEN missing → `.env` inspection: 11 keys → 1. Restored
+   from backups/secrets.enc with the owner's piped passphrase:
+   "restored .env is exactly the protected state (11 keys)" — live
+   sha256 now equals manifest envSha256 (LOCK 1 re-armed; the dev
+   server restarted onto the restored keys via the sync below).
+3. RESIDUE DISPOSITION — every file classified with its committed
+   deletion (git log --all proof for each); ZERO tracked importers
+   found for any of them (rg across src/), so removal breaks nothing:
+   public/robots.txt (fa3cf2f — replaced by src/app/robots.ts; while
+   present it caused a LIVE 500: "A conflicting public file and page
+   was found for path /robots.txt"); src/app/[...slug]/page.tsx
+   (e125bdd SEO-FINAL "real 404s (catch-all removed)" — while present
+   /nonexistent-xyz returned 200, a live soft-404 regression);
+   scripts/gen-pwa-icons.ts (73cb157 audit — DEAD one-time script);
+   advanced-filter-panel.tsx + shell/widget-card.tsx + lib/trade-day.ts
+   (73cb157 — DEAD files); 4 orphan routes day-tags/days,
+   systems/[id]/copy, trades/[id]/warnings, trading-plans/migrate
+   (73cb157 — on disk they were the audit's FIXED versions: live-tested
+   401 unauth, no open hole, just dead surface); admin/theme.ts +
+   admin/topbar.tsx (0474a1c ADMIN-3 — unified shell);
+   platform-messages/bell.tsx (cbaca93 — the sweep worklog line 6558
+   documents). All removed → tree is exactly HEAD again.
+4. THE PULL (ENFORCE-4 step 1, after .env restore): sync:prod
+   13:28:43Z — production export 1630208 bytes (users=4, trades=386,
+   generated 13:28:48Z), strict schema push additive, integrity ok, dev
+   restarted, serving 200 at 13:29:10Z.
+5. LIVE VERIFICATION (all after cleanup): / 200; /robots.txt 200 from
+   app/robots.ts (conflict gone); /sitemap.xml 200; unknown paths real
+   404 (catch-all gone); deleted routes 404 — the one residual 401 on
+   POST /api/trading-plans/migrate is the LIVE [id] dynamic route
+   correctly refusing an unauthenticated request ([id]="migrate"
+   collides by design; the deleted dir is confirmed absent from disk).
+   Browser: zero console errors, zero page errors. Guard: honest WARN
+   until this push lands.
+6. PROCESS ERROR CAUGHT + LESSON: this session initially piped git
+   status through `head -3`, which hid 10 of the 12 untracked paths
+   until the first rm revealed them. Recorded rule: never truncate
+   status output while hunting residue.
+7. AGENTS.md / CLAUDE.md: no agent, role, or protocol changes this
+   cycle — ritual blocks verified in place untouched.
+
+**Stage Summary:** The environment was rebuilt from the encrypted backup
+(owner passphrase — its first real production use), the open cycle
+closed with a fresh production pull, and every resurrected file
+returned to its committed disposition with git-proof per file. The app
+is live-verified on the restored environment. OWNER NOTE: this is the
+first documented case of the platform bootstrap clobbering .env on
+restart — if the app ever misbehaves right after a restart, the fix is
+one command (passphrase-encrypted restore); the token in the origin
+remote was also refreshed from the owner's message today.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
