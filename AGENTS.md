@@ -923,6 +923,29 @@ load-bearing for dark-anchor recovery — do NOT strip it from history
 without explicit owner authorization (rewrites every hash cited in
 the audit trail; max ~12-14MB further gain).
 
+Task ALL-TIME-DEFAULT (2026-11-04, owner decision after the
+Overview-vs-Calendar-Year scope debate): the global date-range default is
+ALL TIME ('180' → 'all' in BOTH stores — filter-store DEFAULT_FILTERS +
+app-store initial, kept in lockstep; /api/dashboard default matches).
+Rationale (owner): longer history proves/maintains edge; rolling windows
+forget the baseline needed to judge decay. Presets unchanged; Today/Week/
+Month chips unaffected; dateRange is in-memory only (no migration was
+needed). EVERY scoped KPI states its scope via describeScope()
+(dashboard-filters.ts): "Net P&L — All time" / "— Last 30 days" / "—
+2026-10-28 → 2026-11-04" (custom windows) — applied across all 5 Overview
+view variants, the registry kpiRenderer funnel (every KPI widget), KPI
+Band, and DeskHeroStats; multi-stat cards declare once on the card
+headline. Overview /api/trades limit 500 → 5000 (all-time must not
+truncate). DEFECT FIXED that the labels exposed: /api/dashboard + the
+Classic desk silently ignored CUSTOM date presets ("Last 8 Days",
+"This Month"…) — the API now takes startDate/endDate with precedence
+over the named range (same semantics as /api/trades: entry-anchored,
+end-of-day endDate), and useDashboardData passes + keys on custom dates.
+E2E: demo session (scripts/mint-session.ts) — default $36,253.45 ALL
+TIME (DB-verified), 8-day preset flips label AND value ($0.00, 0 trades
+in window). NEVER run tsc while the dev server is warm (OOM kills
+#9-#11); cold start needs ~60s quiet warm-up before verification.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

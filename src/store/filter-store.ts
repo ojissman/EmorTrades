@@ -87,7 +87,12 @@ interface FilterStore extends FilterState {
 const DEFAULT_FILTERS: FilterState = {
   ...DEFAULT_SCOPE,
   accountId: 'all',
-  dateRange: '180',
+  // ALL-TIME-DEFAULT (owner decision, 2026-11-04): a journal's headline
+  // numbers are since-inception truth — edge is proven by the full sample,
+  // and a rolling window silently forgets (the Overview-vs-Calendar-Year
+  // $10k discrepancy that prompted this). Recency stays one click away via
+  // the toolbar presets; Today/Week/Month chips are unaffected.
+  dateRange: 'all',
   side: 'all',
   status: 'all',
   setupId: 'all',

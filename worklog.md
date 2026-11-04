@@ -8497,6 +8497,83 @@ block · CLAUDE.md discipline bullet above the block · commit + push
 last (genuine user-assigned task — Policy B satisfied; carries
 db/custom.db = the live production mirror).
 
+---
+
+## Task ALL-TIME-DEFAULT — Overview default range → All time + every scoped KPI states its scope (+ custom-window desk fix)
+
+**Agent:** main session (diagnosis → owner debate → owner decision "go" →
+implementation → E2E verification → ritual close).
+
+**Task:** Owner asked why Overview Net P&L ($26,639.15, 180d window) differed
+from Calendar Year 2026 ($36,753.55). Diagnosis: both correct, different
+scopes — Overview obeyed the global 180-day default, Calendar Year fetches
+the full year. Owner then asked the professional question: should the
+default be all-time or 6 months? After debate (owner's position: longer
+history PROVES and maintains trading edge; rolling windows forget the
+baseline needed to judge decay), owner decided: ALL-TIME DEFAULT + every
+scoped KPI states its scope.
+
+**Work Log:**
+
+1. DEFAULT (the decision): filter-store DEFAULT_FILTERS.dateRange and
+   app-store initial dateRange '180' → 'all' (both stores, kept in
+   lockstep — the action bar writes both). /api/dashboard default range
+   '180' → 'all' to match. No persistence existed for dateRange (in-memory
+   only) → clean default flip for every user on next load, no migration
+   needed. Presets (7/30/90/180/365/custom) unchanged — recency stays one
+   click away; Today/Week/Month chips unaffected.
+2. SCOPE LABELS (the ambiguity kill): new describeScope(range, customStart,
+   customEnd) in dashboard-filters.ts (custom → "YYYY-MM-DD → YYYY-MM-DD",
+   else preset phrase; describeRange/deriveRangeChipLabel 'Full range' →
+   'All time'). Applied to: Overview all 5 view variants (Simple hero +
+   tiles, Charts+Table 6-KPI strip + panels, All-in-one band + panels,
+   Multi All-in-one column KPIs), widget-registry kpiRenderer (every
+   registry KPI widget) + KPI Band, dashboard-widgets DeskHeroStats (6
+   StatCards). Panels' descriptions scoped (Outcomes —, P&L contribution —,
+   Equity —, Daily P&L …). Multi-stat cards declare scope once on the card
+   headline (hero cards); standalone KPI cards each carry it.
+3. LIMIT: overview /api/trades fetch 500 → 5000 — with All-time default a
+   500-row cap would silently under-report journals past 500 trades
+   (calendar already used 5000).
+4. DEFECT FOUND + FIXED (pre-existing, exposed by the labels): the Classic
+   desk (DeskHeroStats + every useDashboardData widget) is fed by
+   /api/dashboard keyed on the NAMED range only — custom-date presets
+   ("Last 8 Days", "Today", "This Month", "This Year") never reached it:
+   label said the 8-day window while the number stayed all-time. Fix:
+   /api/dashboard now accepts startDate/endDate with precedence over the
+   named range, mirroring /api/trades semantics exactly (entry-anchored;
+   bare YYYY-MM-DD endDate = end-of-day via endBoundFromParam);
+   useDashboardData passes + keys on custom dates. Desk widgets now follow
+   the same window the action bar advertises.
+5. E2E VERIFIED (agent-browser, demo@emortrades.com session via the repo's
+   own scripts/mint-session.ts E2E tool): default load → range chip "All
+   time", NET P&L — ALL TIME $36,253.45 (DB-verified all-time closed sum,
+   185W/182L), WIN RATE 50.3%, PF 1.63, EXPECTANCY $98.51, SHARPE 2.85 —
+   all scoped. "Last 8 Days" preset → labels flip to "NET P&L —
+   2026-10-28 → 2026-11-04" AND the value follows ($0.00 — zero trades in
+   window, API cross-checked directly: all-time 36253.45 vs 8-day 0).
+   Session baseline chip confirms "changed this session (was All time)".
+   lint 0 · tsc 0.
+6. OOM kills #9-#11 (environment-class, documented): three next-server
+   deaths today — tsc-while-dev-warm (×2, my own violation of the CLEANUP-1
+   rule — tsc must NOT run while dev is warm) and cold-compile-under-live-
+   traffic. RAM ceiling unchanged; rule for future sessions: never tsc
+   against a warm dev server; cold start needs ~60s quiet warm-up before
+   verification traffic.
+7. RESULT: the owner's original symptom is structurally dead — no two
+   surfaces can present differently-scoped numbers as the same metric:
+   Overview/Calendar/Tables all default to all-time; every KPI card names
+   its window; custom windows flow to every surface including the Classic
+   desk. Demo account's headline: $36,253.45 all-time (369 closed trades)
+   — matching the Calendar Year 2026 figure ($36,753.55) minus 2024's
+   −$500.10, exactly as reconciled in the diagnosis.
+
+**Ritual:** pull = LIVE production sync 15:13:28Z (users=4, trades=386,
+this task's ritual pull) · lint 0 · tsc 0 · this entry above the block ·
+AGENTS.md task entry above the block · CLAUDE.md discipline bullet above
+the block · commit + push last (genuine user-assigned task — Policy B
+satisfied; carries db/custom.db ride-along from the live sync).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

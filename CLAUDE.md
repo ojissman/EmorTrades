@@ -262,7 +262,13 @@ at the bottom of this file.
   after purge tasks (52MB→24MB, no history rewrite); skills/ is
   platform infrastructure (never delete); the committed db/custom.db
   mirror is load-bearing for dark-anchor recovery — never strip DB
-  history without explicit owner authorization.
+  history without explicit owner authorization. Data-scope honesty
+  (ALL-TIME-DEFAULT, 2026-11-04): the global range default is ALL TIME
+  (both stores) — every scoped KPI must state its scope via
+  describeScope() ("Net P&L — All time" / "— 2026-10-28 → 2026-11-04");
+  /api/dashboard honors startDate/endDate with precedence over the named
+  range; overview fetch limit is 5000 (never truncate all-time). NEVER
+  run tsc while dev is warm (OOM); cold start needs ~60s quiet warm-up.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

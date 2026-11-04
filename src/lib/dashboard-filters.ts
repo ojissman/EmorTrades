@@ -34,8 +34,21 @@ export function describeRange(range: DateRange): string {
     case '365':
       return 'Last 1 year'
     default:
-      return 'Full range'
+      return 'All time'
   }
+}
+
+/** ALL-TIME-DEFAULT (owner decision, 2026-11-04): the scope phrase every
+ *  scoped KPI label must state, so no two surfaces can ever look like they
+ *  disagree about facts (the Overview-vs-Calendar-Year ambiguity that
+ *  motivated the change). Custom ranges render as their date span. */
+export function describeScope(
+  dateRange: '7' | '30' | '90' | '180' | '365' | 'all',
+  customStartDate?: string,
+  customEndDate?: string,
+): string {
+  if (customStartDate) return `${customStartDate} → ${customEndDate ?? 'now'}`
+  return describeRange(dateRange)
 }
 
 /** Capture the CURRENT top-bar filters (account + range) into a snapshot. */
@@ -122,7 +135,7 @@ export function deriveRangeChipLabel(
     case '365':
       return `${daysAgo(365)} - ${today}`
     default:
-      return 'Full Range'
+      return 'All time'
   }
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { endBoundFromParam } from '@/lib/day-bounds'
 import {
   calculateAnalytics,
   calculateEquityCurve,
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const accountId = searchParams.get('accountId')
-    const range = searchParams.get('range') || '180' // days
+    const range = searchParams.get('range') || 'all' // ALL-TIME-DEFAULT (2026-11-04): match the UI default; 'all'/non-numeric = no time filter
 
     const auth = await requireUser({
       include: {
@@ -52,17 +53,32 @@ export async function GET(req: NextRequest) {
     const accountBaseline = scopeAccounts.reduce((sum, a) => sum + (a.startingBalance || 0), 0)
     const equityBaseline = accountBaseline > 0 ? accountBaseline : user.startingCapital
 
-    // Apply date range filter ('all' | non-numeric → no time filter)
-    const rangeDays = parseInt(range)
-    if (Number.isFinite(rangeDays)) {
-      const daysAgo = new Date()
-      daysAgo.setDate(daysAgo.getDate() - rangeDays)
-      where.OR = [
-        // Task 6 — entry-anchored window (trade-day convention,
-        // src/lib/trade-day.ts); open positions always included.
-        { entryTime: { gte: daysAgo } },
-        { status: 'open' },
-      ]
+    // ALL-TIME-DEFAULT (2026-11-04) — custom date windows (the action bar's
+    // calendar-anchored / day-count presets) now reach the desk widgets too:
+    // startDate/endDate take precedence over the named range, mirroring
+    // /api/trades semantics exactly (entry-anchored; bare YYYY-MM-DD endDate
+    // = end-of-day, src/lib/day-bounds.ts). Before this the Classic desk
+    // silently ignored custom ranges while envelope pages followed them —
+    // two surfaces, two windows, one metric.
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+    if (startDate || endDate) {
+      where.entryTime = {}
+      if (startDate) where.entryTime.gte = new Date(startDate)
+      if (endDate) where.entryTime.lte = endBoundFromParam(endDate)
+    } else {
+      // Apply date range filter ('all' | non-numeric → no time filter)
+      const rangeDays = parseInt(range)
+      if (Number.isFinite(rangeDays)) {
+        const daysAgo = new Date()
+        daysAgo.setDate(daysAgo.getDate() - rangeDays)
+        where.OR = [
+          // Task 6 — entry-anchored window (trade-day convention,
+          // src/lib/trade-day.ts); open positions always included.
+          { entryTime: { gte: daysAgo } },
+          { status: 'open' },
+        ]
+      }
     }
 
     const trades = await db.trade.findMany({
@@ -202,7 +218,8 @@ export async function GET(req: NextRequest) {
         monthPnL,
         monthTrades: monthTrades.length,
       },
-      range: Number.isFinite(rangeDays) ? rangeDays : 0, // 0 = all time
+      // 0 = all time / custom window (the exact dates are the caller's truth)
+      range: startDate || endDate ? 0 : Number.isFinite(parseInt(range)) ? parseInt(range) : 0,
     })
   } catch (e) {
     console.error('GET /api/dashboard error:', e)

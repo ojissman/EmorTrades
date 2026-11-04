@@ -18,6 +18,8 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { usePeekStore } from '@/store/peek-store'
+import { useFilterStore } from '@/store/filter-store'
+import { describeScope } from '@/lib/dashboard-filters'
 import { StatCard } from '@/components/stat-card'
 import { AiWidgetDash } from '@/components/ai/ai-widget-card'
 import { Card } from '@/components/ui/card'
@@ -83,10 +85,17 @@ interface DashboardData {
 /** Shared /api/dashboard fetch — deduped by react-query across all desk widgets. */
 export function useDashboardData() {
   const { selectedAccountId, dateRange } = useAppStore()
+  // ALL-TIME-DEFAULT (2026-11-04) — custom date windows now ride the desk
+  // fetch too (the API takes startDate/endDate with precedence over the
+  // named range), so every desk widget follows the same window the action
+  // bar advertises. Keyed on both so a preset change refetches.
+  const fs = useFilterStore()
   return useQuery<DashboardData>({
-    queryKey: ['dashboard', selectedAccountId, dateRange],
+    queryKey: ['dashboard', selectedAccountId, dateRange, fs.customStartDate, fs.customEndDate],
     queryFn: async () => {
       const params = new URLSearchParams({ accountId: selectedAccountId, range: dateRange })
+      if (fs.customStartDate) params.set('startDate', fs.customStartDate)
+      if (fs.customEndDate) params.set('endDate', fs.customEndDate)
       const res = await fetch(`/api/dashboard?${params}`)
       if (!res.ok) throw new Error('Failed to load dashboard data')
       return res.json()
@@ -124,6 +133,10 @@ function DeskError({ onRetry }: { onRetry: () => void }) {
 export function DeskHeroStats() {
   const { data, isError, refetch } = useDashboardData()
   const { open } = usePeekStore()
+  // ALL-TIME-DEFAULT (2026-11-04) — the hero cards state their active scope
+  // (app-store range, filter-store custom dates take precedence when set).
+  const fs = useFilterStore()
+  const scopeLabel = describeScope(fs.dateRange, fs.customStartDate, fs.customEndDate)
 
   if (isError) return <DeskError onRetry={refetch} />
   if (!data) {
@@ -149,7 +162,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Net P&L"
+          label={`Net P&L — ${scopeLabel}`}
           value={formatCurrencyIn('kpi', a.totalPnL)}
           anim={{ value: a.totalPnL, format: (n: number) => formatCurrencyIn('kpi', n) }}
           icon={DollarSign}
@@ -170,7 +183,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Win Rate"
+          label={`Win Rate — ${scopeLabel}`}
           value={`${a.winRate.toFixed(1)}%`}
           anim={{ value: a.winRate, format: (n: number) => `${n.toFixed(1)}%` }}
           subvalue={`${a.wins}W / ${a.losses}L`}
@@ -189,7 +202,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Profit Factor"
+          label={`Profit Factor — ${scopeLabel}`}
           value={
             // Task 176 — profitFactor is null when there are no losing trades;
             // isFinite(null) === true, so the old guard called null.toFixed()
@@ -216,7 +229,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Expectancy"
+          label={`Expectancy — ${scopeLabel}`}
           value={formatCurrencyIn('kpi', a.expectancy)}
           anim={{ value: a.expectancy, format: (n: number) => formatCurrencyIn('kpi', n) }}
           subvalue="per trade"
@@ -235,7 +248,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Sharpe Ratio"
+          label={`Sharpe Ratio — ${scopeLabel}`}
           value={a.sharpeRatio.toFixed(2)}
           anim={{ value: a.sharpeRatio, format: (n: number) => n.toFixed(2) }}
           subvalue={`Sortino ${a.sortinoRatio.toFixed(2)}`}
@@ -254,7 +267,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label="Max Drawdown"
+          label={`Max Drawdown — ${scopeLabel}`}
           value={formatCurrencyIn('kpi', a.maxDrawdown)}
           anim={{ value: a.maxDrawdown, format: (n: number) => formatCurrencyIn('kpi', n) }}
           subvalue={`${a.maxDrawdownPercent.toFixed(1)}% from peak`}

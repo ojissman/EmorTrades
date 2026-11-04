@@ -453,7 +453,9 @@ export const useAppStore = create<AppState>((set) => ({
   forwardCount: 0,
   aiAgent: 'coach',
   selectedAccountId: 'all',
-  dateRange: '180',
+  // ALL-TIME-DEFAULT (owner decision, 2026-11-04) — kept in lockstep with
+  // filter-store's DEFAULT_FILTERS.dateRange; the action bar writes both.
+  dateRange: 'all',
   sidebarCollapsed: false,
   tradesPresentation: 'grid',
   tradesSearch: '',
