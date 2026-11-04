@@ -298,6 +298,22 @@ at the bottom of this file.
   against cold-compiled routes (close browser → curl-warm → browse) or
   the kernel OOM-kills next-server with Chrome co-resident.
 
+  AI Watchlist discipline (WATCHLIST-AI, 2026-11-04 night): the Watchlists
+  page's AI surfaces (per-list AI Radar, per-row AI analysis, add-item
+  "Ask AI") are ALL on-demand — never make them fire on page load (the
+  z-ai lane is quota-gated). The shared math/fallback/sanitizer layer is
+  src/lib/watchlist-ai.ts (SDK-free, client-safe — keep it that way); the
+  backend is POST /api/ai/watchlist (modes radar/symbol/suggest, auth +
+  parent-watchlist ownership, 10/min per-IP bucket, 5-min content-signature
+  cache). Never trust LLM numbers: R:R is recomputed locally, levels beyond
+  ±10 ATR of the live price are DROPPED, priority symbols not on the
+  trader's list are dropped, and no live market data → honest 422 (never a
+  pretend analysis). Every AI result is ephemeral (cache only, no DB rows —
+  briefing pattern). "Apply to my levels" must ride the EXISTING
+  /api/watchlists PATCH manual-edit semantics (no reanchor key → no audit
+  row). Journal-cited numbers in AI output get re-verified against the raw
+  DB before certifying.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

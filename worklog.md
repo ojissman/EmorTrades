@@ -8792,6 +8792,182 @@ Ritual block intact in all 3 files: YES (md5 fa3d2a5b… identical, markers=1)
 Verdict:                            PRODUCTION-READY
 ```
 
+---
+
+## Task WATCHLIST-AI — the Watchlist becomes a Full AI-Powered Premium Trading Journal Watchlist (owner directive, 2026-11-04 night)
+
+**Agent:** Z.ai Code (Claude) · **Type:** CONTINUE (from PRESET-CHIP 3c1fe0c) · **Scope:** NORMAL
+
+**Task:** Owner: "Now let's make the Watchlist a Full AI-Powered Premium Trading
+Journal Watchlist." Acceptance criteria: (1) list-level AI intelligence —
+which watched symbols deserve attention first, grounded in live quotes, armed
+levels, 5-day trends and the trader's own journal; (2) per-symbol AI pre-trade
+analysis with a suggested entry/target/stop bracket the trader can APPLY
+end-to-end; (3) AI level suggestions in the add-item flow; (4) premium UI
+polish; (5) zero mocks — every number real, honest degradation when the z-ai
+LLM lane is rate-limited, no LLM call fires on page load (quota discipline).
+
+**Work Log:**
+1. src/lib/watchlist-ai.ts (NEW, pure/SDK-free, client-safe): shared response
+   types (WatchlistRadar, SymbolAnalysis, MarketSnapshot, SymbolAiLevels) +
+   REAL candle math — computeAtr14 (TR-average), computeSma(20/50),
+   candleRange (60-session), classifyTrend (SMA agreement + higher-highs,
+   single-signed pct details), buildMarketSnapshot; deterministicLevels
+   (2×ATR target / 1×ATR stop, direction from trend, rr=2);
+   radarPriorityScore (closeness-to-level + trend + journal-edge scoring);
+   deterministicRadar + deterministicSymbolAnalysis + deterministicVerdict
+   (number-grounded fallbacks so no surface ever renders empty or invented);
+   sanitizers — sanitizeRadarAi (validates tone, drops symbols not on the
+   list), sanitizeSymbolLevels (levels beyond ±10 ATR dropped, NOT rounded;
+   rr ALWAYS recomputed via rrFromLevels), sanitizeSymbolAi (verdict enum
+   guarded, strings capped).
+2. src/app/api/ai/watchlist/route.ts (NEW): POST with three on-demand modes —
+   { mode:'radar', watchlistId } list radar; { mode:'symbol', itemId } row
+   analysis (ownership via parent watchlist, existing PATCH idiom);
+   { mode:'suggest', watchlistId, symbol, … } pre-add brackets (symbol
+   regex-validated). Context is ALWAYS real: getQuotes (in-process Yahoo
+   lane) + getCandles (95d/1d) → server-computed ATR/SMA/range/trend; the
+   user's journal per symbol (all closed trades aggregated + recent 8 for
+   the LLM), open positions in watched symbols, overall stats via
+   calculateAnalytics (300-trade window). z-ai lane via zaiChatWithRetry
+   (temperature 0.5, 800/900 max_tokens, strict-JSON prompts carrying
+   AI_VOICE_RULE + "cite ONLY given numbers"); failure → deterministic
+   fallback with reason:'rate-limited' when isRateLimitError. Empty list →
+   deterministic radar, no LLM call. No live quote AND no candles → honest
+   422 ("No live market data for X — AI analysis needs a live quote").
+   5-min in-memory cache on content signature (prices rounded into the key;
+   only successful AI cached), per-IP token bucket 10/min
+   (page-insights idiom). Every mode authed (requireUser).
+3. src/components/watchlist/ai-radar-panel.tsx (NEW): per-list collapsible
+   "AI Radar" band (gradient emerald→sky trigger, disabled+tooltip when the
+   list is empty). First expand = exactly one POST (auto-fetch keyed to
+   list:count); loading skeleton; error card with Retry; content = tone chip
+   (Constructive/Mixed/Heads up) + headline + numbered ATTENTION QUEUE
+   (symbols are buttons that deep-open the row's AI modal) + focus +
+   risk list + violet "Journal edge" note + provenance footer (AI timestamp
+   or visible "deterministic radar from your live data" notice) + Refresh.
+4. src/components/watchlist/ai-symbol-modal.tsx (NEW): per-row deep analysis
+   — real market snapshot header (live price+change, trend + signed SMA
+   detail, ATR(14d) with %-of-price, 60-session range) ALWAYS rendered;
+   verdict badge (Aligned/Watch/Rethink); headline; thesis; suggested
+   bracket grid (entry/target/stop/R:R + rationale) with "Apply to my
+   levels" → EXISTING /api/watchlists PATCH manual-edit path (no reanchor
+   key → no audit row, by design) → toast + watchlists query invalidate;
+   strengths/risks two-col; "Your history here" journal read; pre-entry
+   checklist; provenance footer + Refresh. Refetches on open per item.
+5. src/components/pages/watchlists-page.tsx: header gains the AI-POWERED
+   gradient badge + updated subtitle; per-list AiRadarPanel mounted between
+   card header and the conversion strip (priority symbols deep-link via
+   item lookup); per-row Sparkles AI button (always visible incl. mobile);
+   add-item modal restructured "Levels" block with "Ask AI" (mode:'suggest')
+   that prefills target/stop for review + result card with rationale +
+   degraded notice (aiSuggest state resets when the modal re-opens); row
+   AI button + AiSymbolModal mounted at page root.
+6. tests/watchlist-ai.test.ts (NEW, 33 tests): candle math (ATR flat=TR,
+   SMA exactness, range, uptrend/downtrend/sideways, snapshot assembly +
+   null-quote no-fabrication, single-signed trendDetail regression);
+   deterministic levels (long/short mirror, no-ATR → empty, rr guards);
+   radar ranking + fallback (closer-target scores higher, journal/notes
+   bonus, ranks+headline+edge, empty-list honesty, un-armed/un-noted
+   risks); verdict logic (aligned/rethink/watch boundaries); deterministic
+   symbol analysis (real numbers, degraded flag, losing-history risk +
+   half-size checklist, open-position correlation flag, no-history
+   plainness); sanitizers (valid pass, invented symbols dropped, tone/verdict
+   enum degradation, rr recomputed never trusted, ±10-ATR spike dropped,
+   non-string array filtering, missing-field nulls).
+
+**Verification:** lint 0 errors · tsc 0 errors · vitest 173/173 (14 files;
+was 140/13 — +33 new). E2E (minted demo session, live pulled production
+data, owner concurrently live on the preview — their EURUSD item with armed
+levels $1.135/$1.1169 was in the list and was NOT modified): AI Radar on
+"My Watchlist" rendered a genuine AI radar — headline "EURUSD shows momentum
+with 1.1% target distance, KC down 6.14% today" (matches the row chips),
+attention queue #1 EURUSD "0.69% 5-day uptrend, 1.1% to target, armed levels
+in place" / #2 KC, focus citing the actual 1.135/1.1169 levels, 4 concrete
+risks, journal edge citing the demo's real 52% WR / 1.63 PF, "AI radar ·
+generated 05:15 PM" (not degraded); radar priority button deep-opened the
+EURUSD analysis modal (Rethink — "stop too tight for volatility": stop 0.6%
+away vs ATR 0.62%; thesis cites the real $125.92 EURUSD loss; snapshot
+1.1231 +0.67% / Uptrend SMA-signed / ATR 0.0062 / range 1.1110–1.1712 —
+sign fix verified live as "-0.4%" style); add-item "Ask AI" on XAU prefilled
+target 3991.6 / stop 4152.8 (short bracket matching gold's real downtrend)
+with rationale citing SMA20 4089.92 + 60-session low 3879.3; XAU added → row
+shows ALERT armed + AI levels + distance chips + REAL journal chip "10t ·
+50% WR"; XAU row AI modal (Live 4072.20 +4.44%, Downtrend below SMA20 −0.4%
+/SMA50 −4.3%, ATR 80.59 = 2.0%, range 3879.30–4755.00, verdict Rethink for
+"poor historical performance" despite trend-aligned bracket, journal read
+"10 gold trades, 50% win rate, net P&L $2,275.36" — DB-exact, avg R 0.73
+nuance surfaced honestly); "Apply to my levels" → button flips Applied, DB
+verified targetPrice=3991.6 stopPrice=4152.8 via the manual-edit PATCH; KC
+row analysis (8.1000 −6.14%, downtrend, cites the real −$232.20 KC trade);
+error paths: empty symbol → "Enter a symbol first" toast, "ZZZZQQ" → honest
+422 "No live market data for ZZZZQQ (symbol-not-found)…" rendered inline;
+mobile 390×844: header badge + radar + row AI buttons all reachable, XAU
+modal fits 356px content width with no horizontal overflow; browser console
+0 errors/0 warnings; server log: 12× POST /api/ai/watchlist 200 (3.2–5.8s
+LLM calls + 40–116ms cache hits — the owner was exercising the surface
+live too), 2× honest 422s, zero z-ai failures, no ⨯.
+
+**Cleanup report:** no dead code created — every new export in
+src/lib/watchlist-ai.ts, both components and the route proven LIVE by fresh
+rg sweeps (imports/route registration/test refs logged in session). No
+dependencies added or removed, no routes deleted. Junk: /tmp/my-project
+restore-refill 19MB purge REFUSED ("Operation not permitted" — directory
+actively re-created by the sandbox platform at 22:21, nlink anomaly;
+platform-managed, left in place and recorded); tool-results/ 216K is
+gitignored (stays until after-push housekeeping); ritual.before.* kept for
+the block-identity proof. /tmp 76MB → 76MB (net 0 — nothing else provably
+cold; next-dev.out is the live launcher handle, tectonic is a platform
+keeper). No tracked junk.
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — WATCHLIST-AI
+Date (UTC, from `date -u`):         2026-11-04T22:33:00Z
+Task started / finished:            2026-11-04T21:55:58Z / 2026-11-04T22:33Z
+Last production pull (sync:prod):   2026-11-04T21:59:02Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 173/173 passing (14 files)
+Pages/flows verified (list):        Watchlists page (radar generate + refresh,
+                                    priority deep-link, row AI modal ×3 symbols,
+                                    Ask-AI suggest + prefill + add, Apply
+                                    levels → PATCH → DB, error paths ×2,
+                                    mobile 390×844, desktop shell)
+Console + server-log errors:        0 / 0 (this session; the 422s are honest
+                                    no-live-data responses, not failures)
+Touched-area audit:                 PASS (all pre-existing watchlist surfaces
+                                    re-verified intact: quotes, sparkline,
+                                    alerts, re-anchor menu, conversion strip,
+                                    sort, drill-throughs)
+KPIs hand-checked vs raw DB:        3/3 exact match (XAU 10t/$2,275.36/50% WR;
+                                    EURUSD −$125.92; KC −$232.20 — all cited
+                                    verbatim by the AI from journal context)
+Security: every touched handler guarded, own-data only:  PASS (requireUser +
+                                    parent-watchlist ownership on all 3 modes;
+                                    per-IP rate limit; symbol regex; input
+                                    caps)
+Dead code removed:                  0 files, 0 deps, 0 routes (nothing dead
+                                    created; proofs above)
+Junk purged:                        0 MB net (/tmp 76→76MB — the 19MB
+                                    restore-refill is platform-managed and
+                                    refused deletion; logged)
+Orphan DB models needing owner decision: none (no schema change — the AI
+                                    results are ephemeral + cached, matching
+                                    the briefing/page-insights pattern)
+Ritual block intact in all 3 files: YES (verified below)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull = LIVE production sync 21:59:02Z (users=4, trades=386) ·
+this entry above the block · AGENTS.md task entry above the block ·
+CLAUDE.md discipline bullet above the block · commit + push last.
+
+**Needs owner decision / left over:** none. (Note: the deterministic
+fallback texts format money in full-form USD; the briefing route's
+$K-vs-full "Currency Display" pref is not applied inside the pure lib —
+display-layer concern only, values identical.)
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

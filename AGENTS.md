@@ -1008,6 +1008,44 @@ double-fork pattern (scripts/sync-prod-db.ts section 8); the kernel
 OOM-killed next-server twice while Chrome co-resident during cold
 compile (close the browser, warm routes with curl, then browse).
 
+Task WATCHLIST-AI (owner directive, 2026-11-04 night) — the Watchlists
+page is now a Full AI-Powered Premium Trading Journal Watchlist. Three
+on-demand AI surfaces (nothing fires on page load — the z-ai lane is
+quota-gated): (1) AI RADAR per watchlist (src/components/watchlist/
+ai-radar-panel.tsx) — collapsible band that ranks the list's symbols by
+attention (numbered queue; symbols deep-open the row analysis), focus,
+risks and a journal-edge note, tone-chipped headline; (2) AI SYMBOL
+ANALYSIS per row (ai-symbol-modal.tsx + the per-row Sparkles button) —
+always-real market snapshot header (live price, SMA-signed trend, ATR14
+with %-of-price, 60-session range), verdict Aligned/Watch/Rethink,
+thesis, suggested entry/target/stop bracket with server-RECOMPUTED R:R
+and an "Apply to my levels" button that writes through the EXISTING
+/api/watchlists PATCH manual-edit path (no reanchor key = no audit row),
+strengths/risks, "Your history here" journal read, pre-entry checklist;
+(3) "Ask AI" in the add-item modal — pre-add bracket suggestions that
+prefill target/stop for review. Backend: POST /api/ai/watchlist
+(src/app/api/ai/watchlist/route.ts) — three modes (radar/symbol/
+suggest), all authed + ownership-checked via the parent watchlist,
+per-IP token bucket 10/min, 5-min in-memory cache keyed on content
+signature (only successful AI cached). Context is ALWAYS real: in-process
+Yahoo quotes + 95d daily candles → server-computed ATR/SMA/range/trend;
+per-symbol journal aggregates + recent trades; open positions; overall
+stats via calculateAnalytics. The pure math + fallbacks + LLM sanitizers
+live in src/lib/watchlist-ai.ts (SDK-free, client-safe, 33 direct tests
+in tests/watchlist-ai.test.ts): deterministic radar/symbol-analysis
+builders guarantee a real, number-grounded result when the LLM lane is
+down (UI shows a visible "deterministic … from your live data" notice);
+sanitizeSymbolLevels DROPS model levels beyond ±10 ATR (never rounds)
+and R:R is always recomputed locally; sanitizeRadarAi drops symbols not
+on the trader's list; no live quote AND no candles → honest 422, never a
+pretend analysis. Empty list → deterministic radar, no LLM call.
+Discipline notes for future tasks: the AI results are EPHEMERAL (cache
+only, no schema change — briefing/page-insights pattern); AI surfaces
+that cite journal numbers must be re-verified against the raw DB (this
+task: XAU 10t/$2,275.36/50% WR, EURUSD −$125.92, KC −$232.20 — all
+DB-exact); "Apply" flows that edit user levels go through the EXISTING
+PATCH semantics (manual edit ≠ re-anchor audit).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

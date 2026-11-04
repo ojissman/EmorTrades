@@ -17,7 +17,10 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Plus, Trash2, Eye, Target, Star, X, RefreshCw, BellRing, Bell, BellOff, Timer, CalendarClock, ArrowRight, ArrowLeftRight, History, ArrowUpDown, Crosshair } from 'lucide-react'
+import { Plus, Trash2, Eye, Target, Star, X, RefreshCw, BellRing, Bell, BellOff, Timer, CalendarClock, ArrowRight, ArrowLeftRight, History, ArrowUpDown, Crosshair, Sparkles } from 'lucide-react'
+import { AiRadarPanel } from '@/components/watchlist/ai-radar-panel'
+import { AiSymbolModal } from '@/components/watchlist/ai-symbol-modal'
+import type { SymbolAnalysis } from '@/lib/watchlist-ai'
 import { useAppStore, PAGE_TO_ROUTE } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
@@ -551,6 +554,15 @@ export function WatchlistsPage() {
   // Task 127 — controlled bell menu id: the row's re-anchor chip (queue #3
   // from 126) opens the SAME dropdown instead of duplicating the trail UI.
   const [openBellId, setOpenBellId] = useState<string | null>(null)
+  // WATCHLIST-AI — the per-row AI analysis modal target (row button + radar
+  // priority deep-links both feed this), and the pre-add "Ask AI" suggest
+  // state for the add-item modal.
+  const [aiSymbolItem, setAiSymbolItem] = useState<{ id: string; symbol: string } | null>(null)
+  const [aiSuggest, setAiSuggest] = useState<{
+    loading: boolean
+    error: string | null
+    analysis: SymbolAnalysis | null
+  }>({ loading: false, error: null, analysis: null })
   const [form, setForm] = useState({ name: '', description: '' })
   const [itemForm, setItemForm] = useState({
     symbol: '',
@@ -709,6 +721,56 @@ export function WatchlistsPage() {
     }
   }
 
+  // WATCHLIST-AI — pre-add level suggestions: bracket the typed symbol from
+  // live quote + candles + journal history, then prefill the form for review.
+  async function askAiLevels() {
+    if (!itemModal) return
+    if (!itemForm.symbol.trim()) {
+      toast({
+        title: 'Enter a symbol first',
+        description: 'The AI desk needs to know which symbol to bracket.',
+      })
+      return
+    }
+    setAiSuggest({ loading: true, error: null, analysis: null })
+    try {
+      const res = await fetch('/api/ai/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'suggest',
+          watchlistId: itemModal,
+          symbol: itemForm.symbol.trim().toUpperCase(),
+          notes: itemForm.notes || undefined,
+          targetPrice: itemForm.targetPrice || undefined,
+          stopPrice: itemForm.stopPrice || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed')
+      const analysis = data.analysis as SymbolAnalysis
+      setAiSuggest({ loading: false, error: null, analysis })
+      if (analysis.levels.target !== null || analysis.levels.stop !== null) {
+        setItemForm((f) => ({
+          ...f,
+          targetPrice:
+            analysis.levels.target !== null ? String(analysis.levels.target) : f.targetPrice,
+          stopPrice: analysis.levels.stop !== null ? String(analysis.levels.stop) : f.stopPrice,
+        }))
+        toast({
+          title: `AI bracket · ${analysis.symbol}`,
+          description: `Target ${analysis.levels.target ?? '—'} · stop ${analysis.levels.stop ?? '—'} — review before adding.`,
+        })
+      }
+    } catch (e) {
+      setAiSuggest({
+        loading: false,
+        error: e instanceof Error ? e.message : 'Failed to suggest levels',
+        analysis: null,
+      })
+    }
+  }
+
   async function deleteWatchlist(id: string) {
     if (!confirm('Delete this watchlist and all its items?')) return
     try {
@@ -830,9 +892,15 @@ export function WatchlistsPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Watchlists</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            Watchlists
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-sky-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-emerald-300">
+              <Sparkles className="h-2.5 w-2.5" aria-hidden />
+              AI-POWERED
+            </span>
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Track symbols you're considering for future trades
+            Track symbols you're considering for future trades — live prices, armed alerts and the AI desk on every row
           </p>
           <div className="mt-1.5 flex items-center gap-2">
             {itemSymbols.length > 0 ? (
@@ -956,7 +1024,10 @@ export function WatchlistsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setItemModal(wl.id)}
+                    onClick={() => {
+                      setAiSuggest({ loading: false, error: null, analysis: null })
+                      setItemModal(wl.id)
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Add
@@ -973,6 +1044,18 @@ export function WatchlistsPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* WATCHLIST-AI — the per-list AI attention radar (collapsed by
+                  default; one deliberate POST per expand, quota-friendly). */}
+              <AiRadarPanel
+                watchlistId={wl.id}
+                watchlistName={wl.name}
+                itemCount={(wl.items || []).length}
+                onAnalyzeSymbol={(symbol) => {
+                  const it = (wl.items || []).find((i: any) => i.symbol === symbol)
+                  if (it) setAiSymbolItem({ id: it.id, symbol: it.symbol })
+                }}
+              />
 
               {/* Task 113 — the conversion strip: per-list answer to "watched
                   vs traded", sky accent to read as a cross-reference, not a KPI. */}
@@ -1235,6 +1318,19 @@ export function WatchlistsPage() {
                             <span className="text-sm text-muted-foreground" title={noLiveTitle}>—</span>
                           )}
                         </div>
+                        {/* WATCHLIST-AI — per-row AI analysis: market read,
+                            suggested bracket and journal history in one modal. */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-emerald-300 hover:bg-emerald-500/10"
+                          onClick={() => setAiSymbolItem({ id: item.id, symbol: item.symbol })}
+                          aria-label={`AI analysis for ${item.symbol}`}
+                          title={`AI analysis · ${item.symbol} — market read, suggested bracket, your journal history`}
+                          data-testid={`ai-analyze-${item.symbol}`}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        </Button>
                         {/* Task 114 -> 121 — the right viz column shares ONE
                             width and is now RowViz: hover-sync between the
                             sparkline crosshair and the ladder emphasis. */}
@@ -1480,27 +1576,80 @@ export function WatchlistsPage() {
                 onChange={(e) => setItemForm({ ...itemForm, symbol: e.target.value.toUpperCase() })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Target Price</Label>
-                <Input
-                  className="mt-1.5"
-                  type="number"
-                  placeholder="0.00"
-                  value={itemForm.targetPrice}
-                  onChange={(e) => setItemForm({ ...itemForm, targetPrice: e.target.value })}
-                />
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Levels</Label>
+                {/* WATCHLIST-AI — pre-add bracket from live data + journal. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-[10px] text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10"
+                  onClick={() => void askAiLevels()}
+                  disabled={aiSuggest.loading}
+                  aria-label="Ask the AI desk to suggest target and stop levels"
+                  data-testid="ai-suggest-trigger"
+                >
+                  <Sparkles className="mr-1 h-3 w-3" aria-hidden />
+                  {aiSuggest.loading ? 'Asking…' : 'Ask AI'}
+                </Button>
               </div>
-              <div>
-                <Label>Stop Price</Label>
-                <Input
-                  className="mt-1.5"
-                  type="number"
-                  placeholder="0.00"
-                  value={itemForm.stopPrice}
-                  onChange={(e) => setItemForm({ ...itemForm, stopPrice: e.target.value })}
-                />
+              <div className="mt-1.5 grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Target Price</Label>
+                  <Input
+                    className="mt-1.5"
+                    type="number"
+                    placeholder="0.00"
+                    value={itemForm.targetPrice}
+                    onChange={(e) => setItemForm({ ...itemForm, targetPrice: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Stop Price</Label>
+                  <Input
+                    className="mt-1.5"
+                    type="number"
+                    placeholder="0.00"
+                    value={itemForm.stopPrice}
+                    onChange={(e) => setItemForm({ ...itemForm, stopPrice: e.target.value })}
+                  />
+                </div>
               </div>
+              {aiSuggest.loading && (
+                <div className="mt-2 space-y-1.5" data-testid="ai-suggest-loading">
+                  <Skeleton className="h-3.5 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              )}
+              {aiSuggest.error && (
+                <p
+                  className="mt-2 rounded border border-red-500/30 bg-red-500/[0.06] px-2 py-1.5 text-[11px] leading-snug text-red-300"
+                  data-testid="ai-suggest-error"
+                >
+                  {aiSuggest.error}
+                </p>
+              )}
+              {aiSuggest.analysis && (
+                <div
+                  className="mt-2 rounded-md border border-emerald-500/25 bg-emerald-500/[0.05] px-2.5 py-2"
+                  data-testid="ai-suggest-result"
+                >
+                  <p className="text-[11px] font-semibold leading-snug">
+                    {aiSuggest.analysis.symbol} · {aiSuggest.analysis.headline}
+                  </p>
+                  {aiSuggest.analysis.levels.rationale && (
+                    <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                      {aiSuggest.analysis.levels.rationale}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[9px] text-muted-foreground">
+                    {aiSuggest.analysis.degraded
+                      ? 'Deterministic bracket from live data (AI lane cooling down)'
+                      : `AI bracket · generated ${formatTime(new Date(aiSuggest.analysis.generatedAt))}`}
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <Label>Notes</Label>
@@ -1521,6 +1670,13 @@ export function WatchlistsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WATCHLIST-AI — per-row AI pre-trade analysis modal */}
+      <AiSymbolModal
+        open={aiSymbolItem !== null}
+        onOpenChange={(o) => !o && setAiSymbolItem(null)}
+        item={aiSymbolItem}
+      />
     </div>
   )
 }
