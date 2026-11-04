@@ -34,7 +34,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { useAppStore, type DashboardWidgetInstance } from '@/store/app-store'
-import { applyFilterSnapshot, describeScope, describeSnapshot, filtersMatchSnapshot } from '@/lib/dashboard-filters'
+import { applyFilterSnapshot, describeSnapshot, filtersMatchSnapshot } from '@/lib/dashboard-filters'
 import { CustomDashboardGrid } from '@/components/dashboard/custom-dashboard-grid'
 import {
   Panel, Kpi, EquityChart, DailyPnlChart, TopSymbolsBars, SetupBars, TradesTable, RecentTradesList,
@@ -191,15 +191,11 @@ interface ViewProps {
   equityCurve: { date: string; equity: number }[]
   /** Task 22-b — starting capital when equity mode is on (0 = P&L mode). */
   equityStart: number
-  /** ALL-TIME-DEFAULT (2026-11-04) — the active data scope as a phrase
-   *  ("All time" / "Last 30 days" / "2026-03-01 → 2026-03-20"). Every
-   *  scoped KPI surface states it so no number is ever ambiguous. */
-  scopeLabel: string
 }
 
 // ---- SIMPLE OVERVIEW — the hero -----------------------------------------------
 
-function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: ViewProps) {
+function SimpleView({ stats, banner, onboarding, equityCurve }: ViewProps) {
   return (
     <div className="space-y-4" data-testid="overview-simple">
       {banner}
@@ -215,7 +211,7 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
             <div className="p-5 pb-2 md:p-6 md:pb-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--text-secondary)' }}>
-                  Net P&L — {scopeLabel}
+                  Net P&L
                 </p>
                 <span
                   className="cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors hover:border-emerald-500/50"
@@ -254,7 +250,7 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
           {/* Secondary tiles */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Kpi
-              label={`Best trade — ${scopeLabel}`} icon={ArrowUpRight}
+              label="Best trade" icon={ArrowUpRight}
               value={stats.best ? formatCurrencyIn('kpi', stats.best.pnl) : '—'}
               sub={stats.best ? `${stats.best.symbol} · ${stats.best.side}` : 'no closed trades'}
               color="var(--shell-success)"
@@ -265,7 +261,7 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
               } : undefined}
             />
             <Kpi
-              label={`Worst trade — ${scopeLabel}`} icon={ArrowDownRight}
+              label="Worst trade" icon={ArrowDownRight}
               value={stats.worst ? formatCurrencyIn('kpi', stats.worst.pnl) : '—'}
               sub={stats.worst ? `${stats.worst.symbol} · ${stats.worst.side}` : 'no closed trades'}
               color="var(--shell-danger)"
@@ -275,8 +271,8 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
                 useAppStore.getState().navigate(`/explore/trade-explore?trade=${stats.worst!.id}`)
               } : undefined}
             />
-            <Kpi label={`Avg win — ${scopeLabel}`} icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
-            <Kpi label={`Avg loss — ${scopeLabel}`} icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
+            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
+            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
           </div>
         </div>
 
@@ -285,7 +281,7 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
           <Panel title="Last trades" description="The five most recent closes" icon={History} bodyClassName="px-3 pb-3">
             <RecentTradesList recent={stats.recent.slice(0, 5)} />
           </Panel>
-          <Panel title="Top symbols" description={`P&L contribution — ${scopeLabel}`} icon={BarChart3} bodyClassName="px-4 pb-3.5">
+          <Panel title="Top symbols" description="P&L contribution ranking" icon={BarChart3} bodyClassName="px-4 pb-3.5">
             <TopSymbolsBars topSymbols={stats.topSymbols.slice(0, 5)} />
           </Panel>
         </div>
@@ -296,7 +292,7 @@ function SimpleView({ stats, banner, onboarding, equityCurve, scopeLabel }: View
 
 // ---- CHARTS + TABLE — the analyst ----------------------------------------------
 
-function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equityStart, scopeLabel }: ViewProps) {
+function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equityStart }: ViewProps) {
   return (
     <div className="space-y-5" data-testid="overview-charts-table">
       {banner}
@@ -304,12 +300,12 @@ function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equit
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Kpi label={`Net P&L — ${scopeLabel}`} icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => useAppStore.getState().navigate('/tables/trades')} />
-        <Kpi label={`Win rate — ${scopeLabel}`} icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
-        <Kpi label={`Profit factor — ${scopeLabel}`} icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
-        <Kpi label={`Expectancy — ${scopeLabel}`} icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} />
-        <Kpi label={`Avg win — ${scopeLabel}`} icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
-        <Kpi label={`Avg loss — ${scopeLabel}`} icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
+        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => useAppStore.getState().navigate('/tables/trades')} />
+        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
+        <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
+        <Kpi label="Expectancy" icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} />
+        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
+        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
       </div>
 
       <SectionLabel icon={LineChart}>Charts</SectionLabel>
@@ -323,18 +319,18 @@ function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equit
         >
           <EquityChart curve={equityCurve} height={224} pnlBase={equityStart > 0 ? equityStart : undefined} />
         </Panel>
-        <Panel title="Win / Loss split" description={`Outcomes — ${scopeLabel}`} icon={PieChartIcon} bodyClassName="px-4 pb-4">
+        <Panel title="Win / Loss split" description="Outcomes across the range" icon={PieChartIcon} bodyClassName="px-4 pb-4">
           <WinLossDonut stats={stats} />
         </Panel>
       </div>
-      <Panel title="Daily P&L" description={`Green/red bars — last 30 active days (${scopeLabel})`} icon={BarChart3} bodyClassName="px-4 pb-4">
+      <Panel title="Daily P&L" description="Green/red bars — last 30 active days" icon={BarChart3} bodyClassName="px-4 pb-4">
         <DailyPnlChart daily={stats.daily.slice(-30)} height={200} />
         <DailyFooter stats={{ ...stats, daily: stats.daily.slice(-30) }} />
       </Panel>
 
       <SectionLabel icon={Layers}>Breakdown</SectionLabel>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Top symbols" description={`P&L contribution — ${scopeLabel}`} icon={BarChart3} bodyClassName="px-4 pb-4">
+        <Panel title="Top symbols" description="P&L contribution ranking" icon={BarChart3} bodyClassName="px-4 pb-4">
           <TopSymbolsBars topSymbols={stats.topSymbols.slice(0, 5)} />
         </Panel>
         <Panel title="Setup performance" description="What actually pays you" icon={Gauge} bodyClassName="px-4 pb-4">
@@ -362,7 +358,7 @@ function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equit
 
 // ---- ALL-IN-ONE — the command center --------------------------------------------
 
-function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart, scopeLabel }: ViewProps) {
+function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart }: ViewProps) {
   return (
     <div className="space-y-4" data-testid="overview-all-in-one">
       {banner}
@@ -377,7 +373,7 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart, sco
         <div className="grid items-center gap-5 p-5 md:grid-cols-[auto_1fr] xl:grid-cols-[auto_1fr_auto]">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--text-secondary)' }}>
-              Net P&L — {scopeLabel} · {stats.total} trades
+              Net P&L · {stats.total} trades
             </p>
             <FitValue className="mt-1.5 text-4xl font-bold tracking-tight tnum leading-none" style={{ color: pnlColor(stats.net) }}>
               <AnimatedNumber value={stats.net} format={(n) => formatCurrencyIn('kpi', n)} />
@@ -404,14 +400,14 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart, sco
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel
           title="Equity curve"
-          description={equityStart > 0 ? `Equity — ${scopeLabel} (starting capital + P&L)` : `Cumulative P&L — ${scopeLabel}`}
+          description={equityStart > 0 ? 'Equity across the range (starting capital + P&L)' : 'Cumulative P&L across the range'}
           icon={LineChart}
           className="lg:col-span-2"
           right={<EquityBadge curve={equityCurve} tone={equityStart > 0 ? stats.net : undefined} />}
         >
           <EquityChart curve={equityCurve} height={216} pnlBase={equityStart > 0 ? equityStart : undefined} />
         </Panel>
-        <Panel title="Win / Loss split" description={`Outcomes — ${scopeLabel}`} icon={PieChartIcon} bodyClassName="px-4 pb-4">
+        <Panel title="Win / Loss split" description="Outcomes across the range" icon={PieChartIcon} bodyClassName="px-4 pb-4">
           <WinLossDonut stats={stats} />
         </Panel>
       </div>
@@ -420,7 +416,7 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart, sco
           <DailyPnlChart daily={stats.daily.slice(-30)} height={180} />
         </Panel>
         <div className="space-y-4">
-          <Panel title="Top symbols" description={`P&L contribution — ${scopeLabel}`} icon={BarChart3} bodyClassName="px-4 pb-4">
+          <Panel title="Top symbols" description="P&L contribution ranking" icon={BarChart3} bodyClassName="px-4 pb-4">
             <TopSymbolsBars topSymbols={stats.topSymbols.slice(0, 5)} />
           </Panel>
           <BestWorstCards stats={stats} />
@@ -442,7 +438,7 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart, sco
 
 // ---- MULTI ALL-IN-ONE — three desk columns ---------------------------------------
 
-function MultiAllInOneView({ stats, banner, onboarding, equityCurve, equityStart, scopeLabel }: ViewProps) {
+function MultiAllInOneView({ stats, banner, onboarding, equityCurve, equityStart }: ViewProps) {
   return (
     <div className="space-y-4" data-testid="overview-multi">
       {banner}
@@ -451,13 +447,13 @@ function MultiAllInOneView({ stats, banner, onboarding, equityCurve, equityStart
         {/* Column 1 — PERFORMANCE */}
         <div className="space-y-3">
           <SectionLabel icon={Gauge}>Performance</SectionLabel>
-          <Kpi label={`Net P&L — ${scopeLabel}`} icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
+          <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
           <WinRateMeter stats={stats} />
           <div className="grid grid-cols-2 gap-3">
-            <Kpi label={`Profit factor — ${scopeLabel}`} icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" compact />
-            <Kpi label={`Expectancy — ${scopeLabel}`} icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} compact />
-            <Kpi label={`Avg win — ${scopeLabel}`} icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" compact />
-            <Kpi label={`Avg loss — ${scopeLabel}`} icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" compact />
+            <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" compact />
+            <Kpi label="Expectancy" icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} compact />
+            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" compact />
+            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" compact />
           </div>
           <Panel title="Best / Worst" icon={Trophy} bodyClassName="px-3 pb-3">
             <BestWorstRows stats={stats} />
@@ -632,8 +628,6 @@ function saveSectionPrefs(p: OverviewSectionPrefs) {
 
 export function OverviewPage() {
   const filterStore = useFilterStore()
-  // ALL-TIME-DEFAULT (2026-11-04) — the scope phrase every KPI surface states.
-  const scopeLabel = describeScope(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate)
   const overviewType = useAppStore((s) => s.overviewType)
   const hydrateOverviewPrefs = useAppStore((s) => s.hydrateOverviewPrefs)
   const activeDashboardId = useAppStore((s) => s.activeDashboardId)
@@ -834,7 +828,7 @@ export function OverviewPage() {
     </div>
   )
 
-  const viewProps = { stats, trades, banner, onboarding, equityCurve, equityStart: equityMode ? startingCapital : 0, scopeLabel }
+  const viewProps = { stats, trades, banner, onboarding, equityCurve, equityStart: equityMode ? startingCapital : 0 }
 
   // Task 15-W3 — a failed fetch is not an empty journal: the landing page
   // used to render zeroed widgets ("No closed trades in range") with no

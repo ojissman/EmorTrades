@@ -19,7 +19,6 @@ import type { ReactNode } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { usePeekStore } from '@/store/peek-store'
 import { useFilterStore } from '@/store/filter-store'
-import { describeScope } from '@/lib/dashboard-filters'
 import { StatCard } from '@/components/stat-card'
 import { AiWidgetDash } from '@/components/ai/ai-widget-card'
 import { Card } from '@/components/ui/card'
@@ -133,10 +132,6 @@ function DeskError({ onRetry }: { onRetry: () => void }) {
 export function DeskHeroStats() {
   const { data, isError, refetch } = useDashboardData()
   const { open } = usePeekStore()
-  // ALL-TIME-DEFAULT (2026-11-04) — the hero cards state their active scope
-  // (app-store range, filter-store custom dates take precedence when set).
-  const fs = useFilterStore()
-  const scopeLabel = describeScope(fs.dateRange, fs.customStartDate, fs.customEndDate)
 
   if (isError) return <DeskError onRetry={refetch} />
   if (!data) {
@@ -162,7 +157,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Net P&L — ${scopeLabel}`}
+          label="Net P&L"
           value={formatCurrencyIn('kpi', a.totalPnL)}
           anim={{ value: a.totalPnL, format: (n: number) => formatCurrencyIn('kpi', n) }}
           icon={DollarSign}
@@ -183,7 +178,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Win Rate — ${scopeLabel}`}
+          label="Win Rate"
           value={`${a.winRate.toFixed(1)}%`}
           anim={{ value: a.winRate, format: (n: number) => `${n.toFixed(1)}%` }}
           subvalue={`${a.wins}W / ${a.losses}L`}
@@ -202,7 +197,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Profit Factor — ${scopeLabel}`}
+          label="Profit Factor"
           value={
             // Task 176 — profitFactor is null when there are no losing trades;
             // isFinite(null) === true, so the old guard called null.toFixed()
@@ -229,7 +224,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Expectancy — ${scopeLabel}`}
+          label="Expectancy"
           value={formatCurrencyIn('kpi', a.expectancy)}
           anim={{ value: a.expectancy, format: (n: number) => formatCurrencyIn('kpi', n) }}
           subvalue="per trade"
@@ -248,7 +243,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Sharpe Ratio — ${scopeLabel}`}
+          label="Sharpe Ratio"
           value={a.sharpeRatio.toFixed(2)}
           anim={{ value: a.sharpeRatio, format: (n: number) => n.toFixed(2) }}
           subvalue={`Sortino ${a.sortinoRatio.toFixed(2)}`}
@@ -267,7 +262,7 @@ export function DeskHeroStats() {
       },
       card: (
         <StatCard
-          label={`Max Drawdown — ${scopeLabel}`}
+          label="Max Drawdown"
           value={formatCurrencyIn('kpi', a.maxDrawdown)}
           anim={{ value: a.maxDrawdown, format: (n: number) => formatCurrencyIn('kpi', n) }}
           subvalue={`${a.maxDrawdownPercent.toFixed(1)}% from peak`}

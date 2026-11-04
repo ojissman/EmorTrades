@@ -15,8 +15,6 @@
 import { useId, type ReactNode, type ComponentType, type CSSProperties } from 'react'
 import { usePeekStore } from '@/store/peek-store'
 import { useAppStore } from '@/store/app-store'
-import { useFilterStore } from '@/store/filter-store'
-import { describeScope } from '@/lib/dashboard-filters'
 // Task 15-W2 — day-bar drills leave the breadcrumb like every other drill.
 // Task 15-W5 — SetupBars rows and the Win/Loss donut sectors drill too.
 import { drillToDay, drillToTrades } from '@/lib/drill'
@@ -965,13 +963,10 @@ function kpiRenderer(
   icon: IconType,
   pick: (s: OverviewStats) => { value: string; sub?: string; color?: string; anim?: { value: number; format: (n: number) => string } },
 ): WidgetDef['render'] {
-  // ALL-TIME-DEFAULT (2026-11-04) — every registry KPI states its active
-  // scope on its label ("Net P&L — All time"), so a widget's number can
-  // never be mistaken for a different window. Read at render time: a range
-  // change always refetches stats, which re-renders with the fresh label.
-  const f = useFilterStore.getState()
-  const scoped = `${label} — ${describeScope(f.dateRange, f.customStartDate, f.customEndDate)}`
-  return ({ stats }, size) => <Kpi label={scoped} icon={icon} {...pick(stats)} compact={size === 'compact'} />
+  // SCOPE-LABELS-REMOVED (owner decision, 2026-11-04): KPI labels no longer
+  // state their window — the action-bar date-range chip is the single scope
+  // surface ("Full Range" / "Last 30 days" / custom span).
+  return ({ stats }, size) => <Kpi label={label} icon={icon} {...pick(stats)} compact={size === 'compact'} />
 }
 
 export const WIDGET_DEFS: WidgetDef[] = [
@@ -1044,27 +1039,22 @@ export const WIDGET_DEFS: WidgetDef[] = [
   {
     id: 'kpi-band', title: 'KPI Band', description: 'Six core KPIs in one full-width strip', category: 'KPIs',
     defaultSpan: 3, defaultSize: 'standard', prefersWide: true,
-    render: ({ stats }) => {
-      // ALL-TIME-DEFAULT (2026-11-04) — the band's six KPIs state their scope.
-      const f = useFilterStore.getState()
-      const sc = describeScope(f.dateRange, f.customStartDate, f.customEndDate)
-      return (
+    render: ({ stats }) => (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Kpi label={`Net P&L — ${sc}`} icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
-        <Kpi label={`Win rate — ${sc}`} icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
-        <Kpi label={`Profit factor — ${sc}`} icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
-        <Kpi label={`Avg win — ${sc}`} icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} color="var(--shell-success)" anim={{ value: stats.avgWin, format: (n) => formatCurrencyIn('kpi', n) }} />
-        <Kpi label={`Avg loss — ${sc}`} icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} color="var(--shell-danger)" anim={{ value: stats.avgLoss, format: (n) => formatCurrencyIn('kpi', n) }} />
+        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
+        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
+        <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
+        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} color="var(--shell-success)" anim={{ value: stats.avgWin, format: (n) => formatCurrencyIn('kpi', n) }} />
+        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} color="var(--shell-danger)" anim={{ value: stats.avgLoss, format: (n) => formatCurrencyIn('kpi', n) }} />
         <Kpi
-          label={`Streak — ${sc}`}
+          label="Streak"
           icon={Flame}
           value={stats.streak === 0 ? '—' : `${Math.abs(stats.streak)}${stats.streak > 0 ? 'W' : 'L'}`}
           sub="current run"
           color={stats.streak >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'}
         />
       </div>
-      )
-    },
+    ),
   },
   // ---- Charts -----------------------------------------------------------------
   {

@@ -241,7 +241,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** Fix 5 — Start Tour: minimal 3-step highlight (TopBar → ActionBar → Sidebar). */
 const TOUR_STEPS = [
   { title: 'Global Top Bar', text: 'Search anything (Ctrl+K), open Functions and Add/Import, and reach the AI Q&A hub from the AI icon.', box: { top: 0, left: 0, right: 0, height: 44 } },
-  { title: 'Global Action Bar', text: 'Pinned on every page. Custom Dashboards lives on the far left; Filters, Account and Date never move from the far right. The middle slot is page-specific.', box: { top: 44, left: 0, right: 0, height: 44 } },
+  { title: 'Global Action Bar', text: 'Pinned on every page. Custom Dashboards lives on the far left; Account and Date never move from the far right. The middle slot is page-specific.', box: { top: 44, left: 0, right: 0, height: 44 } },
   { title: 'Sidebar', text: 'Full navigation for power users — or flip on Simple Mode at the top for the six everyday destinations.', box: { top: 88, left: 0, width: 208, bottom: 0 } },
 ]
 
@@ -577,11 +577,13 @@ export function TopBar() {
           high-impact is upcoming in the synced week. */}
       <EconReleaseChip />
 
-      {/* MOBILE-1 — mobile Filters trigger. Below lg the GlobalActionBar (the
-          Filters button's home) is not rendered; this icon reaches the SAME
-          Task-148 drawer via a DOM event the action bar listens for (it stays
-          mounted, just display:none — the drawer mount is inside it). The
-          desktop path is untouched: same button, same local state. */}
+      {/* MOBILE-1 — mobile Filters trigger. Below lg the GlobalActionBar is
+          not rendered (display:none but still MOUNTED); this icon reaches the
+          Task-148 drawer via a DOM event the action bar listens for — the
+          drawer mount lives inside it. GLOBAL-FILTER-REMOVED (2026-11-04):
+          the desktop action-bar Filters button is gone, so below lg this icon
+          is the date-range/filter surface (the drawer's Chart History section
+          sets the range); desktop filters live on the Trades page (Task 154). */}
       <IconBtn
         label="Filters"
         className="lg:hidden"

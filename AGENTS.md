@@ -946,6 +946,31 @@ TIME (DB-verified), 8-day preset flips label AND value ($0.00, 0 trades
 in window). NEVER run tsc while the dev server is warm (OOM kills
 #9-#11); cold start needs ~60s quiet warm-up before verification.
 
+Task ACTION-BAR-SIMPLIFY (owner decision, 2026-11-04 evening) — three
+owner directives on the ALL-TIME-DEFAULT follow-through, all shipped:
+(1) Global Filter REMOVED from the Global Action Bar — Filters button +
+Task-12 parity chip gone; fixed-right cluster is now Account · Date
+chip. The GlobalFiltersDrawer mount + emortrades:open-filters listener
+STAY in the bar (mobile top-bar icon is the only below-lg date-range
+surface via the drawer's Chart History; Trades page opens the same
+drawer from its own panel — Task 154). src/lib/filter-scope.ts deleted
+(dead code). (2) Wording "All time" → "Full Range" everywhere the range
+title renders (describeRange + deriveRangeChipLabel in
+dashboard-filters.ts: action-bar chip, palette chip, baseline tooltips,
+describeSnapshot) — identical to the presets dropdown option. (3) KPI
+window declarations REMOVED: describeScope() (dashboard-filters) deleted;
+plain labels restored on all 4 Overview views, registry kpiRenderer, KPI
+Band, DeskHeroStats — the action-bar date chip is the SINGLE scope
+surface. Kept from ALL-TIME-DEFAULT: 'all' default both stores,
+/api/dashboard default, startDate/endDate precedence, 5000-row limit.
+DEFECT FIXED: filter-store activeFilterCount()/hasActiveFilters()
+compared dateRange !== '180' (stale baseline) → phantom "1 active
+filter" on a pristine store across Trades/pivot/explore/palette badge
+surfaces; now compares against 'all'. E2E (demo session): bar renders
+Custom Dashboards · Account · "Full Range"; 8-day preset flips chip to
+dates + $0.00 (0 trades, API-verified) and back to $36,253.45; all six
+hero KPI values identical to ALL-TIME-DEFAULT verification. lint 0.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

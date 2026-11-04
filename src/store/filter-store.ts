@@ -184,7 +184,10 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
     const s = get()
     return (
       s.accountId !== 'all' ||
-      s.dateRange !== '180' ||
+      // FULL-RANGE-BASELINE (2026-11-04): the default range is 'all' — the
+      // old '180' baseline made the pristine default state count as "1
+      // active filter" everywhere the badge rendered.
+      s.dateRange !== 'all' ||
       s.symbol !== undefined ||
       s.side !== 'all' ||
       s.status !== 'all' ||
@@ -293,7 +296,11 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
     const s = get()
     let count = 0
     if (s.accountId !== 'all') count++
-    if (s.dateRange !== '180') count++
+    // FULL-RANGE-BASELINE (2026-11-04) — default range is 'all' (see
+    // hasActiveFilters): comparing against the stale '180' made every
+    // surface (Trades "+N advanced scope" chip, pivot, explore, palette)
+    // report a phantom filter on a pristine store.
+    if (s.dateRange !== 'all') count++
     if (s.symbol) count++
     if (s.side && s.side !== 'all') count++
     if (s.status && s.status !== 'all') count++

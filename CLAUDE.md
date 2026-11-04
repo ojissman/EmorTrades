@@ -263,12 +263,22 @@ at the bottom of this file.
   platform infrastructure (never delete); the committed db/custom.db
   mirror is load-bearing for dark-anchor recovery — never strip DB
   history without explicit owner authorization. Data-scope honesty
-  (ALL-TIME-DEFAULT, 2026-11-04): the global range default is ALL TIME
-  (both stores) — every scoped KPI must state its scope via
-  describeScope() ("Net P&L — All time" / "— 2026-10-28 → 2026-11-04");
-  /api/dashboard honors startDate/endDate with precedence over the named
-  range; overview fetch limit is 5000 (never truncate all-time). NEVER
-  run tsc while dev is warm (OOM); cold start needs ~60s quiet warm-up.
+  (ALL-TIME-DEFAULT, 2026-11-04, AMENDED same day evening by
+  ACTION-BAR-SIMPLIFY): the global range default is FULL RANGE ('all',
+  both stores) and the range TITLE wording is "Full Range" (matching
+  the presets dropdown) — NOT "All time". KPI labels do NOT state their
+  window (describeScope layer removed): the action-bar date-range chip
+  is the SINGLE scope surface. The Global Filter button + parity chip
+  are REMOVED from the Global Action Bar (cluster = Account · Date
+  chip), but the GlobalFiltersDrawer stays mounted inside the bar for
+  the mobile top-bar icon + the Trades page's own openers — never
+  delete that mount or the emortrades:open-filters listener.
+  /api/dashboard honors startDate/endDate with precedence over the
+  named range; overview fetch limit is 5000 (never truncate all-time).
+  When changing a store DEFAULT, sweep every baseline comparison
+  (activeFilterCount/hasActiveFilters compared '180' for a day →
+  phantom "1 active filter" on pristine stores). NEVER run tsc while
+  dev is warm (OOM); cold start needs ~60s quiet warm-up.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

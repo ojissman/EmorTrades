@@ -9,9 +9,13 @@
  * THREE HARD ZONES (Fix 1.2–1.6):
  *  - FIXED LEFT: "Custom Dashboards" hard-anchored far left on every page
  *    (never moved, never hidden, never swapped for a page name).
- *  - FIXED RIGHT: Filters · Account selector · Date-range chip hard-anchored
- *    at the EXTREME RIGHT END, in that order, on every page — never pushed
+ *  - FIXED RIGHT: Account selector · Date-range chip hard-anchored at the
+ *    EXTREME RIGHT END, in that order, on every page — never pushed
  *    inward (every control is shrink-0; the middle absorbs all pressure).
+ *    (GLOBAL-FILTER-REMOVED, owner decision 2026-11-04: the Filters button
+ *    + its parity chip are gone from this bar — the date-range chip is the
+ *    one scope control. The L2 filters drawer stays mounted for the mobile
+ *    top-bar icon + the Trades page's own openers.)
  *  - DYNAMIC MIDDLE (the ONLY per-page area): `pageControls` slot with
  *    flex:1 1 auto; min-width:0; overflow:hidden — its content can never
  *    push, squeeze, shrink or displace the two fixed ends.
@@ -23,9 +27,6 @@ import { useAppStore, OVERVIEW_TYPES, CUSTOM_LAYOUT_TYPE } from '@/store/app-sto
 import { useFilterStore } from '@/store/filter-store'
 import { applyFilterSnapshot, stashAccountNames, deriveRangeChipLabel, subtractRangeDays } from '@/lib/dashboard-filters'
 import { useSettingsPrefsStore } from '@/store/settings-prefs-store'
-// Task 12 — filter-parity chip (Phase 5, 5-synthesis defect #5): classifies
-// the current page against the global filter envelope.
-import { filterScopeFor, drawerFilterCount, SCOPE_CHIP_TEXT } from '@/lib/filter-scope'
 // Task 96 — PnL column parity with the palette account menu (shared helpers).
 import { compactPnl, pnlColorCls, formatCurrency } from '@/lib/format'
 import { captureSessionBaseline } from '@/lib/session-baseline'
@@ -348,38 +349,6 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
     [filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, tradingDaysFilter],
   )
 
-  const activeFilterCount = filterStore.activeFilterCount()
-
-  /**
-   * Task 12 — FILTER-PARITY CHIP (5-synthesis defect #5: "~15 pages ignore the
-   * global filter envelope while the action bar still shows it").
-   *
-   * The page's scope (src/lib/filter-scope.ts — hand-verified route inventory):
-   *  - envelope    → no chip (the page consumes toQueryParams()/useMetrics())
-   *  - partial     → chip ONLY while drawer dimensions are active (account —
-   *                  and on some pages the date range — still applies, so
-   *                  those controls alone must not light the chip)
-   *  - independent → chip while ANY global control is non-default (these
-   *                  pages honor nothing from the bar)
-   *
-   * Reactivity rides the existing whole-store subscription above
-   * (`useFilterStore()`): every filter-store change re-renders this bar, so
-   * drawerFilterCount()/activeFilterCount() recompute live and the chip
-   * appears/disappears as filters change. Non-interactive status signal —
-   * there is deliberately NO onClick, it is honest signage, not a control.
-   */
-  const pageScope = filterScopeFor(route)
-  const scopeChip =
-    pageScope === 'envelope'
-      ? null
-      : pageScope === 'partial'
-        ? drawerFilterCount() > 0
-          ? SCOPE_CHIP_TEXT.partial
-          : null
-        : activeFilterCount > 0
-          ? SCOPE_CHIP_TEXT.independent
-          : null
-
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId)
   // Task 99 — session-start baseline (src/lib/session-baseline.ts, SHARED
   // with the palette): the top bar mounts at app start and seeds it, so
@@ -416,8 +385,8 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
   // unification direction) with admin-appropriate zones: the fixed-left
   // anchor becomes "Back to App" (the one-click way back to the trader
   // pages), the dynamic middle carries the ADMIN GLOBAL SEARCH, and the
-  // trader fixed-right cluster (Filters · Account · Date-range — dashboard-
-  // scoped trader controls) is honestly absent on admin pages instead of
+  // trader fixed-right cluster (Account · Date-range — dashboard-scoped
+  // trader controls) is honestly absent on admin pages instead of
   // silently mutating trader filter state from an admin context.
   if (route.startsWith('/admin')) {
     return (
@@ -670,51 +639,12 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
         )}
       </div>
 
-      {/* ---- FIXED RIGHT: Filters · Account · Date ---- */}
-      {/* Filters — opens the L2 global_filters_drawer (Task 148) */}
-      <button
-        onClick={() => setFiltersOpen(true)}
-        className={`relative h-8 px-3 rounded-md text-xs font-semibold shrink-0 shell-accent-btn ${activeFilterCount > 0 ? 'ring-2 ring-white/30' : ''}`}
-        aria-label={`Filters (${activeFilterCount} active)`}
-        aria-haspopup="dialog"
-        aria-expanded={filtersOpen}
-        data-testid="filters-button"
-      >
-        <span className="flex items-center gap-1.5">
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filters
-        </span>
-        {activeFilterCount > 0 && (
-          <span
-            className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 grid place-items-center rounded-full text-[9px] font-bold"
-            style={{ background: 'var(--bg-bar)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)' }}
-          >
-            {activeFilterCount}
-          </span>
-        )}
-      </button>
-
-      {/* Task 12 — FILTER-PARITY CHIP: honest signage right after the Filters
-          button on pages that don't consume the global filter envelope
-          (scopeChip computed above from the hand-verified route inventory in
-          @/lib/filter-scope). Amber caution tone matching the app's chip
-          idioms (econ strip / challenges badges); role="status" + title
-          tooltip; NO onClick — a signal, not a control. Hidden below sm:
-          on very narrow bars the honest move is silence rather than
-          crowding the account/date controls it speaks for. */}
-      {scopeChip && (
-        <span
-          role="status"
-          data-testid="filter-parity-chip"
-          aria-label={scopeChip.title}
-          title={scopeChip.title}
-          className="hidden sm:inline-flex h-8 w-max shrink-0 items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-400"
-        >
-          {scopeChip.label}
-        </span>
-      )}
-
-      {/* Task 148 — the one exhaustive filter surface (L2 #global_filters_drawer) */}
+      {/* ---- FIXED RIGHT: Account · Date ---- */}
+      {/* GLOBAL-FILTER-REMOVED (owner decision, 2026-11-04): the Filters
+          button + its parity chip no longer live in this bar — the date-range
+          chip is the single scope control. The L2 drawer below stays MOUNTED
+          for the mobile top-bar icon (emortrades:open-filters) and is also
+          reachable from the Trades page's own filter panel (Task 154). */}
       <GlobalFiltersDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} />
 
       {/* Account selector — "Account 1 (1)" style, accent */}

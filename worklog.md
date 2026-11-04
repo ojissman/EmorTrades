@@ -8574,6 +8574,77 @@ AGENTS.md task entry above the block · CLAUDE.md discipline bullet above
 the block · commit + push last (genuine user-assigned task — Policy B
 satisfied; carries db/custom.db ride-along from the live sync).
 
+## Task ACTION-BAR-SIMPLIFY — Global Filter removed from the action bar; "Full Range" wording; KPI scope labels removed (owner decision, 2026-11-04 evening)
+
+Owner's three-part directive on the ALL-TIME-DEFAULT follow-through:
+(1) "remove the Global Filter in the #2 Global Action Bar";
+(2) the wording "All Time" is disliked — prefer "Full Range just as it
+is in the filter" (the presets dropdown's own option label);
+(3) KPIs no longer need to declare their windows — "It is already
+visible on the filter in the Action bar (not the Global filter)".
+
+CHANGES:
+1. GLOBAL FILTER REMOVED from the Global Action Bar's fixed-right
+   cluster (global-action-bar.tsx): the Filters button (Task 148 badge
+   included) AND the Task-12 filter-parity chip that was anchored to it
+   are gone. The cluster is now Account selector · Date-range chip.
+   NOT removed (deliberate, load-bearing): the GlobalFiltersDrawer
+   mount + the emortrades:open-filters listener stay mounted inside the
+   bar — below lg the bar is display:none-but-mounted and the MOBILE-1
+   top-bar Filters icon (the ONLY mobile date-range surface via the
+   drawer's Chart History section) dispatches that event; the Trades
+   page also opens the same drawer from its own filter panel/tool rail
+   (Task 154), so desktop advanced filtering is fully reachable. Admin
+   bar + tour copy updated to match ("Account and Date never move").
+   src/lib/filter-scope.ts DELETED — dead code after the chip removal
+   (route inventory preserved in git history if ever needed again).
+2. WORDING "All time" → "Full Range" (matches the presets option,
+   key 'full-range'): describeRange() default + deriveRangeChipLabel()
+   default in dashboard-filters.ts. Surfaces: action-bar date chip,
+   command-palette footer chip, session-baseline tooltips ("was Full
+   Range"), describeSnapshot() ("All accounts · Full Range"). The
+   presets dropdown itself already said "Full Range" — now every
+   surface agrees. Pre-existing lowercase prose ("all time" inside the
+   desk equity-curve subtitle, AI-suite PERIOD_LABELS) left untouched —
+   different feature, not the range title.
+3. KPI WINDOW DECLARATIONS REMOVED (the describeScope() suffix layer
+   from ALL-TIME-DEFAULT): describeScope() deleted from
+   dashboard-filters.ts (the OTHER describeScope in global-filter-core
+   is a different pre-existing function — untouched). Reverted to plain
+   labels: all 4 Overview view variants (Simple/ChartsTable/AllInOne/
+   MultiAllInOne: "Net P&L", "Best trade", panel descriptions back to
+   "P&L contribution ranking"/"Outcomes across the range"/etc.), the
+   widget-registry kpiRenderer funnel (every KPI widget), the KPI Band,
+   and DeskHeroStats hero cards. The action-bar date chip is the single
+   scope surface. What STAYS from ALL-TIME-DEFAULT: the 'all' default
+   in both stores, /api/dashboard default, the startDate/endDate
+   precedence fix, and the 5000-row fetch limit.
+4. DEFECT FIXED (exposed by the owner spotting "Filters (1 active)" on
+   a pristine store): filter-store activeFilterCount() and
+   hasActiveFilters() still compared dateRange !== '180' — the stale
+   pre-all-time baseline — so the DEFAULT state counted as one active
+   filter on every badge consumer (action-bar badge, Trades "+N
+   advanced scope" chip, pivot, explore, command palette). Baselines
+   now compare against 'all' (FULL-RANGE-BASELINE).
+
+E2E VERIFIED (agent-browser, demo@emortrades.com via mint-session):
+action bar = Custom Dashboards · Account · "Full Range" chip — NO
+Filters button, NO parity chip; presets dropdown intact (Today → Full
+Range → Custom Range); "Last 8 Days" flip → chip "2026-10-28 -
+2026-11-04", NET P&L $0.00 (0 trades in window, API 200), baseline
+tooltip "was Full Range"; back to Full Range → $36,253.45 restored,
+identical values across all six hero KPIs (50.3% · 1.63 · $98.51 ·
+2.85 · $5,404.91). KPI labels plain — no window suffixes anywhere.
+lint 0. Dev server died mid-task (no OOM signature — sandbox recycle;
+relaunched fresh, 3.5GB free at the time).
+
+**Ritual:** pull = LIVE production sync 19:48:09Z via day-start gate
+(users=4, trades=386; no writes since — verification was GET-only) ·
+lint 0 · this entry above the block · AGENTS.md task entry above the
+block · CLAUDE.md discipline bullet above the block (ALL-TIME-DEFAULT
+bullet amended — scope labels removed, wording Full Range) · commit +
+push last (genuine user-assigned task — Policy B satisfied).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
