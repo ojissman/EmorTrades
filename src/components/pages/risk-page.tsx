@@ -1,9 +1,11 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ResponsiveContainer,
   BarChart,
@@ -26,6 +28,7 @@ import {
   Repeat,
   Layers,
   BookOpenCheck,
+  Calculator,
 } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatNumber, formatPercent, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -34,15 +37,39 @@ import { limitToAmount, limitLabel } from '@/lib/plan-limits'
 import { useAppStore } from '@/store/app-store'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
+import { ToolsAiPanel } from '@/components/tools/tools-ai-panel'
 
 export function RiskPage() {
   // Task 9-c — honor the global account selector like every sibling page
   // ('all' → no accountId param → the API aggregates across accounts).
   const { selectedAccountId } = useAppStore()
+  const [tab, setTab] = useState('guardrails')
 
   // Profile fix (2025-11) — canonical ['user'] cache (was a hand-rolled
   // /api/seed query that lost the shared-cache shape race).
   const { data: user, isLoading: userLoading } = useCurrentUser()
+
+  // TOOLS-AI — the equity baseline follows the app convention (Σ account
+  // startingBalance, scoped by the account selector; the personal
+  // startingCapital is only a last-resort fallback). This replaces the old
+  // hardcoded || 25000 that survived the FULL-APP-AUDIT lesson (e).
+  const { data: accountsData, isLoading: accountsLoading } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: async () => {
+      const res = await fetch('/api/accounts')
+      if (!res.ok) throw new Error('Failed')
+      return res.json()
+    },
+  })
+  const baseline = useMemo(() => {
+    const accts: any[] = accountsData?.accounts ?? []
+    if (selectedAccountId !== 'all') {
+      const one = accts.find((a) => a.id === selectedAccountId)
+      if (one && one.startingBalance) return one.startingBalance
+    }
+    const sum = accts.reduce((s, a) => s + (a.startingBalance || 0), 0)
+    return sum || user?.startingCapital || 0
+  }, [accountsData, selectedAccountId, user])
 
   const { data: tradesData, isLoading: tradesLoading, isError, error, refetch } = useQuery({
     queryKey: ['trades-risk', selectedAccountId],
@@ -66,12 +93,12 @@ export function RiskPage() {
     },
   })
 
-  const accountSize = user?.startingCapital || 25000
+  const accountSize = baseline
 
   // Active Guardrails — computed from the closed trades the page already has
   const guardrails = useMemo(() => {
     const closed: any[] = tradesData?.trades || []
-    const starting = user?.startingCapital || 25000
+    const starting = baseline
 
     // Current equity = starting capital + realized P&L
     const totalPnl = closed.reduce((s, t) => s + (t.pnl || 0), 0)
@@ -143,7 +170,7 @@ export function RiskPage() {
       openNotional,
       openPct,
     }
-  }, [tradesData, user, openData])
+  }, [tradesData, user, openData, baseline])
 
   // TP-7-g — the plan's DECLARED limits (5.3.1 / 5.3.2 / 5.3.4 …) to sit
   // beside the actuals the page computes. Independent of the account filter:
@@ -299,7 +326,7 @@ export function RiskPage() {
     return scenarios
   }, [kellyData, accountSize])
 
-  if (userLoading || tradesLoading || openLoading) {
+  if (userLoading || tradesLoading || openLoading || accountsLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-24" />
@@ -314,6 +341,28 @@ export function RiskPage() {
 
   return (
     <div className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="h-9">
+          <TabsTrigger value="guardrails" className="text-xs gap-1.5 px-3">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+            Guardrails
+          </TabsTrigger>
+          <TabsTrigger value="sizing" className="text-xs gap-1.5 px-3">
+            <Calculator className="h-3.5 w-3.5" aria-hidden />
+            Position Sizing
+          </TabsTrigger>
+          <TabsTrigger value="simulations" className="text-xs gap-1.5 px-3">
+            <Activity className="h-3.5 w-3.5" aria-hidden />
+            Simulations
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="text-xs gap-1.5 px-3">
+            <Zap className="h-3.5 w-3.5" aria-hidden />
+            AI Risk Desk
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ---------------- Guardrails tab ---------------- */}
+        <TabsContent value="guardrails" className="mt-4 space-y-4">
       {/* Active Guardrails */}
       <div>
         <div className="flex items-center gap-2 mb-3">
@@ -479,6 +528,14 @@ export function RiskPage() {
         openRisk={openRisk}
         tradesToday={tradesToday}
       />
+        </TabsContent>
+
+        {/* ---------------- Position Sizing tab ---------------- */}
+        <TabsContent value="sizing" className="mt-4 space-y-4">
+      <PositionSizeCalculator
+        equity={guardrails.equity}
+        defaultRiskPct={user?.riskPerTrade || 1}
+      />
 
       {/* Kelly Criterion */}
       {kellyData && (
@@ -526,6 +583,10 @@ export function RiskPage() {
           </div>
         </Card>
       )}
+        </TabsContent>
+
+        {/* ---------------- Simulations tab ---------------- */}
+        <TabsContent value="simulations" className="mt-4 space-y-4">
 
       {/* Monte Carlo Simulation */}
       {monteCarlo && (
@@ -660,7 +721,192 @@ export function RiskPage() {
           </div>
         </div>
       </Card>
+        </TabsContent>
+
+        {/* ---------------- AI Risk Desk tab ---------------- */}
+        <TabsContent value="ai" className="mt-4">
+          <ToolsAiPanel
+            mode="risk"
+            title="AI Risk Desk"
+            blurb="Whether your realized risk behavior matches your declared risk plan — and the most dangerous exposure right now"
+            accent="amber"
+            payload={{ accountId: selectedAccountId }}
+            disabled={(tradesData?.trades?.length ?? 0) === 0 && openRisk.count === 0}
+            disabledHint="No trading history in scope yet — the Risk Desk activates with your first trades."
+          />
+        </TabsContent>
+      </Tabs>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// TOOLS-AI — Position Size Calculator (real math on the real equity base)
+// ---------------------------------------------------------------------------
+
+function PositionSizeCalculator({
+  equity,
+  defaultRiskPct,
+}: {
+  equity: number
+  defaultRiskPct: number
+}) {
+  const [entry, setEntry] = useState('')
+  const [stop, setStop] = useState('')
+  const [target, setTarget] = useState('')
+  const [riskPct, setRiskPct] = useState(String(defaultRiskPct))
+
+  const e = parseFloat(entry)
+  const s = parseFloat(stop)
+  const t = parseFloat(target)
+  const rp = parseFloat(riskPct)
+
+  const valid =
+    isFinite(e) && e > 0 && isFinite(s) && s > 0 && s !== e && isFinite(rp) && rp > 0 && rp <= 100
+  const direction = valid ? (s < e ? 'long' : 'short') : null
+  const riskAmount = valid ? (equity * rp) / 100 : 0
+  const perUnitRisk = valid ? Math.abs(e - s) : 0
+  const size = valid && perUnitRisk > 0 ? riskAmount / perUnitRisk : 0
+  const positionValue = valid ? size * e : 0
+  const rr =
+    valid && isFinite(t) && t > 0 && t !== e && perUnitRisk > 0
+      ? Math.abs(t - e) / perUnitRisk
+      : null
+  const targetValid = isFinite(t) && t > 0
+  const targetWrongSide =
+    targetValid && valid && direction === 'long' ? t <= e : targetValid && valid ? t >= e : false
+
+  return (
+    <Card className="p-4 md:p-5" data-testid="position-size-calculator">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="p-2 rounded-md bg-emerald-500/10">
+          <Calculator className="h-4 w-4 text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="font-semibold tracking-tight">Position Size Calculator</h3>
+          <p className="text-xs text-muted-foreground">
+            Size from your live equity — {formatCurrencyIn('table', equity)} · {defaultRiskPct}% is your saved per-trade target
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        <div>
+          <label htmlFor="calc-entry" className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Entry price
+          </label>
+          <Input
+            id="calc-entry"
+            inputMode="decimal"
+            placeholder="e.g. 4075.50"
+            value={entry}
+            onChange={(ev) => setEntry(ev.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <label htmlFor="calc-stop" className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Stop price
+          </label>
+          <Input
+            id="calc-stop"
+            inputMode="decimal"
+            placeholder="e.g. 4035.00"
+            value={stop}
+            onChange={(ev) => setStop(ev.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <label htmlFor="calc-target" className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Target <span className="normal-case">(optional)</span>
+          </label>
+          <Input
+            id="calc-target"
+            inputMode="decimal"
+            placeholder="e.g. 4160.00"
+            value={target}
+            onChange={(ev) => setTarget(ev.target.value)}
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <label htmlFor="calc-risk" className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            Risk %
+          </label>
+          <Input
+            id="calc-risk"
+            inputMode="decimal"
+            placeholder="1"
+            value={riskPct}
+            onChange={(ev) => setRiskPct(ev.target.value)}
+            className="mt-1"
+          />
+        </div>
+      </div>
+
+      {valid ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4" aria-live="polite">
+          <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase">Direction</p>
+            <p className="text-base font-bold mt-0.5">
+              {direction === 'long' ? (
+                <span className="text-emerald-400">Long</span>
+              ) : (
+                <span className="text-red-400">Short</span>
+              )}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              stop {direction === 'long' ? 'below' : 'above'} entry
+            </p>
+          </div>
+          <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase">Risk amount</p>
+            <p className="text-base font-bold tnum mt-0.5">{formatCurrencyIn('table', riskAmount)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{rp}% of {formatCurrencyIn('table', equity)}</p>
+          </div>
+          <div className="p-3 rounded-md bg-white/[0.04] border border-[var(--border-strong)] min-w-0 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase">Position size</p>
+            <p className="text-base font-bold tnum mt-0.5 text-emerald-400">
+              {formatNumber(size, size < 10 ? 4 : 2)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              units · {formatCurrencyIn('table', positionValue)} value
+            </p>
+          </div>
+          <div className="p-3 rounded-md bg-muted/40 border border-border min-w-0 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase">R:R</p>
+            <p className="text-base font-bold tnum mt-0.5">
+              {rr !== null ? (
+                <span className={rr >= 2 ? 'text-emerald-400' : rr >= 1 ? 'text-yellow-400' : 'text-red-400'}>
+                  1 : {rr.toFixed(2)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {rr !== null ? 'reward per 1 risked' : 'add a target to compute'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-md border border-dashed border-border/60 p-3">
+          <p className="text-xs text-muted-foreground">
+            Enter an entry and a stop (and optionally a target) — the calculator sizes the position
+            from your live equity and checks the reward-to-risk ratio.
+          </p>
+          {entry.trim() && stop.trim() && isFinite(e) && isFinite(s) && s === e && (
+            <p className="text-xs text-red-400 mt-1">Stop cannot equal the entry price.</p>
+          )}
+          {targetWrongSide && (
+            <p className="text-xs text-amber-400 mt-1">
+              The target is on the wrong side of the entry for a {direction} position.
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
   )
 }
 

@@ -17,7 +17,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Plus, Trash2, Eye, Target, Star, X, RefreshCw, BellRing, Bell, BellOff, Timer, CalendarClock, ArrowRight, ArrowLeftRight, History, ArrowUpDown, Crosshair, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Eye, Target, Star, X, RefreshCw, BellRing, Bell, BellOff, Timer, CalendarClock, ArrowRight, ArrowLeftRight, History, ArrowUpDown, Crosshair, Sparkles, LayoutGrid, Rows3, AlertTriangle } from 'lucide-react'
 import { AiRadarPanel } from '@/components/watchlist/ai-radar-panel'
 import { AiSymbolModal } from '@/components/watchlist/ai-symbol-modal'
 import type { SymbolAnalysis } from '@/lib/watchlist-ai'
@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast'
 import { formatCurrencyIn, formatNumber, formatPercent, formatTime, pnlColor } from '@/lib/format'
 import { markDrillOrigin } from '@/lib/drill'
 import { cn } from '@/lib/utils'
+import { FitValue } from '@/components/fit-value'
 import {
   describeMute,
   usePriceAlerts,
@@ -39,6 +40,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 // ---- Live market quotes (via /api/market/quotes → Yahoo Finance mini-service) ----
 
@@ -558,6 +568,10 @@ export function WatchlistsPage() {
   // priority deep-links both feed this), and the pre-add "Ask AI" suggest
   // state for the add-item modal.
   const [aiSymbolItem, setAiSymbolItem] = useState<{ id: string; symbol: string } | null>(null)
+  // TOOLS-AI — page polish: KPI band + My Lists / All Symbols tabs.
+  const [viewTab, setViewTab] = useState('lists')
+  const [symSortCol, setSymSortCol] = useState<'symbol' | 'change' | 'dist' | 'trades'>('symbol')
+  const [symSortAsc, setSymSortAsc] = useState(true)
   const [aiSuggest, setAiSuggest] = useState<{
     loading: boolean
     error: string | null
@@ -673,6 +687,90 @@ export function WatchlistsPage() {
   }
 
   const refreshQuotes = () => queryClient.invalidateQueries({ queryKey: ['market-quotes-watchlists'] })
+
+  // TOOLS-AI — the unified All Symbols view: every watched symbol across
+  // lists, deduped (a symbol in multiple lists carries its list chips).
+  const allWatchItems = useMemo(() => {
+    const bySymbol = new Map<string, { symbol: string; lists: string[]; item: any }>()
+    for (const wl of watchlists) {
+      for (const it of wl.items || []) {
+        if (!it.symbol) continue
+        const sym = String(it.symbol).toUpperCase()
+        const row = bySymbol.get(sym)
+        if (row) row.lists.push(wl.name)
+        else bySymbol.set(sym, { symbol: sym, lists: [wl.name], item: it })
+      }
+    }
+    return Array.from(bySymbol.values())
+  }, [watchlists])
+
+  // TOOLS-AI — page-level KPI band (all real: list/symbol/alert counts from
+  // the watchlists rows, journal links from symbolStats, best mover and
+  // closest-to-target from the live quote map).
+  const watchKpis = useMemo(() => {
+    const armed = allWatchItems.filter((r) => r.item.targetPrice != null || r.item.stopPrice != null)
+    const journalLinked = allWatchItems.filter(
+      (r) => (symbolStats.get(r.symbol)?.trades ?? 0) > 0
+    ).length
+    let bestMover: { symbol: string; pct: number } | null = null
+    for (const r of allWatchItems) {
+      const q = quoteMap[r.symbol]
+      if (q && typeof q.changePercent === 'number' && isFinite(q.changePercent)) {
+        if (!bestMover || q.changePercent > bestMover.pct) bestMover = { symbol: r.symbol, pct: q.changePercent }
+      }
+    }
+    let closest: { symbol: string; distPct: number } | null = null
+    for (const r of armed) {
+      const q = quoteMap[r.symbol]
+      if (q && q.price != null && q.price > 0 && r.item.targetPrice != null) {
+        const dist = Math.abs((r.item.targetPrice - q.price) / q.price) * 100
+        if (!closest || dist < closest.distPct) closest = { symbol: r.symbol, distPct: dist }
+      }
+    }
+    return { symbols: allWatchItems.length, armed: armed.length, journalLinked, bestMover, closest }
+  }, [allWatchItems, symbolStats, quoteMap])
+
+  // Sorted rows for the All Symbols table (quote/stats/dist joined).
+  const sortedWatchSymbols = useMemo(() => {
+    const dir = symSortAsc ? 1 : -1
+    const rows = allWatchItems.map((r) => {
+      const q = quoteMap[r.symbol] || null
+      const st = symbolStats.get(r.symbol) || null
+      const distPct =
+        q && q.price != null && q.price > 0 && r.item.targetPrice != null
+          ? Math.abs((r.item.targetPrice - q.price) / q.price) * 100
+          : null
+      return { ...r, q, st, distPct }
+    })
+    return rows.sort((a, b) => {
+      if (symSortCol === 'symbol') return a.symbol.localeCompare(b.symbol) * dir
+      if (symSortCol === 'change')
+        return ((a.q?.changePercent ?? -999) - (b.q?.changePercent ?? -999)) * dir
+      if (symSortCol === 'dist') return ((a.distPct ?? 1e9) - (b.distPct ?? 1e9)) * dir
+      return ((a.st?.trades ?? 0) - (b.st?.trades ?? 0)) * dir
+    })
+  }, [allWatchItems, quoteMap, symbolStats, symSortCol, symSortAsc])
+
+  const symHead = (col: 'symbol' | 'change' | 'dist' | 'trades', label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        if (symSortCol === col) setSymSortAsc((a) => !a)
+        else {
+          setSymSortCol(col)
+          setSymSortAsc(col === 'symbol')
+        }
+      }}
+      className={cn(
+        'inline-flex items-center gap-1 text-xs font-medium transition-colors hover:text-foreground',
+        symSortCol === col ? 'text-foreground' : 'text-muted-foreground'
+      )}
+      aria-label={`Sort all symbols by ${label}`}
+    >
+      {label}
+      <ArrowUpDown className="h-3 w-3" aria-hidden />
+    </button>
+  )
 
   async function createWatchlist() {
     if (!form.name) return
@@ -956,6 +1054,79 @@ export function WatchlistsPage() {
           </Button>
         </Card>
       ) : (
+        <>
+        {/* TOOLS-AI — page KPI band */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" data-testid="watchlist-kpis">
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <LayoutGrid className="h-3 w-3" aria-hidden /> Watchlists
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">{watchlists.length}</FitValue>
+          </Card>
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Eye className="h-3 w-3" aria-hidden /> Symbols
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.symbols}</FitValue>
+          </Card>
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Bell className="h-3 w-3" aria-hidden /> Alerts Armed
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.armed}</FitValue>
+          </Card>
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Target className="h-3 w-3" aria-hidden /> Journal-Linked
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.journalLinked}</FitValue>
+          </Card>
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <ArrowLeftRight className="h-3 w-3" aria-hidden /> Best Mover
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">
+              {watchKpis.bestMover ? (
+                <span className={watchKpis.bestMover.pct >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  {watchKpis.bestMover.symbol} {signedPct(watchKpis.bestMover.pct)}
+                </span>
+              ) : (
+                '—'
+              )}
+            </FitValue>
+          </Card>
+          <Card className="p-4 overflow-hidden">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+              <Crosshair className="h-3 w-3" aria-hidden /> Closest To Target
+            </p>
+            <FitValue className="text-xl font-bold tnum mt-1">
+              {watchKpis.closest
+                ? `${watchKpis.closest.symbol} ${watchKpis.closest.distPct.toFixed(1)}%`
+                : '—'}
+            </FitValue>
+          </Card>
+        </div>
+
+        {/* TOOLS-AI — My Lists / All Symbols tabs */}
+        <Tabs value={viewTab} onValueChange={setViewTab} className="mt-1">
+          <TabsList className="h-9">
+            <TabsTrigger value="lists" className="text-xs gap-1.5 px-3">
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden />
+              My Lists
+              <Badge variant="secondary" className="ml-1 h-4 px-1 text-[9px] tabular-nums">
+                {watchlists.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="symbols" className="text-xs gap-1.5 px-3">
+              <Rows3 className="h-3.5 w-3.5" aria-hidden />
+              All Symbols
+              <Badge variant="secondary" className="ml-1 h-4 px-1 text-[9px] tabular-nums">
+                {allWatchItems.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="lists" className="mt-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {watchlists.map((wl: any) => {
             // Task 113 — per-list conversion aggregates (traded symbols only;
@@ -1522,6 +1693,156 @@ export function WatchlistsPage() {
             )
           })}
         </div>
+          </TabsContent>
+
+          {/* ---------------- All Symbols tab (TOOLS-AI) ---------------- */}
+          <TabsContent value="symbols" className="mt-4">
+            {allWatchItems.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Eye className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">No symbols watched yet</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  Add symbols to any watchlist — they all land here too.
+                </p>
+              </Card>
+            ) : (
+              <Card className="overflow-hidden" data-testid="watchlist-all-symbols">
+                <div className="p-4 md:p-5 border-b border-border flex items-center gap-2">
+                  <Rows3 className="h-4 w-4 text-emerald-400" />
+                  <h3 className="font-semibold tracking-tight">All Symbols</h3>
+                  <span className="text-[10px] text-muted-foreground ml-2 hidden sm:inline">
+                    every watched symbol across your {watchlists.length} list
+                    {watchlists.length === 1 ? '' : 's'} — live prices, journal links, AI analysis
+                  </span>
+                  <Badge variant="outline" className="ml-auto text-xs">
+                    {allWatchItems.length}
+                  </Badge>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>{symHead('symbol', 'Symbol')}</TableHead>
+                        <TableHead className="text-right">Live</TableHead>
+                        <TableHead className="text-right">{symHead('change', 'Today')}</TableHead>
+                        <TableHead className="hidden md:table-cell">Levels</TableHead>
+                        <TableHead className="text-right">{symHead('dist', 'To Target')}</TableHead>
+                        <TableHead className="text-right">{symHead('trades', 'Journal')}</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedWatchSymbols.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                            Nothing watched yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {sortedWatchSymbols.map((r) => (
+                        <TableRow key={r.symbol} className="hover:bg-muted/40" data-testid={`all-symbols-row-${r.symbol}`}>
+                          <TableCell>
+                            <div className="font-medium">{r.symbol}</div>
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {r.lists.map((l) => (
+                                <span
+                                  key={l}
+                                  className="rounded bg-muted/60 px-1 py-px text-[9px] text-muted-foreground"
+                                  title={`On ${l}`}
+                                >
+                                  {l}
+                                </span>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right tnum text-sm">
+                            {r.q?.price ? (
+                              fmtLivePrice(r.q.price)
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tnum text-sm">
+                            {r.q && typeof r.q.changePercent === 'number' ? (
+                              <span className={r.q.changePercent >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                {signedPct(r.q.changePercent)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-xs">
+                            {r.item.targetPrice != null || r.item.stopPrice != null ? (
+                              <span className="tnum">
+                                <span className="text-emerald-400">T {fmtLivePrice(r.item.targetPrice)}</span>
+                                <span className="text-muted-foreground"> / </span>
+                                <span className="text-red-400">S {fmtLivePrice(r.item.stopPrice)}</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Unarmed</span>
+                            )}
+                            {r.item.notes ? (
+                              <span
+                                className="ml-1.5 text-[10px] text-muted-foreground/70"
+                                title={r.item.notes}
+                              >
+                                · noted
+                              </span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right tnum text-sm">
+                            {r.distPct !== null ? `${r.distPct.toFixed(1)}%` : '—'}
+                          </TableCell>
+                          <TableCell className="text-right text-xs whitespace-nowrap">
+                            {r.st && r.st.trades > 0 ? (
+                              <span className="tnum">
+                                <span className="text-foreground font-medium">{r.st.trades}t</span>{' '}
+                                <span className="text-muted-foreground">
+                                  {Math.round((r.st.wins / r.st.trades) * 100)}%
+                                </span>{' '}
+                                <span className={pnlColor(r.st.pnl)}>
+                                  {formatCurrencyIn('table', r.st.pnl)}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground" title="No journal history on this symbol">
+                                —
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px] text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10"
+                                onClick={() => setAiSymbolItem({ id: r.item.id, symbol: r.symbol })}
+                                aria-label={`AI analysis for ${r.symbol}`}
+                                data-testid={`all-symbols-ai-${r.symbol}`}
+                              >
+                                <Sparkles className="h-3 w-3" aria-hidden /> AI
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                                onClick={() => openSymbolTrades(r.symbol)}
+                                aria-label={`Open ${r.symbol} trades in the trades table`}
+                              >
+                                <ArrowRight className="h-3 w-3" aria-hidden /> Trades
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+        </>
       )}
 
       {/* New watchlist modal */}

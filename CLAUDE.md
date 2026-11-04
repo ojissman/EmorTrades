@@ -314,6 +314,23 @@ at the bottom of this file.
   row). Journal-cited numbers in AI output get re-verified against the raw
   DB before certifying.
 
+Tool Group AI discipline (TOOLS-AI, 2026-11-04 night): the Tool Group
+  pages (Executions / Risk Tools / Challenges) share ONE AI backend —
+  POST /api/ai/tools (modes executions/risk/challenges) with the pure
+  layer src/lib/tools-ai.ts and the shared card
+  src/components/tools/tools-ai-panel.tsx. All surfaces are on-demand
+  (never fire on page load) and ephemeral (cache only, no DB rows).
+  LLM narrative may not be trusted with ratios: prompts forbid computing
+  new percentages/ratios, the shares a narrative needs are PRE-COMPUTED
+  into the context (fillSharePct/feeSharePct idiom), and tiny
+  leading-zero ratios are never fed to the model (decimal-misplacement
+  trap, found live: 0.0098% rendered "0.98%"). The risk page equity
+  baseline is Σ account startingBalance scoped by the account selector
+  (['accounts'] shared cache) — the `|| 25000` hardcode is dead, do not
+  revive it. Executions sends the GLOBAL filter envelope
+  (filterStore.toQueryParams) like the trades page — new global-scope
+  consumers follow the same idiom.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

@@ -1046,6 +1046,55 @@ task: XAU 10t/$2,275.36/50% WR, EURUSD −$125.92, KC −$232.20 — all
 DB-exact); "Apply" flows that edit user levels go through the EXISTING
 PATCH semantics (manual edit ≠ re-anchor audit).
 
+
+## Task TOOLS-AI — the Tool Group AI desks + Watchlist publishing polish (2026-11-04 night)
+
+Owner directive: Watchlist still missing publishing (KPIs, cards, tabs,
+sub-tabs, extra features) and the other Tool Group pages (Executions,
+Risk Tools, Challenges) must become AI-Powered. Delivered:
+
+- POST /api/ai/tools — the Tool Group AI backend (modes executions /
+  risk / challenges). Pattern = WATCHLIST-AI: requireUser, userId-scoped
+  queries, per-IP 10/min bucket, 5-min content-signature cache,
+  zaiChatWithRetry lane, deterministic fallback in src/lib/tools-ai.ts
+  (SDK-free, client-safe), structured ToolsAiReport (headline/tone/
+  findings/actions) sanitized on the way out. AI results are EPHEMERAL
+  (no schema change).
+- src/components/tools/tools-ai-panel.tsx — the shared on-demand AI
+  desk card (Generate/Regenerate, never auto-fired; idle/loading/error/
+  degraded states; provenance footer). Used by Executions, Risk Tools
+  and Challenges.
+- LLM-quote hardening (found live in E2E): the model computed its own
+  ratios and one was wrong (0.0098% rendered "9.8%"). Standing rules:
+  (a) prompts forbid computing new percentages/ratios — describe in
+  words; (b) shares the narrative needs (per-symbol fillSharePct,
+  feeSharePct) are PRE-COMPUTED into the context so the model QUOTES
+  them; (c) never feed a tiny-with-leading-zeros ratio (decimal-
+  misplacement trap) — drop it or express it differently.
+- Watchlists page: KPI band (lists, deduped symbols, alerts armed,
+  journal-linked, best mover, closest-to-target — all real) + My Lists /
+  All Symbols tabs; All Symbols = unified deduped table with list chips,
+  live quotes, armed levels + distance, journal chips, sortable, and
+  row actions REUSING existing surfaces (AiSymbolModal deep-open,
+  openSymbolTrades drill).
+- Executions page: now honors the GLOBAL filter envelope (account +
+  date window + symbol via filterStore.toQueryParams — the route
+  supported it since Task 16-c, the page never sent it); KPI band; tabs
+  Fills (sortable + show-more) | By Symbol (per-symbol aggregation with
+  DISTINCT-trade P&L) | AI Review.
+- Risk page: tabs Guardrails | Position Sizing (NEW Position Size
+  Calculator on live equity) | Simulations | AI Risk Desk. BASELINE
+  FIX: hardcoded `startingCapital || 25000` (audit lesson (e)
+  survivor) replaced by Σ account startingBalance scoped by the
+  account selector (['accounts'] shared cache) — E2E-verified live
+  ($76,253.45 = 40,000 + 36,253.45 realized, DB-exact).
+- Challenges page: AI Discipline Coach panel between hero and Active
+  (challenge-engine context + mistake tags + losing symbols + no-stop
+  count + data-derived overtrading threshold 1.5× median active-day
+  trades, floor 3); recommendations cite EXACT catalog titles.
+- tests/tools-ai.test.ts: 22 tests over the deterministic builders +
+  sanitizer (195/195 suite total).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

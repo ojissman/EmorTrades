@@ -52,6 +52,7 @@ import {
   type ChallengeTemplate,
 } from '@/lib/challenges'
 import { useAppStore } from '@/store/app-store'
+import { ToolsAiPanel } from '@/components/tools/tools-ai-panel'
 
 // ---------------------------------------------------------------------------
 // Types + accent system (static class maps — Tailwind compiles literals)
@@ -379,6 +380,14 @@ export function ChallengesPage() {
             </div>
           </div>
         </Card>
+
+        {/* ---------------- AI Discipline Coach (TOOLS-AI) ---------------- */}
+        <ToolsAiPanel
+          mode="challenges"
+          title="AI Discipline Coach"
+          blurb="Which discipline rules to start or protect next — grounded in your graded streaks, mistakes and journal patterns"
+          accent="violet"
+        />
 
         {/* ---------------- Active challenges ---------------- */}
         <section aria-label="Active challenges">

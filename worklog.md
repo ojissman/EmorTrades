@@ -8968,6 +8968,216 @@ fallback texts format money in full-form USD; the briefing route's
 $K-vs-full "Currency Display" pref is not applied inside the pure lib —
 display-layer concern only, values identical.)
 
+## Task TOOLS-AI — the Tool Group becomes AI-Powered: Watchlist publishing polish + Executions/Risk/Challenges AI desks (owner directive, 2026-11-04 night)
+
+**Agent:** Z.ai Code (Claude) · **Type:** NEW (follows WATCHLIST-AI f128935) · **Scope:** NORMAL
+
+**Task:** Owner: "the Tool Group: 1. dont you think that in adition, the
+Watchlist page is mising so Pulishing like KPIs, cards, tabs, sub-tabs,
+modals, extra features etc. 2. the other Tool group pages ( executions,
+risk tools and Chanllenges) still needs to by AI-Powered Trading Journal
+pages and Polishing etc." Acceptance criteria: (1) Watchlist page gains
+premium page structure — KPI band, tabs, a real extra feature beyond the
+AI surfaces; (2) Executions, Risk Tools and Challenges become AI-Powered
+(on-demand, real-data-grounded, honest degradation — the WATCHLIST-AI
+discipline); (3) zero mocks — every number real, every surface wired
+end to end.
+
+**Work Log:**
+1. src/lib/tools-ai.ts (NEW, pure/SDK-free, client-safe): shared
+   ToolsAiReport shape (headline, tone, severity-tagged findings[],
+   actions[], degraded flag) + three deterministic report builders —
+   deterministicExecutionsReport (fill coverage, order-flow balance, fee
+   drag, most-executed symbol, tempo; honest empty window),
+   deterministicRiskReport (equity base, daily-loss-limit usage, streaks,
+   risk-per-trade vs realized losses, open exposure incl. unstopped,
+   Kelly read; blank-slate honesty), deterministicChallengesReport
+   (standing, active state incl. at-risk, loss streak, recurring
+   mistakes, journal pressure points, unprotected trades, overtrading
+   days; catalog-derived start recommendations mapped pattern→template).
+   sanitizeToolsAiReport: tone/severity enums degraded, strings capped
+   (140/80/260/200), findings capped 6 / actions 4, non-strings dropped,
+   zero-finding payloads rejected → deterministic fallback.
+2. src/app/api/ai/tools/route.ts (NEW): POST, three on-demand modes —
+   { mode:'executions', accountId?, startDate?, endDate? } (per-symbol
+   aggregation with DISTINCT-trade P&L — a trade can have many fills),
+   { mode:'risk', accountId? } (baseline = Σ account startingBalance
+   scoped by selector — the app convention; drawdown walk; analytics;
+   2% daily-limit convention; recent-loser breach; open risk to stops;
+   Kelly), { mode:'challenges' } (challenge-engine context —
+   computeChallenge/computeXp reuse; top mistake tags via TradeMistake;
+   losing symbols ≥3 trades; no-stop count; overtrading days at a
+   DATA-DERIVED threshold 1.5× median active-day trades, floor 3).
+   requireUser on every path, userId-scoped queries (own data only),
+   per-IP 10/min bucket, 5-min content-signature cache (successful AI
+   only), strict-JSON prompts carrying AI_VOICE_RULE. LLM-quote
+   hardening found live in E2E: the model computed its own ratios
+   (one was wrong — "9.8%" for a 0.0098% fee-to-notional). Fixes:
+   (a) prompt rule "do NOT calculate new percentages, ratios or sums —
+   describe comparisons in words"; (b) per-symbol fillSharePct /
+   feeSharePct PRE-COMPUTED into the context so the model QUOTES them
+   (verified: 36.5% = 38/104, 19.2% = 20/104, 69% fee share — exact);
+   (c) the tiny fee-to-notional field REMOVED (decimal-misplacement
+   trap — 0.0098% was being rendered "0.98%").
+3. src/components/tools/tools-ai-panel.tsx (NEW): the shared premium AI
+   desk card used by all three pages — Generate/Regenerate (nothing
+   fires on page load), idle teaser, loading skeleton, error + retry,
+   tone chip + headline, severity-colored findings grid (2-col md),
+   numbered "Do next" actions, provenance footer (AI timestamp or
+   visible deterministic notice), 4 accents, disabled state with hint.
+4. src/components/pages/watchlists-page.tsx (PUBLISHING): page KPI band
+   (6 cards, all real — Watchlists, Symbols (deduped), Alerts Armed,
+   Journal-Linked, Best Mover from live quotes, Closest To Target from
+   live price vs armed target); "My Lists | All Symbols" tabs; the All
+   Symbols tab is the extra feature — unified deduped table of every
+   watched symbol with list chips, live price/change, armed levels +
+   distance, journal chip (trades/WR/net), sortable columns, and row
+   actions that REUSE existing surfaces (AI deep-opens the AiSymbolModal
+   via item id; Trades drills via openSymbolTrades). My Lists grid and
+   all pre-existing surfaces (radar, alerts, reanchor, conversion strip)
+   untouched inside the tab.
+5. src/components/pages/executions-page.tsx (REBUILT): now honors the
+   GLOBAL filter envelope (filterStore.toQueryParams — account + date
+   window + symbol; the API route supported the window since Task 16-c,
+   the page never sent it); KPI band 104-fills-real (Executions, Symbols,
+   Traded Value, Total Fees, Buys, Sells); tabs Fills (search + side
+   filter + sortable Symbol/Value/Time headers + Show-more paging) |
+   By Symbol (per-symbol fills, buys/sells, avg price, notional, fees,
+   linked journal P&L — sortable) | AI Review (ToolsAiPanel mode
+   'executions' with the live window in the payload, disabled with an
+   honest hint when the window is empty).
+6. src/components/pages/risk-page.tsx (RESTRUCTURED): tabs Guardrails
+   (guardrails + plan limits) | Position Sizing (NEW Position Size
+   Calculator — entry/stop/target/risk% inputs, direction inference,
+   risk amount from LIVE equity, size + position value, R:R with
+   wrong-side warning; all client math on the real equity base) |
+   Simulations (Monte Carlo + scenarios + best-practices) | AI Risk
+   Desk (ToolsAiPanel mode 'risk'). BASELINE FIX: the hardcoded
+   `user?.startingCapital || 25000` (a FULL-APP-AUDIT lesson (e)
+   survivor) replaced by the shared convention — Σ account
+   startingBalance scoped by the account selector (['accounts'] shared
+   cache), user.startingCapital only as last-resort fallback; loading
+   gate extended to the accounts query.
+7. src/components/pages/challenges-page.tsx: AI Discipline Coach panel
+   (ToolsAiPanel mode 'challenges', violet accent) mounted between the
+   hero and Active challenges; everything else untouched.
+8. tests/tools-ai.test.ts (NEW, 22 tests): executions (empty honesty,
+   coverage/flow/fees/top-symbol citations, fee-drag warning threshold,
+   heavy-loser action, tone aggregation), risk (blank slate, all six
+   finding citations with exact figures, breach/unstopped/streak
+   actions, over-Kelly warning, healthy positive tone), challenges
+   (standing/active citations, at-risk protection action, pattern→
+   recommendation mapping incl. stop-loss/trade-cap/cool-down picks,
+   no-active empty state), sanitizer (valid pass, enum degradation,
+   caps/truncation, non-string drops, zero-finding rejection).
+
+**Verification:** lint 0 errors · tsc 0 errors (cold, dev restarted
+around it — OOM discipline; dev died once mid-E2E at rss 2679MB with
+Chrome co-resident, relaunched via the double-fork pattern) · vitest
+195/195 (15 files; was 173/14 — +22). E2E (minted demo session, live
+pulled production data): Watchlist — KPI band real (1 list, 1 symbol,
+0 armed, 1 journal-linked, best mover KC −6.1% matching the row chip,
+closest "—" honestly), tabs work, All Symbols table renders KC with
+live 8.1000/−6.1%, "Unarmed", journal chip 1t·0%·−$232.20 (DB-exact)
+and the AI action deep-opens the KC analysis modal (Rethink verdict,
+SMA-signed downtrend, ATR 0.4086, journal-cited −$232.2/R −1.13);
+Executions — KPI band 104/6/$890,380.86/−$87.54/52/52 (API-exact),
+By Symbol aggregates (USTEC.V 38 fills $777,320.48 notional −$123.16;
+US500 20 +$16.79; CADJPY 20 −$118.07), AI Review generated a real LLM
+report citing 104 fills/11 active days/$87.54/−$500.10 linked P&L with
+"AI review · generated 05:55 PM" provenance; Risk Tools — tabs render,
+equity $76,253.45 = Σ 40,000 baseline + 36,253.45 realized (the
+baseline fix verified live; old hardcoded path would have shown a wrong
+number), calculator hand-checked (entry 4075.50/stop 4035/target
+4160/risk 1% → Long, $762.53 risk, 18.83 units, $76,733.56 value, R:R
+1:2.09 — exact), Simulations percentiles intact, AI Risk Desk generated
+(19.3% full / 9.65% half Kelly, 2 of 12 unstopped, −$1,875 worst vs
+$763 target, 50.3% WR / 1.63 PF — all DB-real); Challenges — AI
+Discipline Coach generated (38 no-stop trades = 10.3% — DB-exact count
+38, losing symbols ES −$891.1 / WTI −$874.5 / USD/CHF −$644.16,
+overtrading days 12/9/7) and recommends EXACT catalog titles
+('Stop-Loss On Every Trade', 'Trade Cap Discipline'); window filtering
+verified (2026 window → 0 executions → honest deterministic empty
+report, degraded flag set); mobile 390×844 all 4 pages scrollWidth=390
+(no horizontal overflow, isNarrow active); browser console 0 errors /
+0 warnings. KPI hand-checks vs raw DB (prisma direct): Σ
+startingBalance 40,000, equity 76,253.45, 369 closed, 38 no-stop, 104
+executions, fees 87.54, notional 890,380.86, 52/52 — ALL exact.
+
+**Cleanup report:** no dead code created — every new export proven LIVE
+by fresh rg sweeps (tools-ai lib → route + tests; ToolsAiPanel → 3
+pages; /api/ai/tools → panel; tests referenced by vitest). No
+dependencies added or removed, no routes deleted, no tracked files
+removed. Junk: /tmp 77MB unchanged (sandbox-db-preserve auto-cleaned by
+sync; /tmp/my-project 19MB is the platform-managed restore-refill that
+refuses deletion — recorded; ritual.before/after.* kept for the
+block-identity proof until after push).
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — TOOLS-AI
+Date (UTC, from `date -u`):         2026-11-04T23:03:53Z
+Task started / finished:            2026-11-04T22:32:35Z / 2026-11-04T23:03Z
+Last production pull (sync:prod):   2026-11-04T22:36:22Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 195/195 passing (15 files)
+Pages/flows verified (list):        Watchlist (KPI band, My Lists/All
+                                    Symbols tabs, All Symbols table + AI
+                                    deep-link + Trades drill), Executions
+                                    (envelope, KPIs, Fills sort/show-more,
+                                    By Symbol, AI Review generate), Risk
+                                    Tools (4 tabs, calculator hand-check,
+                                    AI Risk Desk generate, Simulations),
+                                    Challenges (AI Discipline Coach
+                                    generate), window-empty honesty ×1,
+                                    mobile 390×844 ×4 pages
+Console + server-log errors:        0 / 0 (one dev-server restart mid-E2E:
+                                    rss alarm with Chrome co-resident —
+                                    environment, relaunched clean)
+Touched-area audit:                 PASS (all pre-existing surfaces
+                                    re-verified intact: watchlist radar/
+                                    alerts/reanchor/conversion strip/sort,
+                                    executions linked-trade peeks + empty
+                                    states, risk guardrails/plan limits/
+                                    Kelly/Monte Carlo/scenarios/warning,
+                                    challenges hero/active/completed/
+                                    library/focus deep-link)
+KPIs hand-checked vs raw DB:        11/11 exact match (Σ baseline 40,000;
+                                    equity 76,253.45; realized 36,253.45;
+                                    369 closed; 38 no-stop; 104 executions;
+                                    fees 87.54; notional 890,380.86; 52
+                                    buys/52 sells; KC 1t/−$232.20;
+                                    calculator 18.83u/$76,733.56/1:2.09)
+Security: every touched handler guarded, own-data only:  PASS (POST
+                                    /api/ai/tools: requireUser + userId-
+                                    scoped queries on all 3 modes; per-IP
+                                    rate limit; accountId/date validated
+                                    by regex; existing executions/watchlists
+                                    routes untouched)
+Dead code removed:                  0 files, 0 deps, 0 routes (nothing dead
+                                    created; live-reference proofs above)
+Junk purged:                        0 MB net (/tmp 77→77MB; preserve file
+                                    auto-cleaned; platform refill untouched)
+Orphan DB models needing owner decision: none (no schema change — AI
+                                    results ephemeral + cached, briefing
+                                    pattern)
+Ritual block intact in all 3 files: YES (verified below)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull = LIVE production sync 22:36:22Z (users=4, trades=386) ·
+this entry above the block · AGENTS.md task entry above the block ·
+CLAUDE.md discipline bullet above the block · commit + push last.
+
+**Needs owner decision / left over:** none. (Known LLM limitation,
+mitigated not eliminated: narrative prose may still occasionally
+re-phrase a provided figure — the prompt now forbids computed ratios and
+the shares are pre-computed, but LLM prose is never trusted for
+actionable numbers; every actionable value in the app remains
+server-computed.)
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
