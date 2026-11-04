@@ -280,6 +280,24 @@ at the bottom of this file.
   phantom "1 active filter" on pristine stores). NEVER run tsc while
   dev is warm (OOM); cold start needs ~60s quiet warm-up.
 
+  Date-chip wording (PRESET-CHIP, 2026-11-04 night): every date preset
+  owns its chip wording ("Today", "Last 8 Days", "This Month", "Full
+  Range"…); ONLY a hand-picked Custom Range renders "date - date". The
+  identity lives in filter-store presetKey (in-memory), stamped by
+  preset apply paths AFTER their date writes and CLEARED by the store
+  rule on any other date-scope write (deep links, custom inputs, Chart
+  History) — never infer preset labels from dates (a hand-picked
+  today-today pair is CUSTOM). New date-scope writers need NO preset
+  handling: the store rule clears for them; only genuine preset
+  buttons/menus stamp (global-action-bar applyPreset, palette
+  applyFooterPreset, session resets, applyFilterSnapshot). The registry
+  (DatePresetKey/DATE_PRESET_LABELS/DATE_PRESET_KEYS) lives in
+  global-filter-core.ts — extend it there, never inline labels.
+  Dev-server ops: relaunch ONLY via the double-fork pattern
+  (sync-prod-db.ts §8); plain setsid gets reaped. Serialize browser E2E
+  against cold-compiled routes (close browser → curl-warm → browse) or
+  the kernel OOM-kills next-server with Chrome co-resident.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

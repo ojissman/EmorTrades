@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { DEFAULT_SCOPE, countActiveScope, describeScope } from '@/lib/global-filter-core'
 import { subtractRangeDays } from '@/lib/dashboard-filters'
-import type { GlobalScopeFields } from '@/lib/global-filter-core'
+import type { GlobalScopeFields, DatePresetKey } from '@/lib/global-filter-core'
 
 // Global filter context that propagates across all pages
 // Inspired by TraderSync's filtering system
@@ -30,6 +30,14 @@ export interface FilterState extends GlobalScopeFields {
   dateRange: '7' | '30' | '90' | '180' | '365' | 'all'
   customStartDate?: string
   customEndDate?: string
+  /** PRESET-CHIP (owner directive, 2026-11-04) — which action-bar/palette
+   *  date preset produced the current window ('today', 'last-8-days',
+   *  'full-range'…). Set ONLY by the preset apply paths (stamped after
+   *  their date writes); cleared automatically by any other date-scope
+   *  write (deep links, custom-range inputs, Chart History windows) so the
+   *  chip wording can never claim a preset the window no longer is.
+   *  In-memory only (never persisted) — a reload returns to Full Range. */
+  presetKey?: DatePresetKey
   // Trade attributes
   symbol?: string
   side?: 'long' | 'short' | 'all'
@@ -105,9 +113,29 @@ const DEFAULT_FILTERS: FilterState = {
 export const useFilterStore = create<FilterStore>((set, get) => ({
   ...DEFAULT_FILTERS,
 
-  setFilter: (key, value) => set({ [key]: value } as any),
+  setFilter: (key, value) => {
+    // PRESET-CHIP — a date-scope write that does not itself carry the
+    // preset identity invalidates the preset memory: the window becomes
+    // custom (deep links, custom-range inputs, Chart History windows and
+    // snapshot restores all flow through here). The preset apply paths
+    // write presetKey AFTER their date writes, so their stamp survives.
+    if (key === 'customStartDate' || key === 'customEndDate' || key === 'dateRange') {
+      set({ [key]: value, presetKey: undefined } as any)
+    } else {
+      set({ [key]: value } as any)
+    }
+  },
 
-  setFilters: (filters) => set(filters),
+  setFilters: (filters) => {
+    const patch = { ...filters }
+    // PRESET-CHIP — same rule as setFilter, for patch-style writers
+    // (drillToTrades, peek navigate, watchlists…): a patch that moves the
+    // date scope without declaring a presetKey turns the window custom.
+    if (patch.presetKey === undefined && ('customStartDate' in patch || 'customEndDate' in patch || 'dateRange' in patch)) {
+      patch.presetKey = undefined
+    }
+    set(patch)
+  },
 
   clearFilter: (key) => {
     const defaults: any = DEFAULT_FILTERS
@@ -124,6 +152,8 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
       ...DEFAULT_FILTERS,
       customStartDate: undefined,
       customEndDate: undefined,
+      // PRESET-CHIP — a cleared store is the pristine Full Range default.
+      presetKey: undefined,
       minPnl: undefined,
       maxPnl: undefined,
       minR: undefined,

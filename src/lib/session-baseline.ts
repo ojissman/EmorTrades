@@ -17,6 +17,10 @@ export interface SessionBaseline {
   dateRange: FilterState['dateRange']
   customStartDate?: string
   customEndDate?: string
+  /** PRESET-CHIP (2026-11-04) — the preset active at session start, so the
+   *  "was <preset>" tooltip and the session-start restore keep the preset
+   *  WORDING, and a reset re-stamps the preset identity. */
+  presetKey?: FilterState['presetKey']
 }
 
 let baseline: SessionBaseline | null = null

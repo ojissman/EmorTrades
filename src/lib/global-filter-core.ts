@@ -121,6 +121,53 @@ export const CHART_HISTORY_PRESETS: ReadonlyArray<{ label: string; days: number 
 ]
 
 // ---------------------------------------------------------------------------
+// PRESET-CHIP (owner directive, 2026-11-04) — the canonical date-preset
+// registry. Every action-bar/palette preset owns its WORDING on the date
+// chip ("Today", "Last 8 Days", "This Month"… exactly like "Full Range"
+// already did); only a genuinely hand-picked Custom Range renders
+// "YYYY-MM-DD - YYYY-MM-DD". The presets write their windows as either a
+// named range ('180'/'365'/'all' → dateRange) or explicit custom dates
+// (today/yesterday/8-days/month/year windows) — so the chip needs a memory
+// of WHICH preset produced the current window: `presetKey` on the filter
+// store. This registry is that key's single source of truth (labels +
+// validation); the action-bar DATE_PRESETS and the palette FOOTER_PRESETS
+// reuse the same keys verbatim.
+// ---------------------------------------------------------------------------
+
+/** The 9 real presets. The 10th dropdown entry, Custom Range, is NOT a
+ *  preset — it produces a hand-picked window and never sets presetKey. */
+export type DatePresetKey =
+  | 'today'
+  | 'yesterday'
+  | 'last-8-days'
+  | 'this-month'
+  | 'last-month'
+  | 'last-6-months'
+  | 'this-year'
+  | 'last-1-year'
+  | 'full-range'
+
+/** Validation list (snapshot sanitizers reject unknown preset keys). */
+export const DATE_PRESET_KEYS: ReadonlyArray<DatePresetKey> = [
+  'today', 'yesterday', 'last-8-days', 'this-month', 'last-month',
+  'last-6-months', 'this-year', 'last-1-year', 'full-range',
+]
+
+/** Chip wording per preset key — identical to the presets dropdown option
+ *  labels, so the chip and the dropdown can never disagree. */
+export const DATE_PRESET_LABELS: Record<DatePresetKey, string> = {
+  'today': 'Today',
+  'yesterday': 'Yesterday',
+  'last-8-days': 'Last 8 Days',
+  'this-month': 'This Month',
+  'last-month': 'Last Month',
+  'last-6-months': 'Last 6 Months',
+  'this-year': 'This Year',
+  'last-1-year': 'Last 1 Year',
+  'full-range': 'Full Range',
+}
+
+// ---------------------------------------------------------------------------
 // Scope state (the drawer draft commits into filter-store; this shape is the
 // NEW additive fields only — account/date/side/status/outcome/symbol/tags/
 // mistakes keep their existing filter-store keys)

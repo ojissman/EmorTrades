@@ -971,6 +971,43 @@ Custom Dashboards · Account · "Full Range"; 8-day preset flips chip to
 dates + $0.00 (0 trades, API-verified) and back to $36,253.45; all six
 hero KPI values identical to ALL-TIME-DEFAULT verification. lint 0.
 
+
+Task PRESET-CHIP (owner directive, 2026-11-04 night) — every date preset
+now owns its WORDING on the date chip; only a hand-picked Custom Range
+renders "YYYY-MM-DD - YYYY-MM-DD". Architecture: filter-store gained
+presetKey?: DatePresetKey (in-memory only) — the memory of WHICH preset
+produced the current window. Canonical registry in global-filter-core.ts
+(DatePresetKey + DATE_PRESET_LABELS + DATE_PRESET_KEYS, pure lib): keys
+are shared verbatim by action-bar DATE_PRESETS, palette FOOTER_PRESETS,
+DashboardFilterSnapshot and SessionBaseline. STORE RULE (the load-bearing
+piece): any setFilter/setFilters write to customStartDate/customEndDate/
+dateRange that does not carry a presetKey CLEARS the memory — so deep
+links (drillToTrades/goals/calendar-day/peek), Custom Range inputs,
+drawer Chart History windows and snapshot restores are honestly "custom"
+with zero call-site changes; preset apply paths stamp presetKey AFTER
+their date writes (action bar, palette, both session resets,
+applyFilterSnapshot). deriveRangeChipLabel takes presetKey as 4th param
+(preset wording wins; unknown keys degrade to dates);
+describeSnapshot/filtersMatchSnapshot treat the wording as identity;
+sanitizeFilterSnapshot validates preset keys (corrupt boards can't
+fabricate a preset; pre-PRESET-CHIP boards degrade to dates). Dropdown
+highlight = presetKey identity + named-range fallback (window presets
+Today/This Month… now highlight when active — first time ever; drawer
+"All Days" still highlights Full Range). palette presetActive no longer
+matches window presets by recomputed dates (stale after trading-days
+toggle; a hand-picked equal-bounds pair is CUSTOM). Drawer itself: zero
+changes (store rule covers it). E2E (demo session): all 9 presets show
+wording; Custom 2026-01-01→2026-11-04 shows dates + $36,753.55; This
+Year "This Year" $36,753.55; Full Range $36,253.45; palette↔bar lockstep
+("Yesterday"); drawer Last-30-Days → chip dates (auto-clear live);
+session-start row restores wording + clears dot; mobile 390×844 clean;
+console/log 0 errors. lint 0, tsc 0, vitest 140/140 (+10 new
+tests/preset-chip.test.ts). Ops note: plain `setsid bun run dev &` gets
+reaped by the sandbox within minutes — ALWAYS relaunch dev via the
+double-fork pattern (scripts/sync-prod-db.ts section 8); the kernel
+OOM-killed next-server twice while Chrome co-resident during cold
+compile (close the browser, warm routes with curl, then browse).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

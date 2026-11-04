@@ -19,6 +19,7 @@ import type { DateRange, DashboardFilterSnapshot } from '@/store/app-store'
 import { useAppStore } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { useSettingsPrefsStore } from '@/store/settings-prefs-store'
+import { DATE_PRESET_LABELS } from '@/lib/global-filter-core'
 
 /** Human label for a DateRange value (mirrors the action-bar presets). */
 export function describeRange(range: DateRange): string {
@@ -50,6 +51,9 @@ export function captureFilterSnapshot(): DashboardFilterSnapshot {
     dateRange: f.customStartDate ? app.dateRange : f.dateRange,
     capturedAt: Date.now(),
   }
+  // PRESET-CHIP — carry the preset memory so a board re-apply restores the
+  // WORDING ("Today"), not just the dates.
+  if (f.presetKey) snap.presetKey = f.presetKey
   if (app.selectedAccountId !== 'all') {
     const name = accountNameCache.get(app.selectedAccountId)
     if (name) snap.accountName = name
@@ -100,15 +104,32 @@ export function subtractRangeDays(n: number): Date {
   return d
 }
 
+/** PRESET-CHIP — wording for a preset key, or undefined when the window is
+ *  custom / key unknown (defensive: sanitized snapshots can't carry unknown
+ *  keys, but a corrupt one degrades to dates, never to a wrong preset). */
+function presetChipLabel(key?: string): string | undefined {
+  if (!key) return undefined
+  return (DATE_PRESET_LABELS as Record<string, string>)[key]
+}
+
 /** Task 90 — the action-bar date chip label ("YYYY-MM-DD - YYYY-MM-DD"),
  *  derived from the SAME inputs (filter-store range + custom dates) with
  *  the same wording, so the palette footer chip can never disagree with
- *  the top bar. Pure: callers pass their store values in. */
+ *  the top bar. Pure: callers pass their store values in.
+ *  PRESET-CHIP (owner directive, 2026-11-04): when a PRESET produced the
+ *  window, the chip shows the preset's own wording — "Today", "Last 8
+ *  Days", "This Month", "Full Range"… — identical to the dropdown option
+ *  that was clicked. Only a genuinely hand-picked Custom Range (or a
+ *  legacy/unsanitized snapshot without a preset memory) renders the
+ *  "YYYY-MM-DD - YYYY-MM-DD" dates. */
 export function deriveRangeChipLabel(
   dateRange: '7' | '30' | '90' | '180' | '365' | 'all',
   customStartDate?: string,
   customEndDate?: string,
+  presetKey?: string,
 ): string {
+  const presetLabel = presetChipLabel(presetKey)
+  if (presetLabel) return presetLabel
   if (customStartDate) return `${customStartDate} - ${customEndDate ?? 'now'}`
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const today = iso(new Date())
@@ -146,6 +167,9 @@ export function applyFilterSnapshot(snap: DashboardFilterSnapshot) {
     f.setFilter('dateRange', snap.dateRange)
     app.setDateRange(snap.dateRange)
   }
+  // PRESET-CHIP — restore the preset memory LAST (the date writes above
+  // clear it by design); undefined is the honest custom/no-preset case.
+  f.setFilter('presetKey', snap.presetKey)
   f.setFilter('accountId', snap.accountId)
 }
 
@@ -155,6 +179,9 @@ export function filtersMatchSnapshot(snap: DashboardFilterSnapshot): boolean {
   const f = useFilterStore.getState()
   if (app.selectedAccountId !== snap.accountId) return false
   if (f.accountId !== snap.accountId) return false
+  // PRESET-CHIP — the wording is part of the identity: a preset window and
+  // a hand-picked window over the same dates are NOT the same view.
+  if ((f.presetKey ?? undefined) !== (snap.presetKey ?? undefined)) return false
   if (f.customStartDate) {
     return snap.customStartDate === f.customStartDate && (snap.customEndDate ?? undefined) === (f.customEndDate ?? undefined)
   }
@@ -162,11 +189,14 @@ export function filtersMatchSnapshot(snap: DashboardFilterSnapshot): boolean {
   return f.dateRange === snap.dateRange
 }
 
-/** UI description: "All accounts · Last 6 months" / "Futures (12) · Mar 01 → Mar 20". */
+/** UI description: "All accounts · Last 6 months" / "Futures (12) · Mar 01 → Mar 20".
+ *  PRESET-CHIP — a preset snapshot describes itself with the preset
+ *  wording ("All accounts · Today"), not its derived dates. */
 export function describeSnapshot(snap: DashboardFilterSnapshot): string {
   const account = snap.accountId === 'all' ? 'All accounts' : snap.accountName ?? 'Selected account'
-  const range = snap.customStartDate
-    ? `${snap.customStartDate} → ${snap.customEndDate ?? 'now'}`
-    : describeRange(snap.dateRange)
+  const range = presetChipLabel(snap.presetKey)
+    ?? (snap.customStartDate
+      ? `${snap.customStartDate} → ${snap.customEndDate ?? 'now'}`
+      : describeRange(snap.dateRange))
   return `${account} · ${range}`
 }

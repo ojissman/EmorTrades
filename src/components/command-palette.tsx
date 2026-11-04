@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAppStore, PAGE_TO_ROUTE, PINNED_SECTIONS_MAX, type PageId } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { deriveRangeChipLabel, getStashedAccountName, subtractRangeDays } from '@/lib/dashboard-filters'
+import type { DatePresetKey } from '@/lib/global-filter-core'
 import { allNavLeaves, groupTabsForRoute } from '@/config/navigation'
 import { useThemePrefs, activeTheme } from '@/store/theme-prefs-store'
 import { THEMES } from '@/lib/themes'
@@ -160,7 +161,7 @@ const RECENT_PREVIEW_COUNT = 4
 // the top bar keeps that job). Apply semantics copied 1:1 from
 // applyPreset so both surfaces stay interchangeable.
 interface FooterPreset {
-  key: string
+  key: DatePresetKey
   label: string
   range?: '7' | '30' | '90' | '180' | '365' | 'all'
   /** Days back from today for the range START (end = today). */
@@ -436,14 +437,15 @@ export function CommandPalette() {
   // in the session). The dot is per-chip: moving the account wears the
   // account chip, moving the range wears the date chip; both carry a
   // "was <baseline>" tooltip.
-  const dateChipLabel = deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate)
+  const dateChipLabel = deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, filterStore.presetKey)
   const baseline = captureSessionBaseline({
     account: selectedAccountId,
     dateRange: filterStore.dateRange,
     customStartDate: filterStore.customStartDate,
     customEndDate: filterStore.customEndDate,
+    presetKey: filterStore.presetKey,
   })
-  const baselineDateLabel = deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate)
+  const baselineDateLabel = deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate, baseline.presetKey)
   const accountChanged = baseline.account !== selectedAccountId
   const dateChanged = baselineDateLabel !== dateChipLabel
   const baselineAccountLabel =
@@ -467,6 +469,9 @@ export function CommandPalette() {
     else f.clearFilter('customStartDate')
     if (baseline.customEndDate) f.setFilter('customEndDate', baseline.customEndDate)
     else f.clearFilter('customEndDate')
+    // PRESET-CHIP — re-stamp the session-start preset identity LAST (the
+    // date writes above cleared it by store rule).
+    f.setFilter('presetKey', baseline.presetKey)
   }, [baseline])
 
   useEffect(() => {
@@ -752,6 +757,10 @@ export function CommandPalette() {
         f.setFilter('customEndDate', end)
       }
     }
+    // PRESET-CHIP (owner directive, 2026-11-04) — stamp the preset identity
+    // AFTER the date writes so the chip shows the preset wording ("Today",
+    // "This Month"…), 1:1 with the action-bar presets.
+    f.setFilter('presetKey', p.key)
     setOpenMenu(null)
   }, [])
   // Task 93 — custom range from the in-menu mini form. Writes the SAME
@@ -759,6 +768,8 @@ export function CommandPalette() {
   // arbitrary pair is not a named preset, so — like the action bar —
   // the app-store dateRange is left untouched). Both chips re-derive
   // from filterStore, so palette and top bar stay in lockstep.
+  // PRESET-CHIP — the store rule clears the preset memory on these writes,
+  // so a hand-picked pair renders the honest "date - date" window.
   const applyCustomRange = useCallback((start: string, end: string) => {
     const f = useFilterStore.getState()
     f.setFilter('customStartDate', start)
@@ -766,9 +777,15 @@ export function CommandPalette() {
     setOpenMenu(null)
   }, [])
   const presetActive = (p: FooterPreset) => {
+    // PRESET-CHIP — the preset memory is the authoritative identity; the
+    // named-range fallback keeps non-preset writers (e.g. the drawer's
+    // Chart History "All Days" → dateRange 'all') highlighting Full Range
+    // exactly as before. Window presets never fall back to date matching:
+    // a hand-picked pair that happens to equal a preset's bounds is
+    // CUSTOM, not that preset.
+    if (filterStore.presetKey) return filterStore.presetKey === p.key
     if (p.range) return !filterStore.customStartDate && filterStore.dateRange === p.range
-    const { start, end } = footerPresetBounds(p)
-    return !!start && !!end && filterStore.customStartDate === start && filterStore.customEndDate === end
+    return false
   }
   // Task 94 — menu identity lists for keyboard nav. Account item 0 is the
   // "all" scope; the rest follow the API order (same as the rows).

@@ -26,6 +26,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAppStore, OVERVIEW_TYPES, CUSTOM_LAYOUT_TYPE } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { applyFilterSnapshot, stashAccountNames, deriveRangeChipLabel, subtractRangeDays } from '@/lib/dashboard-filters'
+import type { DatePresetKey } from '@/lib/global-filter-core'
 import { useSettingsPrefsStore } from '@/store/settings-prefs-store'
 // Task 96 — PnL column parity with the palette account menu (shared helpers).
 import { compactPnl, pnlColorCls, formatCurrency } from '@/lib/format'
@@ -76,7 +77,7 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-type Preset = { key: string; label: string; apply: () => { start?: string; end?: string; range?: 'all' | '180' | '365' } }
+type Preset = { key: DatePresetKey | 'custom-range'; label: string; apply: () => { start?: string; end?: string; range?: 'all' | '180' | '365' } }
 
 const DATE_PRESETS: Preset[] = [
   {
@@ -247,6 +248,11 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
       filterStore.setFilter('customStartDate', start)
       filterStore.setFilter('customEndDate', end)
     }
+    // PRESET-CHIP (owner directive, 2026-11-04) — stamp the preset identity
+    // AFTER the date writes (each of which clears it by store rule) so the
+    // chip shows the preset's own wording — "Today", "This Month", "Last
+    // 6 Months", "Full Range"… — instead of derived dates.
+    filterStore.setFilter('presetKey', p.key)
   }
 
   /**
@@ -343,10 +349,10 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
    *  the label the moment the toggle flips. */
   const tradingDaysFilter = useSettingsPrefsStore((s) => s.tradingDaysFilter)
   const chipLabel = useMemo(
-    () => deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate),
+    () => deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, filterStore.presetKey),
     // tradingDaysFilter is read inside deriveRangeChipLabel via the store
     // snapshot; it is a dep purely to re-derive the label on toggle.
-    [filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, tradingDaysFilter],
+    [filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, filterStore.presetKey, tradingDaysFilter],
   )
 
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId)
@@ -360,6 +366,7 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
     dateRange: filterStore.dateRange,
     customStartDate: filterStore.customStartDate,
     customEndDate: filterStore.customEndDate,
+    presetKey: filterStore.presetKey,
   })
   const accountChanged = baseline.account !== selectedAccountId
   const baselineAccountLabel =
@@ -367,9 +374,9 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
       ? 'All accounts'
       : (accounts.find((a) => a.id === baseline.account)?.name ?? 'previous account')
   const dateChanged =
-    deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate) !==
-    deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate)
-  const baselineDateLabel = deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate)
+    deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate, baseline.presetKey) !==
+    deriveRangeChipLabel(filterStore.dateRange, filterStore.customStartDate, filterStore.customEndDate, filterStore.presetKey)
+  const baselineDateLabel = deriveRangeChipLabel(baseline.dateRange, baseline.customStartDate, baseline.customEndDate, baseline.presetKey)
   const accountLabel = selectedAccount
     ? `${selectedAccount.name} (${(selectedAccount as AccountWithCount)._count?.trades ?? 0})`
     : 'All accounts'
@@ -785,6 +792,9 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
                   else filterStore.clearFilter('customStartDate')
                   if (baseline.customEndDate) filterStore.setFilter('customEndDate', baseline.customEndDate)
                   else filterStore.clearFilter('customEndDate')
+                  // PRESET-CHIP — re-stamp the session-start preset identity
+                  // LAST (the date writes above cleared it).
+                  filterStore.setFilter('presetKey', baseline.presetKey)
                   setCustomRangeOpen(false)
                 }}
                 className="flex items-center gap-2 h-8 px-2 rounded-md text-[13px] font-medium text-amber-400 transition-colors hover:bg-amber-400/10"
@@ -795,7 +805,14 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
               </button>
             )}
             {DATE_PRESETS.map((p) => {
+              // PRESET-CHIP — the preset memory is the authoritative identity
+              // ("Today" highlights when Today is active — it never did
+              // before). The named-range fallback keeps pre-existing
+              // non-preset writers honest: e.g. the drawer's Chart History
+              // "All Days" writes dateRange 'all' without a preset stamp and
+              // still highlights Full Range, exactly as it always has.
               const active =
+                (p.key !== 'custom-range' && filterStore.presetKey === p.key) ||
                 (p.key === 'full-range' && !filterStore.customStartDate && filterStore.dateRange === 'all') ||
                 (p.key === 'last-6-months' && !filterStore.customStartDate && filterStore.dateRange === '180') ||
                 (p.key === 'last-1-year' && !filterStore.customStartDate && filterStore.dateRange === '365')
@@ -828,6 +845,10 @@ export function GlobalActionBar({ accounts }: { accounts: Account[] }) {
                 className="h-7 col-span-2 shell-accent-btn border-0"
                 disabled={!customFrom || !customTo}
                 onClick={() => {
+                  // PRESET-CHIP — hand-picked dates: the store rule clears the
+                  // preset memory on these writes, so the chip honestly
+                  // renders the "YYYY-MM-DD - YYYY-MM-DD" window (the ONLY
+                  // surface that still shows dates, per the owner directive).
                   filterStore.setFilter('customStartDate', customFrom)
                   filterStore.setFilter('customEndDate', customTo)
                   setCustomRangeOpen(false)

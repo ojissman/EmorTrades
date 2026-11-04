@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { DATE_PRESET_KEYS, type DatePresetKey } from '@/lib/global-filter-core'
 
 // ---------------------------------------------------------------------------
 // Route map — bridges the NEW nav paths (src/config/navigation.ts, §5) with
@@ -146,6 +147,11 @@ export interface DashboardFilterSnapshot {
   dateRange: DateRange
   customStartDate?: string
   customEndDate?: string
+  /** PRESET-CHIP (2026-11-04) — the preset that produced the captured
+   *  window, so a board re-apply restores the chip WORDING ("Today"),
+   * not just the dates. Optional: pre-PRESET-CHIP boards degrade to
+   * the date-date wording — honest, never a wrong preset. */
+  presetKey?: DatePresetKey
   capturedAt: number
 }
 
@@ -207,6 +213,11 @@ export function sanitizeFilterSnapshot(raw: unknown): DashboardFilterSnapshot | 
   if (typeof r.customStartDate === 'string' && r.customStartDate) {
     snap.customStartDate = r.customStartDate
     if (typeof r.customEndDate === 'string' && r.customEndDate) snap.customEndDate = r.customEndDate
+  }
+  // PRESET-CHIP — unknown preset keys are dropped (a corrupt import can
+  // never fabricate a preset wording the window doesn't have).
+  if (typeof r.presetKey === 'string' && (DATE_PRESET_KEYS as readonly string[]).includes(r.presetKey)) {
+    snap.presetKey = r.presetKey as DatePresetKey
   }
   return snap
 }

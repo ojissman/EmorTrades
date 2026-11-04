@@ -8645,6 +8645,153 @@ block · CLAUDE.md discipline bullet above the block (ALL-TIME-DEFAULT
 bullet amended — scope labels removed, wording Full Range) · commit +
 push last (genuine user-assigned task — Policy B satisfied).
 
+
+## Task PRESET-CHIP — every date preset owns its chip wording; only Custom Range shows dates (owner directive, 2026-11-04 night)
+
+**Agent:** Z.ai Code (Claude) · **Type:** CONTINUE (from ACTION-BAR-SIMPLIFY) · **Scope:** NORMAL
+
+**Task:** Owner: "currently now only Full Range actually displays the 'Full
+Range' wording, every other preset range just shows date-date wordings e.g
+2026-11-03 - 2027-10-04. But I actually want every preset range to actually
+show their preset wording just like the current 'Full Range' preset, except
+the custom range — custom range since it's custom may show the date-date
+range when selected." Acceptance: chip = preset wording for Today,
+Yesterday, Last 8 Days, This Month, Last Month, Last 6 Months, This Year,
+Last 1 Year, Full Range; dates ONLY for a hand-picked Custom Range; data
+windows and every other surface unchanged.
+
+**Work Log:**
+1. ROOT CAUSE: the 10 presets write two different shapes — named ranges
+   ('180'/'365'/'all' → dateRange) vs date-window presets (Today,
+   Yesterday, Last 8 Days, This Month, Last Month, This Year → written as
+   customStartDate/customEndDate). Window presets lost their identity at
+   apply time, so the chip derived dates; only 'all' had a wording. Fix =
+   a preset MEMORY, not date pattern-matching (a hand-picked today-today
+   pair must stay "custom", so labels can't be inferred from dates).
+2. src/lib/global-filter-core.ts — canonical registry: DatePresetKey (9
+   keys), DATE_PRESET_LABELS (chip wording, verbatim dropdown labels),
+   DATE_PRESET_KEYS (validation). Pure lib, no store imports — shared by
+   both surfaces, both stores, both snapshot systems, no cycle risk.
+3. src/store/filter-store.ts — FilterState.presetKey?: DatePresetKey
+   (in-memory only; reload → pristine Full Range). STORE RULE: any
+   setFilter/setFilters write to customStartDate/customEndDate/dateRange
+   that does not itself carry a presetKey clears the memory — deep links
+   (drillToTrades, goals, calendar-day, peek navigate), Custom Range
+   inputs, drawer Chart History windows and snapshot restores all become
+   honestly "custom" with zero changes at their call sites. clearAll
+   voids it. Patches without date keys (symbol drills etc.) keep it.
+4. src/lib/dashboard-filters.ts — deriveRangeChipLabel(dateRange, start,
+   end, presetKey?): preset wording wins; unknown/corrupt keys degrade to
+   dates (never a wrong preset). describeSnapshot uses the preset wording
+   ("All accounts · Today"). captureFilterSnapshot/applyFilterSnapshot
+   round-trip presetKey (restored LAST, after the auto-clearing date
+   writes); filtersMatchSnapshot treats the wording as identity (a preset
+   window and a same-dates custom window are NOT the same view).
+5. src/store/app-store.ts — DashboardFilterSnapshot.presetKey;
+   sanitizeFilterSnapshot validates against DATE_PRESET_KEYS so a corrupt
+   localStorage/import can never fabricate a preset. Pre-PRESET-CHIP
+   boards degrade to date wording (honest, never wrong).
+6. src/lib/session-baseline.ts — SessionBaseline.presetKey; both capture
+   sites (action bar + palette) and both reset paths re-stamp it, so
+   "was Today" tooltips and session-start restores keep the wording.
+7. src/components/shell/global-action-bar.tsx — applyPreset stamps
+   presetKey AFTER its date writes (each clears it by store rule); chip
+   label + deps, baseline capture, dateChanged/baselineDateLabel, session
+   reset all pass presetKey. Dropdown highlight: presetKey identity +
+   named-range fallback (Chart History "All Days" → dateRange 'all' still
+   highlights Full Range as always; Today/This Month/etc. now highlight
+   when active — they never did before).
+8. src/components/command-palette.tsx — applyFooterPreset stamps
+   (1:1 with the bar); the custom mini-form needs NO change (store rule
+   clears); presetActive is presetKey-first — window presets no longer
+   match by recomputed dates (stale after a trading-days toggle, and a
+   hand-picked equal-bounds pair is CUSTOM); resetToSessionStart
+   re-stamps baseline.presetKey.
+9. GlobalFiltersDrawer — ZERO code changes: Chart History writes flow
+   through the store rule (browser-verified below); drawer drafts never
+   touch date keys (snapshotDraft manages scope families only).
+10. tests/preset-chip.test.ts — 10 tests: all 9 preset wordings in both
+    apply shapes; custom-date rendering incl. open-ended "… - now";
+    unknown-key degradation; legacy named-range/date behavior unchanged;
+    the applyPreset write-sequence simulation; deep-link invalidation via
+    setFilter AND setFilters; non-date patch preservation; clearAll.
+
+**Verification:** lint 0 errors · tsc 0 errors · vitest 140/140 (13 files;
+was 130/12 — +10 new). E2E (minted demo session, live pulled data):
+default chip "Full Range" + NET P&L $36,253.45; Today → chip "Today" +
+$0.00 (no trades 2026-11-04); This Year → chip "This Year" + $36,753.55
+(DB-verified 2026 YTD; 36,753.55 − 500.10 = 36,253.45 reconciles with
+all-time); Last 8 Days / This Month / Last Month / Yesterday / Last 6
+Months / Last 1 Year each → chip shows its own wording (cycled in
+browser); Custom Range 2026-01-01→2026-11-04 → chip "2026-01-01 -
+2026-11-04" (the ONLY dates surface) + $36,753.55; dropdown highlight
+Today=true others=false, custom window = none pressed; "Session start"
+row restores wording and clears the change dot; palette footer chip parity
++ palette-applied "Yesterday" flips the TOP-BAR chip in lockstep ($0.00);
+drawer Chart History "Last 30 Days" → chip "2026-10-05 - 2026-11-04"
+(auto-clear end-to-end) then Full Range restore → $36,253.45, dot clear;
+mobile 390×844 renders clean (bar hidden, Filters drawer reachable);
+browser console 0 errors; server log all 200s (the ⨯/EADDRINUSE lines in
+dev.log predate this session — append-only log, lines 15-444 of 1288).
+Dev server was OOM-killed twice during E2E prep (kernel oom-kill,
+next-server RSS 2.8GB vs Chrome — documented pattern) and reaped twice by
+the sandbox when launched with a plain setsid; the sanctioned double-fork
+launcher (sync-prod section 8 pattern) holds. /api/dashboard with
+startDate/endDate rode correctly for every window (log-verified).
+
+**Cleanup report:** no tracked dead code created or found in the touched
+area — describeRange stays LIVE (feeds describeSnapshot), footerPresetBounds
+stays LIVE (feeds applyFooterPreset); zero dependency changes; no routes
+touched. Junk purged (untracked, proven cold via lsof/ps): /tmp/my-project
+restore-refill 19MB + 3 node-gyp temp dirs + pulse dir → /tmp 76MB→58MB.
+Kept: ritual.before.* (needed for the block-identity proof), next-dev.out
+(live launcher handle), tectonic (platform toolchain).
+
+**Production-readiness certificate:** see the block at the end of this
+entry (filled from real commands).
+
+**Ritual:** pull = LIVE production sync 20:54:56Z (users=4, trades=386;
+GET-only verification after) · this entry above the block · AGENTS.md task
+entry above the block · CLAUDE.md discipline bullet above the block ·
+commit + push last (genuine owner-assigned task — Policy B satisfied).
+
+**Needs owner decision / left over:** none.
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — PRESET-CHIP
+Date (UTC, from `date -u`):         2026-11-04T21:10:28Z
+Task started / finished:            2026-11-04T20:50:26Z / 2026-11-04T21:11Z
+Last production pull (sync:prod):   2026-11-04T20:54:56Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 140/140 passing (13 files)
+Pages/flows verified (list):        Overview (default + every preset + custom
+                                    range + session reset), date dropdown
+                                    highlight states, command palette (footer
+                                    chip, date menu, custom form), drawer Chart
+                                    History apply, mobile 390x844 shell
+Console + server-log errors:        0 / 0 (this session; stale log lines
+                                    predate it)
+Touched-area audit:                 PASS (all 9 presets wording + custom dates
+                                    + lockstep + auto-clear + baseline reset,
+                                    KPI values DB-reconciled)
+KPIs hand-checked vs raw DB:        3/3 exact match ($36,253.45 all-time,
+                                    $36,753.55 2026 window [carried from
+                                    DB-verified ALL-TIME-DEFAULT figures],
+                                    $0.00 today/yesterday windows)
+Security: every touched handler guarded, own-data only:  PASS (no API routes
+                                    touched — client-side wording only; store
+                                    + snapshot sanitizers hardened)
+Dead code removed:                  0 files, 0 deps, 0 routes (none created;
+                                    touched-area functions all LIVE)
+Junk purged:                        18 MB (/tmp 76MB→58MB; project/.git
+                                    unchanged — no tracked deletions)
+Orphan DB models needing owner decision: none
+Ritual block intact in all 3 files: YES (md5 fa3d2a5b… identical, markers=1)
+Verdict:                            PRODUCTION-READY
+```
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
