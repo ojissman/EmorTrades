@@ -9849,6 +9849,52 @@ Orphan DB models needing owner decision: none new (Dashboard/User.displayMode pr
 Ritual block intact in all 3 files: YES
 Verdict: PRODUCTION-READY
 
+---
+
+## Task COHORTSWEEP — the blocked-cohort batch: every CLICKSWEEP "honest no-op" wired + a fresh dead-surface pass (FULL-SWEEP CONTINUE)   [2026-11-05T19:07:52Z]
+**Agent:** Z.ai Code   **Type:** CONTINUE (from CLICKSWEEP b0c5920)   **Scope:** FULL-SWEEP
+
+**Task (owner's words):** "Check the entire app for the same issue or more of that of the Tags that you just fix... the whole app... some card, KPI, Modals etc that deserve peekview, clickability or so but now they dont... Its your duty to find and fix and make this app a complete 'Production Ready' app."
+
+**Method:** day gate on the fresh PAT (CLEARED TO WORK 19:03:20Z, production synced users=4 trades=386); 2 parallel Explore agents (the 11 documented blocked drills analyzed file-by-file; a fresh dead-surface sweep beyond both exclusion lists) + 5 parallel wiring agents with disjoint file ownership; orchestrator-only E2E. Every agent finding independently spot-checked; 2 CLICKSWEEP claims turned out misdiagnoses (setup radar payload always had setupId; challenges payload always had the run window) — both wired nearly for free.
+
+**Work Log:**
+1. CONTINUE spot-check first (template 2.6: never trust the prior entry blindly): 4/4 sampled CLICKSWEEP claims verified live on the pull (treemap Best→AAPL rows, calendar NET-P&L→Nov window + honest empty, executions By-Symbol→USTEC.V chip + breadcrumb, gmail/test 401) — the entry is trustworthy.
+2. Infrastructure (4bd6de7): the `tradeIds` exact-cohort deep-link param (repeated tradeId → where.id IN on /api/trades + /api/metrics) — tape-derived regime cohorts (ATR/gap/rvol) are not DB-expressible, so the aggregate's ids ARE the cohort; `systemId` ('none' sentinel mirrors setupId); `dayOfMonth` (dayOfWeek-style post-filter, entry-UTC); store emits/counts/voids all three (Task-141 explicit-void lesson); trades-page chips in both surfaces + Clear-all.
+3. SAME-METRIC-SAME-VALUE FIX: /api/metrics parsed dayOfWeek/hourOfDay/hourFrom/hourTo but its post-filter never APPLIED them — metrics pages silently disagreed with /api/trades under any active drill scope. Now applied identically (+cohort params in the SQL where). Hand-check: dayOfWeek=1 → metrics 19 = DB 19 = trades 19.
+4. Id-bearing payloads, additive only (d45704a): metrics summary.bestTrade/worstTrade (dashboard shape), rDetail (exit-chrono — also fixes the arbitrary-DB-order #i axis; rList untouched for the histogram), mfeMae.captureHistogram[].tradeIds; exit-analysis captureBuckets/timeToBestBuckets[].tradeIds + summary.gaveBackIds/neverHadItIds; technical-analysis BucketStats/RvolBucket.tradeIds; calendar-intel topMistakes[].mistakeId.
+5. ~45 surfaces wired (116e659) — every CLICKSWEEP blocked drill closed except genuinely counterfactual ones (which got explaining titles): technical-analysis regimes (table/tiles/chart ×8 routes), rvol regimes, exit capture/time/gave-back/never-had-it/bucket-economics/near-perfect/round-trippers/Actual-P&L (both exit pages), MFE histogram, r-multiple cumR point-peek + strip (minR:0 + per-extreme peeks), returns-dist best/worst peeks, analytics setup radar + equity curve, heatmap dayOfMonth cells + insight cards, trend quarter bars + cards (client-side chrono ids), explore By-system rows (yearly+monthly, 'none' bucket), challenges completed-card run window, calendar sessions/strategies/instruments/week-setups/week-symbols/win-loss-buckets/day-session-strip/pattern-days/mistake-chips/monthly-summary strip, open-positions exposure pie+bar (status:'open' exact cohorts; summary page tightened to match), drawdown Max/Current-DD heroes, six metrics KPI strips, equities-curve strip, executions fill-row peeks (hover only when linked) + Buys/Sells side-filter tiles, symbols summary cards (Winning/Losing via exact tradeIds), challenge mini-cards; affordance lies removed (behavioral signal rows, goals KpiStrip, untraded session rows).
+6. E2E-caught defects fixed (ca788cc): (a) recharts 2.15.x shape-level onClick on Area/Radar NEVER fires (one polygon = whole series) — FOUR wirings had shipped dead on that idiom since CLICKSWEEP (score radar, win-rate trend, both desk equity curves; their E2E passed via sibling surfaces) — all moved to the chart-level activePayload idiom (drawdown-page pattern); (b) drawdown chart drilled locale labels ("Mar 5".slice(0,10) → garbage links) — points now carry full dateKey; verified 2026-06-11; (c) 3 tsc mirror gaps + a11y affordances completed on clickable Cards (role/tabIndex/onKeyDown/aria-label per the MetricStat standard).
+7. +8 tests (tests/cohort-params.test.ts): store wire-format (repeated tradeId, systemId incl 'none', dayOfMonth), badge counters, clearAll explicit voids, 'all'-sentinel not-active, parseScope dayOfMonth + post-filter gate.
+
+**Verification:** lint 0 · tsc 0 · vitest 221/221 (19 files). E2E on the live pull: 19 drill/peek flows green (ATR regime Cohort:118, rvol 81, Gave Back 48, MFE bucket 1, cumR→USD/HUF peek, Best→AAPL $3,057 id-exact, radar→News Fade, win-rate trend→Apr window, day-20 heatmap chip, Q2→Cohort:92=369÷4, By system→No system, Range Fade→Setup chip (card counts DB-exact), London→08:00–16:00, exposure→EUR/JPY, Max DD→May 12–Jun 28, drawdown chart→date=2026-06-11 (DATEFIX), fill→GBPUSD peek, hit-ratio→Winners, Total P&L→trades) + the 4 CLICKSWEEP spot-checks; mobile 390×844 zero overflow ×3; console + page errors 0 (clean pass); KPI/API hand-checks exact (tradeIds 3/3, dayOfMonth 12=DB, dayOfWeek metrics 19=DB, systemId 377/3=DB, bestTrade/worstTrade id-exact, rDetail 324=DB exit-chrono, histogram ids 284=mfe>0, exit buckets 155 match, ATR 286=matched). Drill-scope merge semantics (progressive refinement, chips+Clear-all) documented — pre-existing app-wide design.
+
+**Cleanup report:** dead code: NONE found (0 exports added this task; the 262-line deletion delta = intentionally replaced handlers/comments; CLICKSWEEP's purge holds). Junk: 5 untracked agent work records (agent-ctx/) purged post-push; no tracked-file deletions; upload/ absent; /tmp ritual snapshots consumed by the 6.4 proof.
+
+**Production-readiness certificate:** see below.
+
+**Ritual:** pull 2026-11-05T19:03:01Z users=4 trades=386 (day:start gate, CLEARED TO WORK 19:03:20Z, .env restored 11 keys manifest-exact); this entry above the block; local phase commits 4bd6de7/d45704a/116e659/ca788cc + this doc commit; push last (ride-along 904f2cc included).
+
+**Needs owner decision / left over:** none blocking. Carried forward: challenges demo seeding (0 rows — the completed-card drill compiles + is keyboard-affordable but can't be exercised on live data); optional challenges winning-run snapshot; Dashboard + User.displayMode owner decisions (Nov-2 audit); psych tags + missed-trade demo seeding (CLICKSWEEP carry-over).
+
+PRODUCTION-READINESS CERTIFICATE — COHORTSWEEP
+Date (UTC, from `date -u`):         2026-11-05T20:19:58Z
+Task started / finished:            2026-11-05T19:07:52Z / 2026-11-05T20:19:58Z
+Last production pull (sync:prod):   2026-11-05T19:03:01Z   users=4 trades=386
+Production URL health:              200      Preview/dev: 200 (in-session)
+Build: lint 0 errors | tsc 0 errors | tests 221/221 passing
+Pages/flows verified (list):        technical-analysis ×2 scopes, relative-volume, exit-insight, exit-detail-charts, mfe-mae, r-multiple, returns-distribution, overall-statistics (radar + equity), heatmaps, trend, yearly/monthly explore, challenges (compile+affordance), calendar (sessions/strategy/monthly), open-positions, open-trades-summary, drawdown, hit-ratio, win-rate, executions, symbols, + 4 CLICKSWEEP spot-checks; mobile 390 ×3
+Console + server-log errors:        0 / 0 (clean pass; restarts were dev-server memory, not app errors)
+Touched-area audit:                 PASS (19 E2E flows + hand-checks; every wired element verified or honestly titled)
+KPIs hand-checked vs raw DB:        14/14 exact match (see Verification)
+Security: every touched handler guarded (params validated server-side; userId scoping unchanged; cohort ids are SQL-IN'd under the existing user where — foreign ids match 0): PASS
+Dead code removed:                  0 files, 0 deps, 0 routes (none found — additive task)
+Junk purged:                        post-push (5 untracked work records)
+Orphan DB models needing owner decision: none new (Dashboard/User.displayMode pre-existing, deferred)
+Ritual block intact in all 3 files: YES
+Verdict:                            PRODUCTION-READY
+
+
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

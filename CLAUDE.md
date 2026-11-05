@@ -375,6 +375,8 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
 
 - CLICKSWEEP (2026-11-05): every cohort-naming card/KPI/bar drills through src/lib/drill.ts (drillToTrades/peekTrade/drillToDay) or carries an honest no-op title — never a silent static tile; mutating fetch handlers MUST check res.ok before toasting success; equity baselines go through equityBaselineFor() (never user.startingCapital directly, never a hardcoded 10000/25000); verify claimed routes exist in the tree (`git log --all -- <path>`), not in commit messages; on this sandbox the dev server only lives within the tool-call that spawned it — warm via curl before browser use, one browser tab, never tsc+browser together.
 
+- COHORTSWEEP (2026-11-05): chart drills go on the CHART element (activePayload idiom) — recharts 2.15.x shape-level onClick on Area/Radar never fires (4 shipped-dead wirings proved it); Bar/Pie shape clicks do work. Exact cohorts over approximations: when an aggregate payload carries trade ids (tradeIds param), drill those — never a filter range that "mostly matches"; counterfactual/derived tiles (ratios, best-exit potentials) stay honest with explaining titles instead of fake drills. Every new parseScope param must be APPLIED in every route that parses it (metrics parsed day/hour params for months without applying them). Clickable Cards need the full affordance set (cursor + hover + role=button + tabIndex + onKeyDown + aria-label), not cursor alone. E2E the exact surface you wired — a passing sibling proves nothing.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

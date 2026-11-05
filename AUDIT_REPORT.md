@@ -395,3 +395,47 @@ Owner directive: sweep the whole app for Tags-like defects (surfaces that look w
 **Remaining (owner-visible, none blocking):** the 31 blocked cohort drills (capture-rate, rvol regime, dayOfMonth, EOD-delta, time-to-peak, system-union, quarter windows — need batched filter-param/payload-id work); demo seeding of psych tags + a missed-trade row so those surfaces can be E2E'd on data; Dashboard model + User.displayMode still deferred owner decisions from the Nov-2 audit.
 
 **Tests:** 213/213 (18 files, +5 equity-baseline). Gates: lint 0, tsc 0. E2E 12/12 (10 pass + 2 honest-empty), mobile 390 zero overflow ×3, console 0, KPI hand-check exact (40000 = Σ demo accounts).
+
+## Audit addendum — COHORTSWEEP (2026-11-05, FULL-SWEEP CONTINUE: the blocked-cohort batch + fresh pass)
+
+Owner directive (CONTINUE of CLICKSWEEP): close the documented blocked cohort drills, sweep fresh for anything still dead. Method: 2 parallel Explore agents (the 11 blocked drills analyzed file-by-file; a fresh dead-surface sweep beyond both documented lists) + 5 parallel wiring agents with disjoint file ownership + orchestrator E2E.
+
+**Infrastructure added (the unlock):**
+- `tradeIds` — exact-cohort deep-link param (repeated `tradeId` on /api/trades + /api/metrics, `where.id IN`): the only honest way tape-derived cohorts (ATR/gap/rvol regimes) can drill — membership is not DB-expressible, so the aggregate's ids ARE the cohort.
+- `systemId` — SQL scope param ('none' sentinel = the "No system" bucket, mirroring setupId's contract).
+- `dayOfMonth` — dayOfWeek-style post-filter (1-31, entry-UTC getUTCDate).
+- Filter store emits/counts/voids all three (Task-141 explicit-void lesson); trades page renders Cohort/System/Day chips in both chip surfaces + Clear-all.
+- **Same-metric-same-value fix:** /api/metrics parsed dayOfWeek/hourOfDay/hourFrom/hourTo via parseScope but never APPLIED them (post-filter pass ignored them) — metrics pages silently disagreed with /api/trades while a drill scope was active. Now applied identically (+ tradeIds/systemId in the SQL where). Hand-check: dayOfWeek=1 → metrics total 19 = DB 19 = trades 19.
+
+**Id-bearing payloads (additive):** /api/metrics summary.bestTrade/worstTrade (dashboard shape), rDetail (exit-chrono, fixes the arbitrary-DB-order #i axis), mfeMae.captureHistogram[].tradeIds; /api/exit-analysis captureBuckets/timeToBestBuckets[].tradeIds + summary.gaveBackIds/neverHadItIds; technical-analysis BucketStats/RvolBucket.tradeIds; calendar-intel topMistakes[].mistakeId.
+
+**~45 surfaces wired (every CLICKSWEEP "honest no-op" closed except the genuinely counterfactual):**
+- Technical analysis (8 routes): regime table rows, best/worst tiles, regime chart bars → tradeIds cohorts.
+- Relative volume: regime table + best tile.
+- Exit family: capture-distribution bars, time-to-peak pie + bars, Gave Back / Never Had It cards, bucket-economics table, near-perfect/round-tripper heroes, detail-charts surfaces, Actual P&L hero (page-scoped). Counterfactuals (Best Exit Potential, Hold-to-Close, Capture Rate ratio, hold-longer curve) stay honest with explaining titles.
+- MFE/MAE capture histogram bars. R-multiple: cumulative-R point → trade peek (rDetail), Positive-R share → minR:0, Best/Worst R → peek; r-multiple strip split into per-extreme tiles.
+- Returns distribution: best/worst trade tiles → peek (id-bearing).
+- Analytics (overall statistics): setup radar sectors → setupId drill (payload ALWAYS had setupId — CLICKSWEEP's "no setupId" note was wrong; the client dropped it); equity curve → drillToDay.
+- Heatmaps: day-of-month cells + insight cards → dayOfMonth. Trend: career-quarter bars + cards → exact ids (client-side chrono slices).
+- Explore "By system" rows (yearly + monthly) → systemId ('none' bucket included).
+- Challenges: completed card → startedAt→completedAt run window (payload always had both — CLICKSWEEP's "no run window" note was wrong), keyboard-affordable.
+- Calendar family: Trading-sessions rows (hour window), Strategy performance rows (setupId), Instruments rows (symbol), Week tab setups/symbols/sessions/win-loss buckets (minPnl/maxPnl), day-session strip rows, pattern-recognition matched days → drillToDay, behavioral mistake chips → mistakeIds (payload got mistakeId), monthly-summary stat strip (7 cells; PF stays honest).
+- Open Positions: exposure-by-side pie + exposure-by-symbol bar → {side|symbol, status:'open'} (exact open cohort; the summary page's bar + table tightened to match).
+- Drawdown: Max Drawdown + Current Drawdown heroes → the exact period windows (drillPeriod idiom).
+- Metrics KPI strips: hit-ratio (4), win-rate (2), profit-factor (net), profit-loss (3), expectancy, open-trades-summary (4 + navigation idiom), equities-curve (Change %, Max DD % → drawdown view), executions (fill rows → linked-trade peek with hover only when linked; Buys/Sells tiles toggle the local side filter), symbols summary cards (Total P&L; Winning/Losing → exact tradeIds cohorts), equities/execution/psychology adjacent honest titles.
+- Affordance lies removed: behavioral signal rows, goals KpiStrip, day-session untraded rows (hover classes that promised nothing).
+
+**Latent defects E2E-caught in the combined old+new wiring (all fixed, re-verified):**
+1. **recharts shape-level onClick on Area/Radar never fires in 2.15.x** — the polygon/path is ONE shape for the whole series, and its click datum can't identify a point. FOUR wirings shipped dead on this idiom since CLICKSWEEP (score radar, win-rate trend area, both desk equity curves) — their E2E passed via sibling surfaces (component bars, tiles), never the chart itself. All moved to the chart-level `activePayload` idiom (drawdown-page pattern). New wirings (r-multiple cumR, setup radar, analytics equity curve) use chart-level from the start.
+2. Drawdown chart drill used locale labels ("Mar 5").slice(0,10) → garbage deep links; points now carry full `dateKey` (CLICKSWEEP-DATEFIX pattern). Verified: chart click → day-explore?date=2026-06-11.
+3. 3 tsc-level mirror gaps (local payload interfaces missing the new fields; a `{}`-typed reduce).
+
+**E2E (19 drill/peek flows + spot-checks, live pull users=4 trades=386):** ATR regime row → Cohort: 118 (API-exact); rvol Normal → 81; Gave Back → 48 (=page's range=all count; 180d curl=31 — param-scoped, both exact); MFE histogram → 1 (bucket-exact); cumR point → USD/HUF peek; returns-dist Best → AAPL $3,057 (DB-exact id); setup radar → Setup: News Fade; win-rate trend → Apr window + breadcrumb; heatmap day-20 → Day 20 of month chip; trend Q2 → Cohort: 92 (369÷4); By system → System: No system; calendar strategy Range Fade → Setup: Range Fade (card counts DB-exact after correcting the auditor's own epoch math); London session → 08:00–16:00 window; open-pos exposure bar → EUR/JPY; Max DD hero → May 12 – Jun 28; drawdown chart → 2026-06-11 (DATEFIX); executions fill → GBPUSD peek; hit-ratio → Winners; symbols Total P&L → trades. Drill-scope semantics note: drills MERGE into the global filter store (progressive refinement; chips + Clear-all control it) — pre-existing app-wide design, unchanged. Mobile 390×844 zero overflow ×3; console + page errors 0 after clean pass; unauth guards unchanged.
+
+**KPI/API hand-checks (exact):** tradeIds 3-id cohort → exactly 3; dayOfMonth=20 → 12 = DB 12; dayOfWeek=1 metrics 19 = DB 19 (the consistency fix); systemId none/real → 377/3 = DB 368+9 closed+open null / 1+2 real; bestTrade/worstTrade id+symbol+pnl = DB argmax/argmin; rDetail 324 = DB with-R, exit-chrono verified; captureHistogram ids=sum counts=284=mfe>0; exit-analysis buckets 155 ids match counts; gaveBack 31=31 (180d); ATR regimes 59+118+109=286=matched coverage.
+
+**Dead code:** none new (0 exports added; the 262-line deletion delta is the intentionally-replaced handlers/comments). Junk purged post-push: 5 agent work records (untracked). Dashboard + User.displayMode remain deferred owner decisions.
+
+**Tests:** 221/221 (19 files, +8 cohort-params: store wire-format/counters/clearAll-voids + parseScope dayOfMonth). Gates: lint 0, tsc 0.
+
+**Remaining (owner-visible, none blocking):** demo seeding (challenges=0 rows so the completed-card drill compiles but can't be exercised on live data; psych tags + missed-trade row from CLICKSWEEP still unseeded); optional: challenges API could add a winning-run snapshot so completed cards drill the exact streak, not the run window; Dashboard/User.displayMode owner decisions carried forward.
