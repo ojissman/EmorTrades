@@ -9564,6 +9564,252 @@ bodies, 400 on invalid ones); noted, not touched; (c) /tmp/my-project
 root dir skeleton is platform-owned (EPERM) — 4KB, inert, recorded.
 
 
+## Task TAGCORE-A2Z — ONE Setup picker (owner decision) + the Tag core wired A-Z: day tags get their missing write path, mistakes get DB groups, the trade form gets mistakes, and the app sweep fixes a silent-404 admin button
+
+**Agent:** Z.ai Code (Claude) · **Type:** NEW (owner directive on the tag
+core + the Setup decision) · **Scope:** NORMAL with an app-wide wiring sweep
+
+**Task:** Owner: 'since both setup in the trade modal share the same origin,
+i will suggest removing one, preferably "Setup: Select setup. Same link as
+the plan chain below…"' — and: 'search and scan the entire app for proper
+fixing, wiring, linking, improvement, upgrade… check the Tag Analysis
+Groups, the Mistakes, Day Tags, Trade Tags and also the Tags page in
+settings and their relationship with the app as a whole — how they ought to
+function, work, managed, linked, observed, analyzed, add, edit… PRODUCTION
+READY.' Acceptance criteria: (1) ONE Setup selector in the Trade Modal (the
+standalone field gone, the chain's third picker carrying the full catalog);
+(2) the tag core wired end to end — every axis (trade tags / day tags /
+mistakes) creatable, manageable, applicable, analyzable; (3) app-wide sweep
+findings fixed; (4) all gates + E2E green on live pulled data, zero mocks.
+
+**The answer to the Setup question (and agreement with the owner's pick):**
+the standalone Setup field was removed — the right call because both
+surfaces wrote the same Trade.setupId column and the plan chain is the
+richer surface (auto-complete, version pinning, warnings). The chain's
+third picker is now THE single Setup selector, upgraded so the quick-tag
+path survives: always enabled, "All setups" full catalog when no system is
+selected (fresh modal, no plan needed), "This system" + "Other setups"
+groups when one is. applySetupLink remains the resolver (auto-complete /
+re-target / plain standalone link); "No setup" keeps a plan+system-only
+link valid.
+
+**Tag-core audit findings (all code- and DB-proven on the fresh pull):**
+1. **Day Tags had NO write path** — zero DayDayTag writers existed
+   anywhere; the catalog couldn't even be created (Settings ▸ Add Tags was
+   trade-only); Day Explore's chips were read-only and pointed users to a
+   page family that could never have data. Demo DB: dayTags=0, groups=0,
+   links=0 for every user. Triple-broken, now wired end to end.
+2. **Mistakes ▸ Groups grouped by a hardcoded English name list**
+   (MISTAKE_FAMILIES) that matched none of the user's actual catalog —
+   every demo mistake (8/8, 54 trade links) sat "outside families" and the
+   Groups page rendered empty. Trade tags and day tags both have DB
+   groups; mistakes were the only taxonomy without them.
+3. **The Trade Modal had no mistakes field** — mistakes could only be
+   attached from the trades table's bulk dropdown, never in the primary
+   add/edit form where tags live.
+4. **App sweep: the admin Integrations "Send test email" button called
+   POST /api/admin/gmail/test — a route that never existed** (silent 404
+   on every click since the panel shipped). 98 distinct literal fetch
+   paths audited against the 138-route tree; this was the only unwired
+   one (all template-literal dynamic paths verified to existing [id]
+   routes).
+
+**Work Log:**
+1. BEFORE gate 13:51:30Z: rules read; ritual blocks identical md5
+   fa3d2a5b… ×3, markers=1. Day gate already run today (12:27:24Z,
+   TOOLS-AI-VERIFY). Open cycle: none (tree clean, origin tip e23cf11 =
+   MODAL-SETUP-UNIFY pushed). Baseline: lint 0, tsc 0, vitest 203/203,
+   dev 200.
+2. PULL FIRST 13:52:20Z: production UP (200) → LIVE sync:prod (users=4,
+   trades=386, 1,634,304 bytes; strict schema push additive; dev
+   relaunched by the script).
+3. trade-modal.tsx: standalone Setup field removed; chain third picker =
+   THE Setup selector (SelectGroup "This system"/"All setups"/"Other
+   setups", always enabled, applySetupLink/clearSetupLink handlers,
+   placeholder "Select setup", data-testid tp-setup-picker); section
+   relabeled "Setup & plan link (versioned)" with a truthful one-link
+   helper; NEW Mistakes chip row (col-span-2, symmetric with Tags,
+   /api/mistakes catalog fetch, selectedMistakes in form state, edit
+   prefill from trade.mistakes, fresh-open reset, payload mistakeIds on
+   both POST and PUT — the API's transactional replace contract);
+   empty-state pointers on both chip rows.
+4. Day tags write path (NEW): src/lib/server/day-tag-apply.ts
+   (applyDayTag/removeDayTag — YYYY-MM-DD validation, UTC-midnight
+   storage convention, userId-scoped tag resolution, idempotent
+   upsert/delete) + POST/DELETE /api/day-tags/apply (requireUser, thin
+   guarded surface). Settings ▸ Tags ▸ Add Tags dialog got a Tag Type
+   (Trade | Day) radio — day tags POST /api/day-tags (replace mode
+   deletes absent day tags like trades). Day Explore's DayTagsPanel is
+   interactive now: applied chips with × remove, "Tag day" dropdown
+   (catalog with check marks, pending state), honest empty states, and
+   the dead-end "from Tags Analysis → Day Tags" text replaced; invalidates
+   day-explore-day-tags / tags-analysis-day-tags / day-tags queries.
+5. Mistake groups (NEW, additive schema): MistakeGroup model + Mistake.groupId
+   + User.mistakeGroups; /api/mistakes extended to the full tags-route
+   contract (GET returns mistakes-with-group + groups; POST/PATCH/DELETE
+   kind:'group' — group delete detaches, never deletes mistakes; groupId
+   ownership-checked on every path). Settings ▸ Tags ▸ new "Mistake
+   Groups" card + the same groups dialog (tagType 'mistake'). Mistakes ▸
+   Groups page rewritten to DB groups + Ungrouped bucket (union deduped
+   per trade — the old curated page could double-count across families);
+   member chips drill per mistake; groups tracked KPI. MISTAKE_FAMILIES
+   deleted from shared.tsx (zero-reference proof below). Mistakes ▸
+   Individual cards show the row's group badge.
+6. App sweep fixes: NEW POST /api/admin/gmail/test (sameOrigin +
+   requireAdmin + rate limit + audit log; resolves recipient from body or
+   the connected inbox; sends through the same sendGmailEmail() the
+   transactional mail uses; honest 409 when Gmail is not connected) —
+   the Integrations "Send test email" button is live end to end.
+7. Honest empty states added across the family: trade-tags Groups, day
+   tags Individual/Groups/Advanced (weekday table), mistakes
+   Groups/Advanced — each points to where the data gets created/applied.
+8. Stale comments refreshed (plan-link.ts + trade-modal.tsx no longer
+   describe a two-picker world). tests/day-tag-apply.test.ts (NEW, 5
+   tests): UTC-midnight convention, idempotency, exact-pair removal,
+   foreign-user 404-no-write, malformed-date 400.
+
+**Verification (every number from a command run this session):**
+- Gates serialized (dev OOM-killed twice by tsc — double-fork relaunch
+  both times, 200 re-verified): lint 0 errors · tsc --noEmit 0 errors ·
+  vitest 208/208 (17 files; 203 prior + 5 new) · dev 200.
+- E2E on the fresh pull (minted demo session, curl-warmed):
+  1. Modal structure: NO standalone Setup field; Rating/Tags/Mistakes/
+     Setup & plan link (versioned) render; chain = No plan/No system
+     (disabled)/No setup (ENABLED).
+  2. Setup picker cold open: "All setups" group lists all 11 demo
+     setups; picked Range Fade → chain auto-filled Imported/Imported
+     System/Range Fade.
+  3. Full-chain create with mistake + tag chips: "Trade added"; DB:
+     setupId=Range Fade, tradingPlanId+systemId set, ALL THREE version
+     pins set (plan/system/setup), tags=[A+ setup],
+     mistakes=[FOMO entry], pnl=$20 (10×(102−100) exact).
+  4. Edit via deep link: FOMO entry + A+ setup chips prefilled
+     SELECTED, setup combobox = Range Fade; removed the mistake →
+     "Trade updated"; DB: mistakes replaced to none, tags kept, chain
+     intact.
+  5. Fresh reopen after saves: chain fully reset, zero chips selected
+     (no bleed).
+  6. Day tags: Settings ▸ Tags ▸ Add (Day) → "Added 2 day tags" (FOMC
+     Day, High Volatility); Day Explore → "Tag day" menu → applied FOMC
+     Day → chip + × rendered; DB DayDayTag = 2026-11-05 UTC midnight
+     exactly; Day Tags ▸ Individual showed "1 unique tagged dates" +
+     FOMC Day row + baseline; removed via chip × → DB 0 links, honest
+     empty state returned.
+  7. Mistake groups: Settings ▸ Mistake Groups → created "Entry
+     discipline", assigned FOMO entry + Late entry; Mistakes ▸ Groups
+     rendered the group (14 trades · 43% win · member chips "FOMO entry
+     11t +$58", "Late entry 3t −$475") + Ungrouped bucket (6) — real
+     numbers from the pulled journal; group card click drilled to
+     Trades with "2 mistakes ✕" filter; Individual cards showed the
+     group badge.
+  8. Guards: unauth POST/DELETE /api/day-tags/apply 401 · unauth
+     POST /api/admin/gmail/test 401 · foreign day tag 404 · foreign
+     mistake group PATCH 404 · malformed date 400 · unauth mistake
+     group POST 401.
+  9. Mobile 390×844: matchMedia(max-width:1023px)=true, scrollWidth 390
+     (zero overflow) on Trades + modal (mistakes + chain present) +
+     Day Explore (panel + Tag day button present).
+  10. Console errors 0; server log 0 unexpected errors (three
+      /api/mistakes 500s occurred ONLY in the stale-Prisma-client
+      window between the route edit and the tsc-restart — the old
+      process hot-reloaded new code against its in-memory old client;
+      after the restart every request 200; the intentional 404 guard
+      probe excluded).
+- E2E artifacts cleaned via the same APIs the UI calls: both test day
+  tags deleted, TEST trade deleted, Entry discipline group deleted
+  (mistakes detached to 0 grouped) — DB re-verified back to pulled
+  state + the additive MistakeGroup tables.
+
+**Cleanup report (Section 5):**
+| item | size | proof | action |
+|---|---|---|---|
+| MISTAKE_FAMILIES constant (shared.tsx) | ~0.4KB | rg -n MISTAKE_FAMILIES src/ → 1 hit, the removal-note comment itself (was: only consumer mistakes-pages.tsx, rewritten) | DELETED (dead: hardcoded names matched 0/8 real mistakes) |
+| e2e-check*.ts, sweep*.ts, tag-audit-1.ts (root + /tmp) | KB-scale | this session's own scratch | DELETED |
+| /tmp/HEAD.tar | 40MB | publish staging debris, lsof-cold | DELETED |
+| /tmp/my-project | 19MB | platform restore debris, lsof-cold | DELETED (0 entries remain) |
+| tsconfig.tsbuildinfo | ~0.8MB | tsc artifact, regenerated on next run | DELETED |
+| /tmp total | 116MB → 58MB | du -sh | keepers intact (tectonic 55M, node-compile-cache, uv locks, ritual.before.* until push, next-dev.out = live tee handle) |
+
+No tracked files deleted (all changes in-place + new files); no routes
+removed (rm -rf .next/types not needed); no deps changed; no orphan DB
+models (MistakeGroup is new and LIVE). No git clean -x, no purity.
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — TAGCORE-A2Z
+Date (UTC, from `date -u`):         2026-11-05T14:25:56Z
+Task started / finished:            2026-11-05T13:51:30Z / 2026-11-05T14:25:56Z
+Last production pull (sync:prod):   2026-11-05T13:52:20Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 208/208 passing (17 files)
+Pages/flows verified (list):        Trade Modal (one Setup picker: cold
+                                    full catalog, auto-fill, full-chain
+                                    create with 3 version pins, mistakes
+                                    chips create/prefill/replace, fresh
+                                    resets); Settings ▸ Tags (Add Trade|
+                                    Day types, Mistake Groups dialog:
+                                    create/assign); Day Explore (Tag day
+                                    apply/remove + chips); Day Tags ▸
+                                    Individual (live tagged-day stats);
+                                    Mistakes ▸ Groups (DB groups + member
+                                    costs + drill "2 mistakes ✕");
+                                    Mistakes ▸ Individual (group badge);
+                                    unauth 401 ×3 + ownership 404 ×2 +
+                                    400 validation; mobile 390×844 ×3
+Console + server-log errors:        0 / 0 (3 transient /api/mistakes 500s
+                                    in the pre-restart stale-client window
+                                    only; 0 after; explained above)
+Touched-area audit:                 PASS (all 9 tags-analysis routes +
+                                    settings Tags tab + day explore +
+                                    trade modal + trades bulk mistake
+                                    paths intact; numbers agree with the
+                                    raw DB — mistake member costs read
+                                    straight from pulled trades)
+KPIs hand-checked vs raw DB:        E2E trade pnl $20 exact (10×2); 54
+                                    mistake links / 606 tag links /
+                                    11 setups / 14 tags counts from
+                                    prisma direct; day-tag date = UTC
+                                    midnight exact
+Security: every touched handler guarded, own-data only:  PASS
+                                    (day-tags/apply POST+DELETE
+                                    requireUser + userId-scoped tag
+                                    resolution; /api/mistakes all 4
+                                    methods + group kind ownership;
+                                    gmail/test requireAdmin+sameOrigin+
+                                    rate limit + audit; proven live 401/
+                                    404/400 above)
+Dead code removed:                  1 export (MISTAKE_FAMILIES), 0 files,
+                                    0 deps, 0 routes (proof in cleanup
+                                    table)
+Junk purged:                        ~60 MB (project: scratch scripts +
+                                    tsbuildinfo ~1MB; .git —; /tmp
+                                    116MB→58MB)
+Orphan DB models needing owner decision: none (MistakeGroup + Mistake.
+                                    groupId are NEW and live; additive
+                                    push, no destructive change)
+Ritual block intact in all 3 files: YES (verified at push)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull = LIVE production sync 13:52:20Z (users=4, trades=386) ·
+this entry above the block · AGENTS.md task entry added above its block
+(step 5) · CLAUDE.md discipline bullet added above its block (step 6) ·
+AUDIT_REPORT.md addendum appended (6.1b — notable finds) · commit + push
+last.
+
+**Needs owner decision / left over:** (a) the gmail test route requires a
+connected Gmail account to succeed — with none connected it answers an
+honest 409 with reconnect instructions (by design; the Gmail one-time
+consent is owner-side per AGENTS.md environment notes); (b) missed-trade
+prefill E2E still not runnable live (0 missedTrade rows with setups — same
+honest gap as MODAL-SETUP-UNIFY; the branch rides the resolver verified 4×
+today); (c) POST /api/trades validates body before auth — pre-existing
+ordering, no leak, noted not touched; (d) the demo journal's day tags are
+now creatable but none exist yet in production — the owner's first
+"Tag day" on Day Explore will light the whole Day Tags family up.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

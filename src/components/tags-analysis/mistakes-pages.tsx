@@ -4,19 +4,21 @@
  * ============================================================================
  * MISTAKES ANALYSIS — /tags-analysis/mistakes/{groups|advanced}
  * ============================================================================
- * groups   → curated mistake FAMILIES (Entry/Exit/Risk/Plan/Emotional): cost
- *            per family (union of member mistakes, deduped per trade), share
- *            of total mistake cost, worst member, unused mistakes surfaced.
+ * groups   → the user's REAL DB MistakeGroups (Settings ▸ Tags ▸ Mistake
+ *            Groups) + an Ungrouped bucket: cost per group (union of member
+ *            mistakes, deduped per trade), share of total mistake cost,
+ *            per-member chips, unused mistakes surfaced. TAGCORE-A2Z: the
+ *            curated hardcoded families never matched real catalogs and
+ *            were removed.
  * advanced → repeat-offender table (count, avg cost, last seen, longest
  *            same-mistake streak), mistake × symbol cost matrix, and
  *            co-occurring mistake pairs on the same trade.
  *
- * Cost = realized net P&L of trades carrying the mistake. The DB has no
- * mistake groups — the family mapping here IS the grouping (visible in the
- * methodology note).
+ * Cost = realized net P&L of trades carrying the mistake.
  */
 
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Panel, MetricStat } from '@/components/metrics/metrics-kit'
 import { ShieldAlert, Flame, Repeat2, Info } from 'lucide-react'
@@ -26,13 +28,15 @@ import {
   statsOf,
   tradesWithAnyMistake,
   tradesWithMistake,
-  MISTAKE_FAMILIES,
   Chip,
   StatBar,
   signTone,
   toneMoney,
   type TaggedTrade,
 } from './shared'
+
+/** A mistake catalog row as /api/mistakes returns it (with its group). */
+type MistakeRow = { id: string; name: string; color: string | null; groupId: string | null }
 
 /** Task 9 — mistake NAME → id, resolvable only when the mistake appears on at
  *  least one loaded trade (mistake taxonomy isn't fetched here; unused
@@ -51,34 +55,65 @@ function useMistakeIdMap(trades: TaggedTrade[]): Map<string, string> {
 
 // ---- GROUPS --------------------------------------------------------------------------
 
+/**
+ * TAGCORE-A2Z — mistakes group by the user's REAL DB MistakeGroups now
+ * (managed in Settings ▸ Tags ▸ Mistake Groups), plus an Ungrouped bucket —
+ * mirroring the trade-tags and day-tags group pages exactly. The curated
+ * hardcoded families never matched real catalogs (every demo mistake sat
+ * "outside families" and the page rendered empty) — dead concept, removed.
+ */
 export function MistakesGroupsPage() {
   const tradesQ = useTaggedTrades()
-  const idOf = useMistakeIdMap(tradesQ.data?.trades ?? [])
+  const catQ = useQuery<{ mistakes: MistakeRow[]; groups: { id: string; name: string; color: string }[] }>({
+    queryKey: ['mistakes'],
+    queryFn: async () => {
+      const res = await fetch('/api/mistakes')
+      if (!res.ok) throw new Error('Failed')
+      return res.json()
+    },
+    staleTime: 60_000,
+  })
 
   const report = useMemo(() => {
     const trades = tradesQ.data?.trades ?? []
-    const allNames = new Set(trades.flatMap((t) => t.mistakes.map(({ mistake }) => mistake.name)))
-    const families = MISTAKE_FAMILIES.map((f) => {
-      const memberSet = new Set(f.members)
-      const memberNames = [...memberSet].filter((n) => allNames.has(n))
-      const union = tradesWithAnyMistake(trades, memberSet)
-      const members = f.members
-        .map((name) => {
-          const list = trades.filter((t) => t.mistakes.some(({ mistake }) => mistake.name === name))
-          return { name, list, stats: statsOf(list) }
-        })
-        .sort((a, b) => a.stats.net - b.stats.net)
-      return { ...f, union, stats: statsOf(union), members, active: memberNames.length }
-    })
-      .filter((f) => f.members.some((m) => m.stats.n > 0))
+    const catalog = catQ.data?.mistakes ?? []
+    const dbGroups = catQ.data?.groups ?? []
+    const buckets = dbGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      color: g.color,
+      members: catalog.filter((m) => m.groupId === g.id),
+    }))
+    const ungrouped = catalog.filter((m) => !m.groupId || !dbGroups.some((g) => g.id === m.groupId))
+    if (ungrouped.length) {
+      buckets.push({ id: '__ungrouped', name: 'Ungrouped', color: '#64748b', members: ungrouped })
+    }
+    const groups = buckets
+      .map((b) => {
+        const memberIds = new Set(b.members.map((m) => m.id))
+        const union = tradesWithAnyMistake(trades, memberIds)
+        const members = b.members
+          .map((m) => {
+            const list = tradesWithMistake(trades, m.id)
+            return { mistake: m, list, stats: statsOf(list) }
+          })
+          .sort((a, c) => a.stats.net - c.stats.net)
+        return { ...b, union, stats: statsOf(union), members }
+      })
+      .filter((b) => b.members.length > 0)
       .sort((a, b) => a.stats.net - b.stats.net) // costliest (most negative) first
-    const totalCost = families.reduce((s, f) => s + f.stats.net, 0)
+    // Total cost = the union of ALL mistakes, deduped by trade (a trade with
+    // two mistakes in different groups counts once — the old curated page
+    // summed per-family nets and could double-count).
+    const allIds = new Set(catalog.map((m) => m.id))
+    const totalCost = statsOf(tradesWithAnyMistake(trades, allIds)).net
     const tradesWithMistakes = trades.filter((t) => t.mistakes.length > 0)
-    const unused = [...allNames].filter((n) => !MISTAKE_FAMILIES.some((f) => f.members.includes(n)))
-    return { families, totalCost, tradesWithMistakes, total: trades.length, unused }
-  }, [tradesQ.data])
+    const unused = catalog.filter((m) => !trades.some((t) => t.mistakes.some(({ mistake }) => mistake.id === m.id)))
+    const ungroupedCount = ungrouped.length
+    return { groups, totalCost, tradesWithMistakes, total: trades.length, unused, ungroupedCount }
+  }, [tradesQ.data, catQ.data])
 
-  if (tradesQ.isLoading) {
+  if (tradesQ.isLoading || catQ.isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-24" />
@@ -87,8 +122,8 @@ export function MistakesGroupsPage() {
     )
   }
 
-  const maxAbs = Math.max(...report.families.map((f) => Math.abs(f.stats.net)), 1)
-  const costliest = report.families[0] ?? null
+  const maxAbs = Math.max(...report.groups.map((g) => Math.abs(g.stats.net)), 1)
+  const costliest = report.groups[0] ?? null
   const cleanTrades = report.total - report.tradesWithMistakes.length
 
   return (
@@ -98,7 +133,7 @@ export function MistakesGroupsPage() {
           label="Total mistake cost"
           value={toneMoney(report.totalCost)}
           tone={report.totalCost < 0 ? 'bad' : 'good'}
-          sub="net P&L of trades carrying ≥1 mistake"
+          sub="net P&L of trades carrying ≥1 mistake (deduped by trade)"
         />
         <MetricStat
           label="Trades with mistakes"
@@ -107,98 +142,92 @@ export function MistakesGroupsPage() {
           sub={`${Math.round((report.tradesWithMistakes.length / Math.max(report.total, 1)) * 100)}% of closed trades · ${cleanTrades} clean`}
         />
         <MetricStat
-          label="Costliest family"
-          value={costliest ? costliest.label : '—'}
+          label="Costliest group"
+          value={costliest ? costliest.name : '—'}
           tone={costliest && costliest.stats.net < 0 ? 'bad' : 'neutral'}
           sub={costliest ? `${toneMoney(costliest.stats.net)} · ${costliest.stats.n} trades` : undefined}
         />
         <MetricStat
-          label="Families tracked"
-          value={String(report.families.length)}
-          sub={report.unused.length ? `${report.unused.length} mistake(s) outside families: ${report.unused.join(', ')}` : 'all mistakes mapped'}
+          label="Groups tracked"
+          value={String(report.groups.length)}
+          sub={report.ungroupedCount ? `${report.ungroupedCount} mistake(s) ungrouped${report.unused.length ? ` · ${report.unused.length} unused on any trade` : ''}` : report.unused.length ? `${report.unused.length} unused on any trade` : 'all mistakes grouped'}
         />
         <MetricStat
-          label="Cheapest family"
-          value={report.families.length ? report.families[report.families.length - 1].label : '—'}
+          label="Cheapest group"
+          value={report.groups.length ? report.groups[report.groups.length - 1].name : '—'}
           tone="good"
-          sub={report.families.length ? `${toneMoney(report.families[report.families.length - 1].stats.net)}` : undefined}
+          sub={report.groups.length ? `${toneMoney(report.groups[report.groups.length - 1].stats.net)}` : undefined}
         />
       </div>
 
-      <Panel title="Mistake families by cost" hint="Union of member mistakes per family — a trade with 2 family mistakes counts once · click a family (or a member chip) for its trades">
+      <Panel title="Mistake groups by cost" hint="Union of member mistakes per group — a trade with 2 mistakes of the same group counts once · click a group (or a member chip) for its trades">
         <div className="space-y-2">
-          {report.families.map((f) => {
-            const share = report.totalCost !== 0 ? Math.min(Math.abs(f.stats.net / report.totalCost) * 100, 100) : 0
-            // Task 9 — drill: the family's trades = union of its ACTIVE member
-            // mistakes (only members that resolve to an id are filterable).
-            const familyIds = f.members.map((m) => idOf.get(m.name)).filter((v): v is string => !!v)
+          {report.groups.map((g) => {
+            const share = report.totalCost !== 0 ? Math.min(Math.abs(g.stats.net / report.totalCost) * 100, 100) : 0
             return (
               <div
-                key={f.id}
-                className={familyIds.length ? 'rounded-lg p-3 cursor-pointer transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)]' : 'rounded-lg p-3'}
+                key={g.id}
+                className="rounded-lg p-3 cursor-pointer transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)]"
                 style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
-                onClick={familyIds.length ? () => drillToTrades({ mistakeIds: familyIds }) : undefined}
-                title={familyIds.length ? 'Open the trades carrying any of this family\'s mistakes' : undefined}
-                data-testid={`mistake-family-${f.id}`}
+                onClick={() => drillToTrades({ mistakeIds: g.members.map((m) => m.mistake.id) })}
+                title="Open the trades carrying any of this group's mistakes"
+                data-testid={`mistake-group-${g.name}`}
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Chip label={f.label} color={f.color} />
+                  <Chip label={g.name} color={g.color} />
                   <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                    {f.stats.n} trades · win {f.stats.winRate}% · avg R {f.stats.avgR != null ? f.stats.avgR.toFixed(2) : '—'} · {Math.round(share)}% of family cost
+                    {g.stats.n} trades · win {g.stats.winRate}% · avg R {g.stats.avgR != null ? g.stats.avgR.toFixed(2) : '—'} · {Math.round(share)}% of total cost
                   </span>
-                  <span className="ml-auto tabular-nums font-bold text-sm" style={{ color: signTone(f.stats.net) }}>
-                    {toneMoney(f.stats.net)}
+                  <span className="ml-auto tabular-nums font-bold text-sm" style={{ color: signTone(g.stats.net) }}>
+                    {toneMoney(g.stats.net)}
                   </span>
                 </div>
                 <div className="mt-1.5">
-                  <StatBar label={f.label} value={f.stats.net} maxAbs={maxAbs} color={f.color} />
+                  <StatBar label={g.name} value={g.stats.net} maxAbs={maxAbs} color={g.color} />
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  {f.members.map((m) => {
-                    const mid = idOf.get(m.name)
-                    return (
-                      <button
-                        key={m.name}
-                        type="button"
-                        disabled={!mid}
-                        onClick={
-                          mid
-                            ? (e) => {
-                                e.stopPropagation()
-                                drillToTrades({ mistakeIds: [mid] })
-                              }
-                            : undefined
-                        }
-                        title={mid ? 'Open the trades with this mistake' : 'Not used on any loaded trade'}
-                        className="inline-flex items-center gap-1 text-[10px] rounded-md px-1.5 py-0.5 disabled:cursor-default enabled:cursor-pointer enabled:hover:brightness-125 transition-[filter]"
-                        style={{ background: 'color-mix(in srgb, var(--text-primary) 5%, transparent)' }}
-                        data-testid={`mistake-member-${m.name}`}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.stats.n ? '#ef4444' : 'var(--text-secondary)', opacity: m.stats.n ? 1 : 0.4 }} />
-                        {m.name}
-                        <span className="tabular-nums font-semibold" style={{ color: m.stats.n ? signTone(m.stats.net) : 'var(--text-secondary)' }}>
-                          {m.stats.n ? `${m.stats.n}t ${toneMoney(m.stats.net, true)}` : 'unused'}
-                        </span>
-                      </button>
-                    )
-                  })}
+                  {g.members.map((m) => (
+                    <button
+                      key={m.mistake.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        drillToTrades({ mistakeIds: [m.mistake.id] })
+                      }}
+                      title="Open the trades with this mistake"
+                      className="inline-flex items-center gap-1 text-[10px] rounded-md px-1.5 py-0.5 cursor-pointer enabled:hover:brightness-125 transition-[filter]"
+                      style={{ background: 'color-mix(in srgb, var(--text-primary) 5%, transparent)' }}
+                      data-testid={`mistake-member-${m.mistake.name}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.stats.n ? '#ef4444' : 'var(--text-secondary)', opacity: m.stats.n ? 1 : 0.4 }} />
+                      {m.mistake.name}
+                      <span className="tabular-nums font-semibold" style={{ color: m.stats.n ? signTone(m.stats.net) : 'var(--text-secondary)' }}>
+                        {m.stats.n ? `${m.stats.n}t ${toneMoney(m.stats.net, true)}` : 'unused'}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )
           })}
+          {report.groups.length === 0 && (
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+              No mistakes defined yet — create them in Tags analysis ▸ Mistakes ▸ Individual, tag trades from the trade form, and group them in Settings ▸ Tags ▸ Mistake Groups.
+            </p>
+          )}
         </div>
       </Panel>
 
-      <Panel title="Methodology" hint="Family mapping is part of the app (DB has no mistake groups)">
+      <Panel title="Methodology" hint="Groups are your real mistake taxonomy">
         <p className="text-[11px] flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
           <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          Cost is the realized net P&L of trades that carry the mistake — i.e., what the behavior actually cost you. &ldquo;Revenge Trade&rdquo; sits in
-          Emotional control even though it is also an entry error; each mistake belongs to exactly one family to keep shares additive.
+          Groups come from Settings ▸ Tags ▸ Mistake Groups. A group&apos;s net is the union of its member mistakes&apos; trades — a trade carrying two mistakes of the same group is counted once, but its full P&amp;L counts toward each individual mistake chip. Cost is the realized net P&amp;L of trades that carry the mistake — what the behavior actually cost you.
         </p>
       </Panel>
     </div>
   )
 }
+
 
 // ---- ADVANCED ---------------------------------------------------------------------------
 
@@ -348,6 +377,11 @@ export function MistakesAdvancedPage() {
               maxAbs={maxAbsOffender}
             />
           ))}
+          {advanced.offenders.length === 0 && (
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+              No mistakes tagged on any closed trade yet — tag them from the trade form (Mistakes chips) or the trades table.
+            </p>
+          )}
         </div>
       </Panel>
 

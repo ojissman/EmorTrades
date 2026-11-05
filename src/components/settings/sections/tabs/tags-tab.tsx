@@ -35,7 +35,10 @@ import { useToast } from '@/hooks/use-toast'
 
 type TagRow = { id: string; name: string; color: string; groupId: string | null }
 type GroupRow = { id: string; name: string; color: string }
-type TagType = 'trade' | 'day'
+// TAGCORE-A2Z — 'mistake' joins the types the GROUPS dialog manages (mistake
+// create/remove/rename keep their richer home on the Mistakes ▸ Individual
+// page: name + description + color per row).
+type TagType = 'trade' | 'day' | 'mistake'
 
 const COMMA_HELPER_ADD =
   "Please add a comma (',') after every tag. Example: gapup, highvol, etc., (even if you are entering only a single tag, you need to add a comma at the end)"
@@ -58,10 +61,11 @@ function matchesPattern(name: string, pattern: string): boolean {
   return p.endsWith('%') ? n.startsWith(p.slice(0, -1)) : n === p
 }
 
-/** The two mutation endpoints, by tag type. */
+/** The three grouping endpoints, by tag type. */
 const API = {
   trade: '/api/tags',
   day: '/api/day-tags',
+  mistake: '/api/mistakes',
 } as const
 
 /** Label + bordered block with a right-aligned action button (L2 card rows). */
@@ -100,18 +104,24 @@ function TagActionBlock({
 
 /* ------------------------------------------------------------------ */
 /* Add Tags dialog — REAL create + REAL replace (Task 22-e)            */
+/* TAGCORE-A2Z — Tag Type selector (Trade | Day): day tags are created  */
+/* via /api/day-tags POST (the same catalog Day Explore applies to      */
+/* dates and the Day Tags analysis family reads).                       */
 /* ------------------------------------------------------------------ */
 function AddTagsDialog({
-  existingTags,
+  tradeTags,
+  dayTags,
   onClose,
 }: {
-  existingTags: TagRow[]
+  tradeTags: TagRow[]
+  dayTags: TagRow[]
   onClose: () => void
 }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const [opType, setOpType] = useState<'replace' | 'append'>('append')
+  const [tagType, setTagType] = useState<TagType>('trade')
   const [busy, setBusy] = useState(false)
 
   async function save() {
@@ -122,12 +132,13 @@ function AddTagsDialog({
     }
     setBusy(true)
     try {
+      const existingTags = tagType === 'trade' ? tradeTags : dayTags
       const existing = new Map(existingTags.map((t) => [t.name.toLowerCase(), t]))
       const toCreate = tags.filter((t) => !existing.has(t.toLowerCase()))
       let created = 0
       let failed = 0
       for (const name of toCreate) {
-        const res = await fetch('/api/tags', {
+        const res = await fetch(API[tagType], {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
@@ -136,7 +147,7 @@ function AddTagsDialog({
         else failed += 1
       }
       // Replace is REAL now: every existing tag absent from the new list is
-      // deleted (its trade links cascade away), exactly what the option's
+      // deleted (its trade/day links cascade away), exactly what the option's
       // note promises.
       let removed = 0
       let removeFailed = 0
@@ -144,12 +155,13 @@ function AddTagsDialog({
         const keep = new Set(tags.map((t) => t.toLowerCase()))
         for (const t of existingTags) {
           if (keep.has(t.name.toLowerCase())) continue
-          const res = await fetch(`/api/tags?id=${encodeURIComponent(t.id)}`, { method: 'DELETE' })
+          const res = await fetch(`${API[tagType]}?id=${encodeURIComponent(t.id)}`, { method: 'DELETE' })
           if (res.ok) removed += 1
           else removeFailed += 1
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['tags'] })
+      await queryClient.invalidateQueries({ queryKey: [tagType === 'trade' ? 'tags' : 'day-tags'] })
+      await queryClient.invalidateQueries({ queryKey: ['day-explore-day-tags'] })
       await queryClient.invalidateQueries({ queryKey: ['trades'] })
       const skipped = tags.length - toCreate.length
       const bits: string[] = []
@@ -158,7 +170,7 @@ function AddTagsDialog({
       if (removed > 0) bits.push(`${removed} removed (replace)`)
       if (failed > 0 || removeFailed > 0) bits.push(`${failed + removeFailed} failed`)
       toast({
-        title: `Added ${created} tag${created === 1 ? '' : 's'}`,
+        title: `Added ${created} ${tagType} tag${created === 1 ? '' : 's'}`,
         description: bits.length > 0 ? `${bits.join(' · ')}.` : undefined,
         variant: failed + removeFailed > 0 ? 'destructive' : undefined,
       })
@@ -213,9 +225,27 @@ function AddTagsDialog({
             </div>
           </RadioGroup>
         </div>
+        <div>
+          <Label className="mb-2 block text-[13px]">Tag Type</Label>
+          <RadioGroup value={tagType} onValueChange={(v) => setTagType(v as TagType)} className="flex-row gap-4">
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="trade" id="add-type-trade" />
+              <Label htmlFor="add-type-trade" className="text-[13px]">
+                Trade
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="day" id="add-type-day" />
+              <Label htmlFor="add-type-day" className="text-[13px]">
+                Day
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Tags become available app-wide once created; they can be attached to trades from the table and
-          explore pages.
+          {tagType === 'trade'
+            ? 'Trade tags become available app-wide once created; they can be attached to trades from the trade form and the trades table.'
+            : 'Day tags mark market conditions on a date (FOMC, earnings, high volatility…); apply them to a day from Day Explore after creating them here.'}
         </p>
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose}>
@@ -484,10 +514,10 @@ function TagGroupsDialog({
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [newGroupName, setNewGroupName] = useState('')
-  const [newGroupColor, setNewGroupColor] = useState(tagType === 'trade' ? '#64748b' : '#f59e0b')
+  const [newGroupColor, setNewGroupColor] = useState(tagType === 'trade' ? '#64748b' : tagType === 'day' ? '#f59e0b' : '#ef4444')
   const [busy, setBusy] = useState(false)
 
-  const qKey = tagType === 'trade' ? 'tags' : 'day-tags'
+  const qKey = tagType === 'trade' ? 'tags' : tagType === 'day' ? 'day-tags' : 'mistakes'
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: [qKey] })
@@ -736,11 +766,23 @@ export function TagsTab() {
       return res.json()
     },
   })
+  // TAGCORE-A2Z — the mistake taxonomy (with its groups) — the same catalog
+  // the Mistakes ▸ Individual page manages and the trade form chips use.
+  const { data: mistakesData } = useQuery<{ mistakes: TagRow[]; groups: GroupRow[] }>({
+    queryKey: ['mistakes'],
+    queryFn: async () => {
+      const res = await fetch('/api/mistakes')
+      if (!res.ok) throw new Error('Failed')
+      return res.json()
+    },
+  })
 
   const tradeTags = useMemo(() => tagsData?.tags ?? [], [tagsData])
   const tradeGroups = useMemo(() => tagsData?.groups ?? [], [tagsData])
   const dayTags = useMemo(() => dayTagsData?.dayTags ?? [], [dayTagsData])
   const dayGroups = useMemo(() => dayTagsData?.groups ?? [], [dayTagsData])
+  const mistakeRows = useMemo(() => mistakesData?.mistakes ?? [], [mistakesData])
+  const mistakeGroups = useMemo(() => mistakesData?.groups ?? [], [mistakesData])
 
   const [dialog, setDialog] = useState<
     | { kind: 'add' }
@@ -807,8 +849,24 @@ export function TagsTab() {
         </Button>
       </SectionCard>
 
+      {/* Mistake Groups (TAGCORE-A2Z) — the third taxonomy gets real DB
+          groups; the Tags analysis ▸ Mistakes ▸ Groups page groups by these. */}
+      <SectionCard
+        title="Mistake Groups"
+        description="Assign custom groups and colors to your mistakes for group-wise analysis — mistake groups drive the Mistakes ▸ Groups breakdown."
+        testId="tags-mistake-groups"
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setDialog({ kind: 'groups', tagType: 'mistake' })}
+        >
+          Manage Groups
+        </Button>
+      </SectionCard>
+
       {dialog?.kind === 'add' ? (
-        <AddTagsDialog existingTags={tradeTags} onClose={() => setDialog(null)} />
+        <AddTagsDialog tradeTags={tradeTags} dayTags={dayTags} onClose={() => setDialog(null)} />
       ) : null}
       {dialog?.kind === 'remove' ? (
         <RemoveTagsDialog tradeTags={tradeTags} dayTags={dayTags} onClose={() => setDialog(null)} />
@@ -835,6 +893,17 @@ export function TagsTab() {
           tags={dayTags}
           groups={dayGroups}
           tagType="day"
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
+      {dialog?.kind === 'groups' && dialog.tagType === 'mistake' ? (
+        <TagGroupsDialog
+          title="Mistake Groups Management"
+          ungroupedLabel="Ungrouped Mistakes"
+          groupedLabel="Grouped Mistakes"
+          tags={mistakeRows}
+          groups={mistakeGroups}
+          tagType="mistake"
           onClose={() => setDialog(null)}
         />
       ) : null}

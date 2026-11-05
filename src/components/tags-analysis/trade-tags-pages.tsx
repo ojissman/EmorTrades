@@ -186,6 +186,11 @@ export function TradeTagsGroupPage() {
               </div>
             )
           })}
+          {groups.length === 0 && (
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+              No trade tags yet — create them in Settings ▸ Tags and attach them to trades from the trade form.
+            </p>
+          )}
         </div>
       </Panel>
 

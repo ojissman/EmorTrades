@@ -1132,6 +1132,53 @@ synchronized. Delivered:
   chain AND setupId — the downgrade ordering proof; setup-without-plan
   rejection documented). 203/203 suite total.
 
+## Task TAGCORE-A2Z — ONE Setup picker + the Tag core wired A-Z (2026-11-05)
+
+Owner decision + directive: remove one of the two Trade-Modal Setup
+linkings (the standalone field) and audit/fix/upgrade the whole tag core
+(Mistakes / Day Tags / Trade Tags + Settings ▸ Tags) to production
+standard. What changed (full entry in worklog.md):
+
+- Trade Modal: the standalone Setup field is GONE. The plan chain's third
+  picker is THE single Setup selector — always enabled, full catalog
+  ("All setups") when no system is selected, "This system" + "Other
+  setups" groups when one is; applySetupLink/clearSetupLink remain the
+  resolver (auto-complete / re-target / standalone plain link). Section
+  relabeled "Setup & plan link (versioned)". The modal also gained a
+  Mistakes chip row (symmetric with Tags; POST creates links, PUT
+  replaces transactionally — mistakeIds rides the same contract as
+  tagIds).
+- Day Tags write path (was MISSING entirely — zero DayDayTag writers):
+  NEW src/lib/server/day-tag-apply.ts + POST/DELETE /api/day-tags/apply
+  (auth + ownership + YYYY-MM-DD validation; dates stored as UTC
+  midnight). Settings ▸ Tags ▸ Add Tags now has a Tag Type (Trade |
+  Day) radio. Day Explore's Day tags panel is interactive (Tag day
+  dropdown, chips with × remove) — the whole Day Tags analysis family
+  reads what it writes.
+- Mistake groups (was hardcoded curated English names matching 0/8 real
+  catalog rows): additive schema MistakeGroup + Mistake.groupId;
+  /api/mistakes extended to the full /api/tags group contract
+  (kind:'group' create/rename/delete — delete detaches, never deletes
+  mistakes); Settings ▸ Tags ▸ new "Mistake Groups" card; Mistakes ▸
+  Groups rewritten to DB groups + Ungrouped bucket (per-trade deduped
+  union); MISTAKE_FAMILIES deleted (dead). Individual page shows the
+  group badge.
+- App sweep (owner: "search and scan the entire app"): 98 distinct
+  literal fetch paths vs the 138-route tree — ONE unwired surface found
+  and fixed: the admin Integrations "Send test email" button called a
+  never-implemented POST /api/admin/gmail/test (silent 404 since the
+  panel shipped) — now implemented (requireAdmin + sameOrigin + rate
+  limit + audit; sendGmailEmail path; honest 409 when Gmail is not
+  connected).
+- Gates: lint 0, tsc 0, vitest 208/208 (17 files; +5 day-tag-apply
+  tests). E2E on the live pull: one-picker create with all 3 version
+  pins, mistakes create/prefill/replace, fresh resets, day tag
+  create→apply→analyze→remove, mistake group create→assign→Groups
+  analysis (real member costs)→drill, guards (401/404/400), mobile
+  390×844 zero overflow ×3, console 0, log 0. Additive schema only; no
+  destructive change; E2E artifacts cleaned via the same APIs the UI
+  calls.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

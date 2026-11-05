@@ -20,7 +20,9 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -98,6 +100,15 @@ interface Tag {
   color: string
 }
 
+// TAGCORE-A2Z — the mistake catalog rows /api/mistakes returns. Mistakes are
+// attached to a trade exactly like tags (chips in the modal); the analysis
+// family (Tags analysis ▸ Mistakes) reads the same links back.
+interface Mistake {
+  id: string
+  name: string
+  color: string | null
+}
+
 // ── TP: the plan link's cascading pickers' data ───────────────────────────
 
 // Version rows exactly as /api/trading-plans/[id] returns them (contents
@@ -154,6 +165,9 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
   const [accounts, setAccounts] = useState<Account[]>(accountsProp || [])
   const [setups, setSetups] = useState<Setup[]>(setupsProp || [])
   const [tags, setTags] = useState<Tag[]>(tagsProp || [])
+  // TAGCORE-A2Z — the mistake catalog (fetched with the other supporting
+  // data on first open; mistakes are chip-selectable like tags).
+  const [mistakes, setMistakes] = useState<Mistake[]>([])
   // TP — the plan link: plan → system → setup (cascading), plus the
   // rule-engine fields. The link pins the versions in force at entry.
   const [tpPlans, setTpPlans] = useState<{ id: string; name: string; color: string; status: string; isImported: boolean }[]>([])
@@ -186,13 +200,14 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
   // on top of it.
   const tpOrigChain = useRef({ plan: '', system: '' })
 
-  // MODAL-SETUP-UNIFY — ONE link, two pickers. Trade.setupId is a single
-  // column shared by the Setup field and the plan chain's third picker;
-  // these two functions keep them agreed. Picking a setup that lives in an
-  // ACTIVE plan's system auto-completes the chain (a quick tag still gets
-  // its versions pinned at entry); a standalone setup (or one whose plan
-  // is archived) stays a plain link — the chain is cleared so it cannot
-  // fight the Setup field over the same column on save.
+  // TAGCORE-A2Z — ONE link, ONE picker. Trade.setupId is a single column;
+  // the plan chain's third picker is its only surface (the standalone Setup
+  // field was removed by owner decision — 2026-11-05). applySetupLink is
+  // the resolver: picking a setup that lives in an ACTIVE plan's system
+  // auto-completes the chain (a quick tag still gets its versions pinned at
+  // entry — and re-targets the chain when the pick comes from another
+  // system); a standalone setup (or one whose plan is archived) stays a
+  // plain link — the chain is cleared so the two states can never disagree.
   function applySetupLink(setupId: string) {
     setForm((f) => ({ ...f, setupId }))
     const picked = setups.find((s) => s.id === setupId)
@@ -212,8 +227,8 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
     }
   }
 
-  // Clearing the Setup field removes the link's SETUP component only: a
-  // plan+system link without a setup is a valid state (the chain keeps it).
+  // "No setup" removes the link's SETUP component only: a plan+system link
+  // without a setup is a valid state (the chain keeps it).
   function clearSetupLink() {
     setForm((f) => ({ ...f, setupId: '' }))
     setTpSetupId('')
@@ -260,6 +275,9 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
     rating: '3',
     notes: '',
     selectedTags: [] as string[],
+    // TAGCORE-A2Z — mistakes ride the same replace-on-save contract as
+    // tags (POST creates the links; PUT replaces them transactionally).
+    selectedMistakes: [] as string[],
     status: 'closed',
   })
 
@@ -316,7 +334,9 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
         fetch('/api/accounts').then((r) => r.json()),
         fetch('/api/setups').then((r) => r.json()),
         fetch('/api/trading-plans').then((r) => r.json().catch(() => ({ plans: [] }))),
-      ]).then(([accData, setupData, tpData]) => {
+        fetch('/api/mistakes').then((r) => r.json().catch(() => ({ mistakes: [] }))),
+      ]).then(([accData, setupData, tpData, mistakesData]) => {
+        setMistakes(mistakesData.mistakes || [])
         setAccounts(accData.accounts || [])
         // MODAL-SETUP-UNIFY — keep each row's plan-tree home (system + plan)
         // on the rows the sync resolves against.
@@ -475,6 +495,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
             rating: String(trade.rating || 3),
             notes: trade.notes || '',
             selectedTags: trade.tags?.map((t: any) => t.tagId) || [],
+            selectedMistakes: trade.mistakes?.map((m: any) => m.mistakeId) || [],
             status: trade.status,
           })
           // Task 179 — prefill the structure editor from stored legs
@@ -527,6 +548,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
         notes: seed('notes') ?? '',
         setupId: seed('setupId') ?? '',
         selectedTags: [],
+        selectedMistakes: [],
         status: 'closed',
         entryTime: toLocalInput(new Date()),
         multiplier: '1',
@@ -546,7 +568,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
       tpOrigChain.current = { plan: '', system: '' }
       // MODAL-SETUP-UNIFY — a missed-trade prefill that knew its setup fills
       // the chain too when the setup has a home in an active plan (the same
-      // resolver as the Setup dropdown). Cold first open (catalog still
+      // resolver as the chain's setup picker). Cold first open (catalog still
       // loading) honestly degrades to a plain link.
       const seedSetupId = seed('setupId') ?? ''
       if (seedSetupId) applySetupLink(seedSetupId)
@@ -687,8 +709,8 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
     }
     setLoading(true)
     try {
-      // MODAL-SETUP-UNIFY — the plan link and the Setup field are ONE link
-      // (Trade.setupId). The post-save decision diffs the chain against the
+      // TAGCORE-A2Z — the plan link and Trade.setupId are ONE link.
+      // The post-save decision diffs the chain against the
       // edit-open snapshot. A DOWNGRADE (chain → plain setup link) must clear
       // BEFORE the PUT: the clear path nulls setupId as well, so the PUT's
       // new plain setupId has to land on top of it.
@@ -726,6 +748,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
         setupId: form.setupId || null,
         rating: form.rating || null,
         tagIds: form.selectedTags,
+        mistakeIds: form.selectedMistakes,
         // AUDIT F2 — status is DERIVED from exit presence. The form always
         // sent 'closed', so trades saved with an empty exit price (the "leave
         // empty for open" placeholder) were stored as closed with pnl 0.
@@ -747,8 +770,8 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
         // TP2 Phase 5 — what the warnings panel showed (logged server-side)
         ...(tpWarnings.length > 0 ? { warningsShown: tpWarnings } : {}),
         // TP — the plan link (creation path resolves + pins versions
-        // server-side). MODAL-SETUP-UNIFY: tpSetupId is kept in sync with the
-        // Setup field by the shared resolver — a plain setup link is carried
+        // server-side). TAGCORE-A2Z: tpSetupId is kept coherent with
+        // form.setupId by the shared resolver — a plain setup link is carried
         // by the same key (the server's shouldCreateLink keeps it out of
         // linkTrade; only a real chain starts a versioned link).
         ...(!editingTradeId
@@ -1321,33 +1344,6 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
           </div>
 
           <div>
-            <Label>Setup</Label>
-            {/* MODAL-SETUP-UNIFY — ONE link with the plan chain below: this
-                picker writes the same Trade.setupId the chain's third picker
-                writes. applySetupLink keeps them agreed (and auto-completes
-                the plan+system when the setup has a home in an active plan). */}
-            <Select value={form.setupId} onValueChange={(v) => (v === 'none' ? clearSetupLink() : applySetupLink(v))}>
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Select setup" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {setups.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full" style={{ background: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="mt-1.5 text-[10px] text-muted-foreground/70">
-              Same link as the plan chain below — a setup that lives inside one of your systems fills its plan and system there automatically.
-            </p>
-          </div>
-
-          <div>
             <Label>Rating</Label>
             <Select value={form.rating} onValueChange={(v) => setForm({ ...form, rating: v })}>
               <SelectTrigger className="mt-1.5">
@@ -1365,7 +1361,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
 
           <div className="col-span-2">
             <Label>Tags</Label>
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
+            <div className="flex flex-wrap gap-1.5 mt-1.5" data-testid="trade-tags">
               {tags.map((tag) => {
                 const sel = form.selectedTags.includes(tag.id)
                 return (
@@ -1391,18 +1387,70 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
                   </button>
                 )
               })}
+              {tags.length === 0 && (
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  No tags defined — create them in Settings ▸ Tags.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* TAGCORE-A2Z — mistakes: the second tagging axis of the journal.
+              Same chip pattern as Tags; the catalog is managed in Tags
+              analysis ▸ Mistakes ▸ Individual, and every analysis surface
+              (Mistakes Individual/Groups/Advanced, Psychology) reads these
+              links back. */}
+          <div className="col-span-2">
+            <Label>Mistakes</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5" data-testid="trade-mistakes">
+              {mistakes.map((m) => {
+                const sel = form.selectedMistakes.includes(m.id)
+                const c = m.color || '#ef4444'
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        selectedMistakes: sel
+                          ? form.selectedMistakes.filter((x) => x !== m.id)
+                          : [...form.selectedMistakes, m.id],
+                      })
+                    }
+                    className={`text-xs px-2 py-1 rounded-md border transition-all ${
+                      sel
+                        ? 'border-transparent text-white'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                    style={sel ? { background: c } : {}}
+                  >
+                    {m.name}
+                  </button>
+                )
+              })}
+              {mistakes.length === 0 && (
+                <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  No mistakes defined — create them in Tags analysis ▸ Mistakes ▸ Individual.
+                </p>
+              )}
             </div>
           </div>
 
           {/* TP — the plan link: plan → system → setup. The versions in force
               at entry are resolved and pinned server-side.
-              MODAL-SETUP-UNIFY — this and the Setup field above are ONE link
-              (same Trade.setupId): the pickers stay in sync both ways, and
-              the trigger labels fall back to the catalog so a value whose
-              items are not mounted (a plain link, an archived plan, a cold
-              tree fetch) still shows its name instead of a blank. */}
+              TAGCORE-A2Z (owner decision, 2026-11-05): the standalone Setup
+              field is GONE — this chain's third picker is THE one Setup
+              selector. It offers the full setups catalog (grouped: this
+              system first when one is selected, then every other setup incl.
+              standalone ones), so a quick setup tag needs no plan first.
+              applySetupLink auto-completes the chain when the picked setup
+              has a home in an active plan; a standalone (or archived-plan)
+              setup stays a plain link. The trigger label falls back to the
+              catalog so a value whose items are not mounted (a plain link,
+              an archived plan, a cold tree fetch) still shows its name. */}
           <div className="col-span-2" data-testid="tp-link-step">
-            <Label>Plan link (versioned)</Label>
+            <Label>Setup & plan link (versioned)</Label>
             <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Select
                 value={tpPlanId || 'none'}
@@ -1463,16 +1511,10 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
               </Select>
               <Select
                 value={tpSetupId || 'none'}
-                onValueChange={(v) => {
-                  setTpSetupId(v === 'none' ? '' : v)
-                  // one link: the chain's setup IS the Setup field's value —
-                  // the two pickers always agree.
-                  setForm((f) => ({ ...f, setupId: v === 'none' ? '' : v }))
-                }}
-                disabled={!tpSystemId || (tpSystems.find((sy) => sy.id === tpSystemId)?.setups.length || 0) === 0}
+                onValueChange={(v) => (v === 'none' ? clearSetupLink() : applySetupLink(v))}
               >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder={tpSystemId ? (tpSystems.find((sy) => sy.id === tpSystemId)?.setups.length ? 'Setup…' : 'No setups in system') : 'Pick a system first'}>
+                <SelectTrigger className="h-9 text-xs" data-testid="tp-setup-picker">
+                  <SelectValue placeholder="Select setup">
                     {tpSetupId
                       ? (tpSystems.find((sy) => sy.id === tpSystemId)?.setups.find((st) => st.id === tpSetupId)?.name ??
                           setups.find((s) => s.id === tpSetupId)?.name ?? '')
@@ -1481,9 +1523,30 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No setup</SelectItem>
-                  {(tpSystems.find((sy) => sy.id === tpSystemId)?.setups || []).map((st) => (
-                    <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
-                  ))}
+                  {(() => {
+                    const inSystem = tpSystems.find((sy) => sy.id === tpSystemId)?.setups ?? []
+                    const others = setups.filter((s) => !inSystem.some((st) => st.id === s.id))
+                    return (
+                      <>
+                        {inSystem.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>This system</SelectLabel>
+                            {inSystem.map((st) => (
+                              <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {others.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>{inSystem.length > 0 ? 'Other setups' : 'All setups'}</SelectLabel>
+                            {others.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                      </>
+                    )
+                  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -1536,7 +1599,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
               </div>
             )}
             <p className="mt-1.5 text-[10px] text-muted-foreground">
-              The link pins the plan, system and setup versions in force at this trade&apos;s entry — it can be changed later, and every change is kept in history. It is the same link as the Setup field above: picking a setup in either place keeps the two in sync.
+              One link: pick a setup — one that lives in a plan system fills its plan and system automatically and pins their versions in force at entry; a standalone setup links directly. The link can be changed later, and every change is kept in history.
             </p>
             {/* TP2 Phase 5 — the plan warnings: non-blocking lines from the
                 facts helper + the plan's number fields. No boxes, no gating. */}

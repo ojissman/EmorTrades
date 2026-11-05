@@ -192,6 +192,11 @@ export function DayTagsIndividualPage() {
               </div>
             )
           })}
+          {rows.length === 0 && (
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+              No day tags yet — create them in Settings ▸ Tags ▸ Add (Day) and apply them to dates from Day Explore.
+            </p>
+          )}
         </div>
       </Panel>
 
@@ -308,6 +313,11 @@ export function DayTagsGroupsPage() {
             </div>
             )
           })}
+          {groups.length === 0 && (
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+              No day tags yet — create them in Settings ▸ Tags ▸ Add (Day) and apply them to dates from Day Explore.
+            </p>
+          )}
         </div>
       </Panel>
 
@@ -431,6 +441,11 @@ export function DayTagsAdvancedPage() {
       </Panel>
 
       <Panel title="Tag × weekday" hint="Which weekday each condition fires on — hover cells for trade counts">
+        {advanced.weekday.length === 0 ? (
+          <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
+            No day tags yet — create them in Settings ▸ Tags ▸ Add (Day) and apply them to dates from Day Explore.
+          </p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs" style={{ minWidth: 640 }}>
             <thead>
@@ -469,6 +484,7 @@ export function DayTagsAdvancedPage() {
             </tbody>
           </table>
         </div>
+        )}
       </Panel>
 
       <Panel title="How to use this" hint="Combos beat single tags">

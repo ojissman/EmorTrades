@@ -26,7 +26,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { DayVerdictBand } from '@/components/plan-review/day-verdict-band'
 import {
   ComposedChart,
@@ -57,11 +57,22 @@ import {
   ArrowDownRight,
   Compass,
   Radio,
+  Plus,
+  X,
+  Check,
 } from 'lucide-react'
 import { useAppStore } from '@/store/app-store'
 import { useFilterStore } from '@/store/filter-store'
 import { Panel, MetricStat, MiniTable, AXIS_TICK, TOOLTIP_STYLE, axisMoney } from '@/components/metrics/metrics-kit'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { signTone } from '@/lib/screener'
 // Task 12 — records the drill origin so Trade Explore offers the breadcrumb.
@@ -172,6 +183,8 @@ function dayStats(trades: ExploreTrade[]) {
 // ---- page ---------------------------------------------------------------------------
 
 export function DayExplorePage() {
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
   // Task 146 — Trade Explore's "View Day" deep-links here as ?date=YYYY-MM-DD
   // (UTC day key, parsed at mount; an unknown date falls through to the latest
   // session via the dayIndex fallback below).
@@ -274,8 +287,39 @@ export function DayExplorePage() {
     if (!activeKey) return []
     return (tagsQ.data?.dayTags ?? [])
       .filter((t) => (t.days ?? []).some((d) => dayKey(d.date) === activeKey))
-      .map((t) => ({ name: t.name, color: t.color, group: t.group?.name ?? null }))
+      .map((t) => ({ id: t.id, name: t.name, color: t.color, group: t.group?.name ?? null }))
   }, [tagsQ.data, activeKey])
+
+  // TAGCORE-A2Z — the missing WRITE path for day tags: apply/remove a day
+  // tag on the explored date (DayDayTag rows). Until this existed, the Day
+  // Tags analysis family could only read data that never had an in-app
+  // way to exist.
+  const [pendingDayTag, setPendingDayTag] = useState<string | null>(null)
+  const toggleDayTag = async (id: string, isApplied: boolean) => {
+    if (!activeKey) return
+    setPendingDayTag(id)
+    try {
+      const res = isApplied
+        ? await fetch(`/api/day-tags/apply?date=${activeKey}&dayTagId=${encodeURIComponent(id)}`, { method: 'DELETE' })
+        : await fetch('/api/day-tags/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date: activeKey, dayTagId: id }),
+          })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        toast({ title: 'Day tag not updated', description: err?.error || 'The change was rejected', variant: 'destructive' })
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: ['day-explore-day-tags'] })
+      await queryClient.invalidateQueries({ queryKey: ['tags-analysis-day-tags'] })
+      await queryClient.invalidateQueries({ queryKey: ['day-tags'] })
+    } catch {
+      toast({ title: 'Day tag not updated', variant: 'destructive' })
+    } finally {
+      setPendingDayTag(null)
+    }
+  }
 
   // Task 7 — economic releases for the selected day (UTC day window, the
   // page's own day-key convention). The feed syncs the current week around
@@ -457,7 +501,13 @@ export function DayExplorePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
           <DayPlanPanel plan={plan} />
           <JournalNotePanel note={note} />
-          <DayTagsPanel chips={dayTagChips} />
+          <DayTagsPanel
+            date={activeKey}
+            applied={dayTagChips}
+            catalog={tagsQ.data?.dayTags ?? []}
+            onToggle={toggleDayTag}
+            pendingId={pendingDayTag}
+          />
           <EconNewsPanel dayNews={dayNews} newsNearTrade={newsNearTrade} />
         </div>
       </div>
@@ -761,7 +811,13 @@ export function DayExplorePage() {
           <JournalNotePanel note={note} />
 
           {/* day tags (extracted — shared with the no-trade-date state) */}
-          <DayTagsPanel chips={dayTagChips} />
+          <DayTagsPanel
+            date={activeKey}
+            applied={dayTagChips}
+            catalog={tagsQ.data?.dayTags ?? []}
+            onToggle={toggleDayTag}
+            pendingId={pendingDayTag}
+          />
 
           {/* econ news (extracted — shared with the no-trade-date state) */}
           <EconNewsPanel dayNews={dayNews} newsNearTrade={newsNearTrade} />
@@ -933,31 +989,97 @@ function JournalNotePanel({ note }: { note: DayNoteRow | null }) {
   )
 }
 
-function DayTagsPanel({ chips }: { chips: { name: string; color: string; group: string | null }[] }) {
+function DayTagsPanel({
+  date,
+  applied,
+  catalog,
+  onToggle,
+  pendingId,
+}: {
+  date: string | null
+  applied: { id: string; name: string; color: string; group: string | null }[]
+  catalog: DayTagRow[]
+  onToggle: (id: string, isApplied: boolean) => void
+  pendingId: string | null
+}) {
+  const appliedIds = new Set(applied.map((a) => a.id))
   return (
-    <Panel title="Day tags" hint={chips.length ? undefined : 'No day tags applied to this date'}>
-      {chips.length ? (
-        <div className="flex flex-wrap gap-1.5">
-          {chips.map((t) => (
-            <span
-              key={t.name}
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-              style={{
-                background: `color-mix(in srgb, ${t.color} 18%, transparent)`,
-                color: t.color,
-                border: `1px solid color-mix(in srgb, ${t.color} 45%, transparent)`,
-              }}
+    <Panel
+      title="Day tags"
+      hint={applied.length ? 'Macro conditions on this date — remove with ×' : 'No day tags applied to this date'}
+    >
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="day-tags-panel">
+        {applied.map((t) => (
+          <span
+            key={t.id}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+            style={{
+              background: `color-mix(in srgb, ${t.color} 18%, transparent)`,
+              color: t.color,
+              border: `1px solid color-mix(in srgb, ${t.color} 45%, transparent)`,
+            }}
+          >
+            {t.group ? `${t.group} · ` : ''}
+            {t.name}
+            <button
+              type="button"
+              aria-label={`Remove ${t.name} from this day`}
+              disabled={pendingId === t.id}
+              onClick={() => onToggle(t.id, true)}
+              className="rounded-full p-0.5 transition-[filter] hover:brightness-125 disabled:opacity-40"
+              title={`Remove ${t.name}`}
             >
-              {t.group ? `${t.group} · ` : ''}
-              {t.name}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Tag macro conditions (FOMC, earnings, high volatility…) from Tags Analysis → Day Tags.
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        {date && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[10px] font-bold transition-colors hover:bg-[color-mix(in_srgb,var(--text-primary)_6%,transparent)]"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                data-testid="day-tag-add"
+              >
+                <Plus className="h-3 w-3" />
+                Tag day
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Day tags for {date}</DropdownMenuLabel>
+              {catalog.length === 0 ? (
+                <DropdownMenuItem disabled>
+                  No day tags defined — create them in Settings ▸ Tags (Add ▸ Day).
+                </DropdownMenuItem>
+              ) : (
+                catalog.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    disabled={pendingId === t.id}
+                    onClick={() => onToggle(t.id, appliedIds.has(t.id))}
+                  >
+                    <span className="h-2 w-2 rounded-full mr-2 shrink-0" style={{ background: t.color }} />
+                    <span className={appliedIds.has(t.id) ? 'font-semibold' : undefined}>{t.name}</span>
+                    {appliedIds.has(t.id) ? (
+                      <Check className="h-3 w-3 ml-auto" aria-label="applied" />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      {catalog.length === 0 ? (
+        <p className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Day tags mark market conditions (FOMC, earnings, high volatility…). Create them in Settings ▸ Tags ▸ Add (Day), then apply them here.
         </p>
-      )}
+      ) : applied.length === 0 ? (
+        <p className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Tag macro conditions (FOMC, earnings, high volatility…) with “Tag day” — the Tags analysis ▸ Day Tags pages break down performance by them.
+        </p>
+      ) : null}
     </Panel>
   )
 }

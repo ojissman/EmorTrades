@@ -156,15 +156,10 @@ export function tradesOnDays(trades: TaggedTrade[], dates: Set<string>): TaggedT
   return trades.filter((t) => dates.has(dayKeyOf(t)))
 }
 
-// ---- curated mistake families (DB has no mistake groups — this IS the grouping) -----
-
-export const MISTAKE_FAMILIES: { id: string; label: string; color: string; members: string[] }[] = [
-  { id: 'entry', label: 'Entry discipline', color: '#f97316', members: ['FOMO Entry', 'Chased Price', 'Against Trend'] },
-  { id: 'exit', label: 'Exit discipline', color: '#ef4444', members: ['Cut Winner Early', 'Held Loser Too Long'] },
-  { id: 'risk', label: 'Risk & sizing', color: '#a855f7', members: ['Oversized Position', 'No Stop Loss', 'Moved Stop Loss'] },
-  { id: 'plan', label: 'Plan adherence', color: '#06b6d4', members: ['Ignored Plan'] },
-  { id: 'emotion', label: 'Emotional control', color: '#f43f5e', members: ['Revenge Trade'] },
-]
+// (TAGCORE-A2Z — the curated MISTAKE_FAMILIES constant was removed: hardcoded
+// English mistake names never matched real catalogs — every demo mistake sat
+// "outside families" and the Groups page rendered empty. Mistakes group by
+// the user's real DB MistakeGroups now, like trade tags and day tags.)
 
 // ---- UI atoms -----------------------------------------------------------------------
 

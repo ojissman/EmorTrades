@@ -17,13 +17,14 @@ export interface LinkInput {
 }
 
 /**
- * MODAL-SETUP-UNIFY — when should a trade create/start a PLAN LINK at all.
- * Trade.setupId is ONE column shared by two surfaces (the Setup field and
- * the plan chain's third picker). A setup value alone is a PLAIN link —
- * the same kind the historical journal rows carry — and is persisted by
- * the trade write itself: it must NOT be pushed through linkTrade, which
- * would reject it with a spurious "Pick a plan". Only a real chain
- * (a plan, or at least a system) starts a versioned link.
+ * MODAL-SETUP-UNIFY → TAGCORE-A2Z — when should a trade create/start a PLAN
+ * LINK at all. Trade.setupId is ONE column; the plan chain's third picker is
+ * its single surface (the standalone Setup field was removed 2026-11-05).
+ * A setup value alone is a PLAIN link — the same kind the historical
+ * journal rows carry — and is persisted by the trade write itself: it must
+ * NOT be pushed through linkTrade, which would reject it with a spurious
+ * "Pick a plan". Only a real chain (a plan, or at least a system) starts a
+ * versioned link.
  */
 export function shouldCreateLink(link: LinkInput): boolean {
   return !!(link.tradingPlanId || link.systemId)

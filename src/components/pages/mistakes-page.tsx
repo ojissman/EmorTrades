@@ -364,6 +364,14 @@ export function MistakesPage() {
                     <div>
                       <h4 className="font-semibold text-sm">{m.name}</h4>
                       {m.description && <p className="text-[10px] text-muted-foreground mt-0.5">{m.description}</p>}
+                      {/* TAGCORE-A2Z — the mistake's DB group (managed in
+                          Settings ▸ Tags ▸ Mistake Groups; drives the
+                          Mistakes ▸ Groups breakdown). */}
+                      {m.group?.name && (
+                        <p className="text-[10px] mt-0.5" style={{ color: m.group.color }}>
+                          {m.group.name}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">

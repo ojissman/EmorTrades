@@ -316,3 +316,62 @@ Remaining (owner-visible, none blocking): missed-trade prefill E2E pending a
 live missedTrade row with a setup (0 exist; the branch rides the same
 resolver verified 4×); POST /api/trades validates zod before auth
 (pre-existing ordering — 401 on valid bodies, no leak).
+
+---
+
+## Audit addendum — TAGCORE-A2Z (2026-11-05, NORMAL scope with app-wide wiring sweep)
+
+Owner directive: one Setup picker in the Trade Modal + full tag-core
+production audit (Mistakes / Day Tags / Trade Tags + Settings ▸ Tags) +
+app-wide wiring sweep. Findings and fixes (full detail in worklog.md
+Task TAGCORE-A2Z):
+
+1. HIGH — Day Tags had NO write path anywhere in the app: zero DayDayTag
+   writers existed, the catalog could not be created (Settings ▸ Add Tags
+   was trade-only), and Day Explore's chips pointed users to a page family
+   that could never receive data ("from Tags Analysis → Day Tags" — a dead
+   end). FIXED end to end: day-tag-apply lib + POST/DELETE
+   /api/day-tags/apply (auth + ownership + validation), Add Tags Trade|Day
+   type, interactive Day Explore panel (Tag day / × remove). E2E-proven:
+   create → apply → analysis shows the tagged day → remove.
+2. HIGH — Mistakes ▸ Groups grouped by a hardcoded English name list
+   (MISTAKE_FAMILIES) that matched 0 of the user's 8 real mistakes (54
+   trade links) — the Groups page rendered permanently empty for the real
+   catalog. FIXED with real DB MistakeGroups (additive schema:
+   MistakeGroup + Mistake.groupId; /api/mistakes extended to the
+   /api/tags group contract; Settings ▸ Tags ▸ Mistake Groups card;
+   Groups page rewritten to DB groups + Ungrouped bucket with per-trade
+   deduped unions — the old curated page could double-count across
+   families). MISTAKE_FAMILIES deleted (dead, zero-reference proof in the
+   worklog).
+3. MEDIUM — the Trade Modal had no mistakes field (bulk dropdowns only).
+   FIXED: Mistakes chip row symmetric with Tags (create + prefill +
+   transactional replace, E2E-proven per DB row).
+4. MEDIUM — app sweep (98 literal fetch paths vs the 138-route tree):
+   ONE unwired caller found — the admin Integrations "Send test email"
+   button called a never-implemented POST /api/admin/gmail/test (silent
+   404 on every click since the panel shipped). IMPLEMENTED: requireAdmin
+   + sameOrigin + rate limit + audit log; recipient from body or the
+   connected inbox; sends via the same sendGmailEmail() path as
+   transactional mail; honest 409 when Gmail is not connected.
+5. COSMETIC/UX — empty states across the tags-analysis family were blank
+   panels. Every one now states what is missing and where to create/apply
+   it (trade-tags Groups, day-tags Individual/Groups/Advanced, mistakes
+   Groups/Advanced).
+6. Owner decision implemented — ONE Setup selector: the standalone Setup
+   field is removed; the plan chain's third picker ("Setup & plan link
+   (versioned)") is the single surface, upgraded to the full setups
+   catalog (All setups / This system + Other setups) so a quick tag needs
+   no plan. Server rules unchanged (shouldCreateLink, tpWarning,
+   tpOrigChain downgrade ordering) and re-verified live (all three
+   version pins on a full-chain create).
+
+Tests: 208/208 (17 files; +5 day-tag-apply — UTC-midnight convention,
+idempotency, exact-pair removal, foreign-user 404-no-write, malformed
+date 400). Gates: lint 0, tsc 0. Guards proven live: 401 ×3 unauth, 404
+×2 ownership, 400 validation. Mobile 390×844 zero overflow ×3 surfaces.
+Console 0 errors; server log 0 unexpected. E2E artifacts cleaned via the
+same APIs the UI calls (day tags, group, TEST trade all deleted and
+DB-verified). Remaining owner-side items: none blocking (gmail test send
+requires a connected Gmail account — honest 409 otherwise; missed-trade
+prefill E2E still dormant pending a live missedTrade row with a setup).

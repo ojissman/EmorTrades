@@ -331,30 +331,47 @@ Tool Group AI discipline (TOOLS-AI, 2026-11-04 night): the Tool Group
   (filterStore.toQueryParams) like the trades page — new global-scope
   consumers follow the same idiom.
 
-One-link Setup discipline (MODAL-SETUP-UNIFY, 2026-11-05): the Trade
-  Modal's "Setup" field and the plan chain's third picker are ONE link
-  on ONE column (Trade.setupId) — never two competing pickers again.
-  trade-modal.tsx keeps them in sync via applySetupLink/clearSetupLink:
-  a setup living in an ACTIVE plan's system auto-completes the chain;
-  a standalone (or archived-plan) setup is a plain link with the chain
-  cleared; chain picks mirror the Setup field, and the chain's
-  plan/system cascade clears it. Server rule (shouldCreateLink in
-  src/lib/plan-link.ts): a setup-only value is a plain link persisted
-  by the trade write itself — it NEVER goes through linkTrade (which
-  rejects it with a spurious "Pick a plan"); only a real chain (plan,
-  or at least a system) starts a versioned link. POST /api/trades
-  returns tpWarning in its JSON — the modal toasts it (link failures
-  are never silent). The modal's fresh-open path RESETS the whole TP
-  link state (chain + rule-engine fields + warnings) — fresh opens
-  never inherit a previous edit's chain; the edit path snapshots the
-  chain in tpOrigChain so a downgrade clears via the link API BEFORE
-  the PUT (linkTrade's clear nulls setupId too — the PUT's plain
-  setupId must land on top). API-shape trap: /api/setups lifts plan
-  to TOP LEVEL (s.plan, not s.system.plan). Chain trigger labels fall
-  back to the setups catalog for values whose items are not mounted
-  (plain links, archived plans, cold tree fetches) — pass the computed
-  label as SelectValue children; a value with no matching item renders
-  a BLANK trigger otherwise.
+One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
+  the Trade Modal has ONE Setup selector — the plan chain's third picker
+  ("Setup & plan link (versioned)"); the standalone Setup field is GONE
+  (owner decision). The picker is always enabled and offers the FULL
+  setups catalog ("All setups" with no system selected; "This system" +
+  "Other setups" when one is) so a quick setup tag needs no plan;
+  applySetupLink/clearSetupLink remain the single resolver (auto-complete
+  / re-target / standalone plain link). Never reintroduce a second
+  surface for Trade.setupId.
+
+  Tag-core discipline (TAGCORE-A2Z, 2026-11-05): every taxonomy axis —
+  trade tags, day tags, mistakes — owns the FULL loop in the DB: catalog
+  CRUD + groups + an application surface + the analysis family that
+  reads it back. Day-tag dates are stored as the date's UTC MIDNIGHT
+  (DayDayTag; dayKey readers do toISOString().slice(0,10) — new writers
+  route through src/lib/server/day-tag-apply.ts, never inline). Mistake
+  groups are REAL DB MistakeGroups managed in Settings ▸ Tags (the
+  curated hardcoded families matched 0/8 real catalog rows and are dead —
+  never revive name-list groupings). Group deletes DETACH members,
+  never delete them; group unions dedupe by trade. The trade form
+  carries mistakes as chips (mistakeIds: POST creates, PUT replaces
+  transactionally — same contract as tagIds). Sweep lesson: audit every
+  literal fetch() path against the route tree — the admin Integrations
+  "Send test email" button 404'd silently for its whole life because
+  nothing diffed callers against routes.
+
+  One-link server rules (unchanged from MODAL-SETUP-UNIFY, still
+  binding): shouldCreateLink (src/lib/plan-link.ts) — a setup-only
+  value is a plain link persisted by the trade write itself, NEVER
+  through linkTrade (which rejects it with a spurious "Pick a plan");
+  only a real chain (plan, or at least a system) starts a versioned
+  link. POST /api/trades returns tpWarning in its JSON and the modal
+  toasts it (link failures are never silent). Fresh modal opens RESET
+  the whole TP link state (chain + rule-engine fields + warnings); the
+  edit path snapshots the chain in tpOrigChain so a downgrade clears
+  via the link API BEFORE the PUT (linkTrade's clear nulls setupId too —
+  the PUT's plain setupId lands on top). API-shape trap: /api/setups
+  lifts plan to TOP LEVEL (s.plan, not s.system.plan). Chain trigger
+  labels fall back to the setups catalog for values whose items are not
+  mounted — pass the computed label as SelectValue children; a value
+  with no matching item renders a BLANK trigger otherwise.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

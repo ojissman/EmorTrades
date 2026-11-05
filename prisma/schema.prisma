@@ -47,6 +47,7 @@ model User {
   tags            Tag[]
   dayTags         DayTag[]
   noteTags        NoteTag[]
+  mistakeGroups   MistakeGroup[]
   dayPlans        DayPlan[]
   goals           Goal[]
   screenshots     Screenshot[]
@@ -302,14 +303,31 @@ model TradeNews {
 
 // Mistakes - reusable categorization of trading errors
 model Mistake {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   userId      String
   name        String
   description String?
-  color       String   @default("#ef4444")
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  color       String        @default("#ef4444")
+  // TAGCORE-A2Z — mistakes get REAL DB groups (the curated hardcoded
+  // families never matched real catalogs: every demo mistake sat "outside
+  // families" and the Groups page rendered empty). Mirrors Tag/TagGroup.
+  groupId     String?
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades      TradeMistake[]
+  group       MistakeGroup? @relation(fields: [groupId], references: [id])
+}
+
+// TAGCORE-A2Z — the mistake taxonomy's group axis (managed in Settings ▸
+// Tags ▸ Mistake Groups; read by Tags analysis ▸ Mistakes ▸ Groups).
+model MistakeGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#ef4444")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mistakes  Mistake[]
 }
 
 model TradeMistake {
