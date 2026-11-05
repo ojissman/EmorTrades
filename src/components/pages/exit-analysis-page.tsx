@@ -77,16 +77,38 @@ export function ExitAnalysisPage() {
   }
 
   const s = data.summary
+  // COHORTSWEEP — exact cohorts for the Round-trip decomposition cards AND
+  // bars (the server now ships summary.gaveBackIds / neverHadItIds; ?? [] so
+  // a stale cached bundle can't crash the page).
+  const gaveBackIds: string[] = s.gaveBackIds ?? []
+  const neverHadItIds: string[] = s.neverHadItIds ?? []
   const roundTripVsCutEarly = [
-    { name: 'Gave Back', value: s.gaveBackCount, color: '#ef4444', pnl: -s.gaveBackTotal },
-    { name: 'Never Had It', value: s.neverHadItCount, color: '#f59e0b', pnl: -s.neverHadItTotal },
+    { name: 'Gave Back', value: s.gaveBackCount, color: '#ef4444', pnl: -s.gaveBackTotal, ids: gaveBackIds },
+    { name: 'Never Had It', value: s.neverHadItCount, color: '#f59e0b', pnl: -s.neverHadItTotal, ids: neverHadItIds },
   ].filter((x) => x.value > 0)
 
   return (
     <div className="space-y-4">
       {/* Hero scorecards - 5-card scorecard */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Card className="p-4 relative overflow-hidden">
+        {/* COHORTSWEEP — Actual P&L is a real booked sum over this page's
+            exact trade set, so the card drills to the trades table (the
+            Net-tile precedent: drillToTrades({}) keeps the page's scope).
+            The counterfactual tiles below stay honest no-ops with titles. */}
+        <Card
+          className="p-4 relative overflow-hidden cursor-pointer transition-colors hover:border-emerald-500/40"
+          title="Open the trades behind this page's actual P&L"
+          role="button"
+          tabIndex={0}
+          aria-label={`Actual P&L across ${s.totalTrades} trades — open the trades`}
+          onClick={() => drillToTrades({})}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              drillToTrades({})
+            }
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Actual P&L</p>
             <TrendingUp className="h-3 w-3 text-muted-foreground" />
@@ -96,7 +118,8 @@ export function ExitAnalysisPage() {
           </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">across {s.totalTrades} trades</p>
         </Card>
-        <Card className="p-4 relative overflow-hidden">
+        {/* COHORTSWEEP — counterfactual: no exact trade cohort to drill. */}
+        <Card className="p-4 relative overflow-hidden" title="Counterfactual estimate (every exit at MFE) — no exact trade cohort to drill">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Exit Potential</p>
             <Target className="h-3 w-3 text-emerald-400" />
@@ -106,7 +129,8 @@ export function ExitAnalysisPage() {
           </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">if you nailed every exit</p>
         </Card>
-        <Card className="p-4 relative overflow-hidden">
+        {/* COHORTSWEEP — derived ratio over all trades: no single cohort. */}
+        <Card className="p-4 relative overflow-hidden" title="Derived ratio across every trade — no exact trade cohort to drill">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Capture Rate</p>
             <Zap className="h-3 w-3 text-yellow-400" />
@@ -119,7 +143,8 @@ export function ExitAnalysisPage() {
           </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">of MFE captured</p>
         </Card>
-        <Card className="p-4 relative overflow-hidden">
+        {/* COHORTSWEEP — counterfactual: no exact trade cohort to drill. */}
+        <Card className="p-4 relative overflow-hidden" title="Counterfactual estimate (held to EOD) — no exact trade cohort to drill">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Hold-to-Close</p>
             <Clock className="h-3 w-3 text-blue-400" />
@@ -177,7 +202,18 @@ export function ExitAnalysisPage() {
                   )
                 }}
               />
-              <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+              {/* COHORTSWEEP — bar → that capture bucket's exact cohort
+                  (the chart rows ARE the captureBuckets, which now ship
+                  tradeIds; never drill an empty bucket). */}
+              <Bar
+                dataKey="count"
+                radius={[3, 3, 0, 0]}
+                cursor="pointer"
+                onClick={(d: any) => {
+                  const b = data.captureBuckets.find((x: any) => x.range === (d?.payload?.range ?? d?.range))
+                  if (b && b.count > 0) drillToTrades({ tradeIds: b.tradeIds ?? [] })
+                }}
+              >
                 {data.captureBuckets.map((b: any, i: number) => (
                   <Cell key={i} fill={i < 2 ? '#ef4444' : i < 4 ? '#f59e0b' : '#10b981'} />
                 ))}
@@ -191,6 +227,10 @@ export function ExitAnalysisPage() {
           <p className="text-xs text-muted-foreground mb-3">How long until the peak MFE was reached</p>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
+              {/* COHORTSWEEP — sector → that time-to-peak bucket's exact
+                  cohort (sector data is built straight from
+                  timeToBestBuckets, so the datum carries tradeIds; the
+                  payload?.payload fallback covers recharts' wrapped shape). */}
               <Pie
                 data={data.timeToBestBuckets}
                 dataKey="count"
@@ -198,7 +238,13 @@ export function ExitAnalysisPage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={90}
+                cursor="pointer"
                 label={(entry: any) => `${entry.range}: ${entry.count}`}
+                onClick={(d: any) => {
+                  const p = d?.payload?.payload ?? d?.payload ?? d
+                  const b = p ? data.timeToBestBuckets.find((x: any) => x.range === p.range) : undefined
+                  if (b && b.count > 0) drillToTrades({ tradeIds: b.tradeIds ?? [] })
+                }}
               >
                 {data.timeToBestBuckets.map((_: any, i: number) => (
                   <Cell key={i} fill={['#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444'][i]} />
@@ -222,7 +268,24 @@ export function ExitAnalysisPage() {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="p-4 rounded-md bg-red-500/10 border border-red-500/20">
+          {/* COHORTSWEEP — exact cohort: winners that captured <60% of MFE
+              (summary.gaveBackIds). Whole card drills; no-op while empty. */}
+          <div
+            className="p-4 rounded-md bg-red-500/10 border border-red-500/20 cursor-pointer transition-colors hover:border-red-500/50"
+            role="button"
+            tabIndex={0}
+            aria-label={`Gave Back: ${s.gaveBackCount} winners — open those trades`}
+            title={`Show the ${s.gaveBackCount} winners that captured under 60% of MFE`}
+            onClick={() => {
+              if (gaveBackIds.length > 0) drillToTrades({ tradeIds: gaveBackIds })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                if (gaveBackIds.length > 0) drillToTrades({ tradeIds: gaveBackIds })
+              }
+            }}
+          >
             <div className="flex items-center gap-2 mb-2">
               <ArrowDownRight className="h-4 w-4 text-red-400" />
               <p className="text-sm font-semibold text-red-400">Gave Back (Discipline Problem)</p>
@@ -238,7 +301,24 @@ export function ExitAnalysisPage() {
               Fix: tighter exit rules, scale out at partial targets, use trailing stops
             </p>
           </div>
-          <div className="p-4 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+          {/* COHORTSWEEP — exact cohort: losers whose MFE never went positive
+              (summary.neverHadItIds). Whole card drills; no-op while empty. */}
+          <div
+            className="p-4 rounded-md bg-yellow-500/10 border border-yellow-500/20 cursor-pointer transition-colors hover:border-yellow-500/50"
+            role="button"
+            tabIndex={0}
+            aria-label={`Never Had It: ${s.neverHadItCount} losers — open those trades`}
+            title={`Show the ${s.neverHadItCount} losers that never went positive before stop-out`}
+            onClick={() => {
+              if (neverHadItIds.length > 0) drillToTrades({ tradeIds: neverHadItIds })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                if (neverHadItIds.length > 0) drillToTrades({ tradeIds: neverHadItIds })
+              }
+            }}
+          >
             <div className="flex items-center gap-2 mb-2">
               <ArrowUpRight className="h-4 w-4 text-yellow-400" />
               <p className="text-sm font-semibold text-yellow-400">Never Had It (Let Winners Run Problem)</p>
@@ -264,7 +344,19 @@ export function ExitAnalysisPage() {
               <Tooltip
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', borderRadius: 8, fontSize: 12 }}
               />
-              <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              {/* COHORTSWEEP — inspected: these bars are NOT the
+                  holdLongerCurve counterfactuals — they count the Gave Back /
+                  Never Had It cohorts above, which have exact tradeIds, so
+                  each bar drills its own cohort (never an empty one). */}
+              <Bar
+                dataKey="value"
+                radius={[0, 3, 3, 0]}
+                cursor="pointer"
+                onClick={(d: any) => {
+                  const e = roundTripVsCutEarly.find((x) => x.name === (d?.payload?.name ?? d?.name))
+                  if (e && e.ids.length > 0) drillToTrades({ tradeIds: e.ids })
+                }}
+              >
                 {roundTripVsCutEarly.map((e, i) => (
                   <Cell key={i} fill={e.color} />
                 ))}

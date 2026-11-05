@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 // Task 15-W6 — dot-strip evidence drills (day key → Day Explore, trade id → peek).
-import { drillToDay, peekTrade } from '@/lib/drill'
+// COHORTSWEEP — completed-run cards also drill to the run window's trades.
+import { drillToDay, drillToTrades, peekTrade } from '@/lib/drill'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -430,10 +431,35 @@ export function ChallengesPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {completed.map((r) => {
                 const a = accent(r.template.accent)
+                // COHORTSWEEP — hoisted const: property narrowing (r.completedAt)
+                // doesn't survive into the onClick closure, a const does.
+                const runEnd = r.completedAt
                 return (
                   <Card
                     key={r.id}
-                    className="group relative overflow-hidden border-amber-500/25 p-5 transition-colors hover:border-amber-500/50"
+                    // COHORTSWEEP — the finished run's window drills to the trades
+                    // table: startedAt → completedAt as exact custom-date bounds
+                    // (entry-anchored approximation of the run window). Runs
+                    // without a completedAt stamp stay non-clickable.
+                    onClick={
+                      runEnd
+                        ? () => drillToTrades({ customStartDate: r.startedAt, customEndDate: runEnd })
+                        : undefined
+                    }
+                    title={
+                      runEnd
+                        ? 'Open the trades during this run — entry-anchored approximation of the run window'
+                        : undefined
+                    }
+                    aria-label={
+                      runEnd
+                        ? `Open the trades recorded during this ${r.template.title} run`
+                        : undefined
+                    }
+                    className={cn(
+                      'group relative overflow-hidden border-amber-500/25 p-5 transition-colors hover:border-amber-500/50',
+                      runEnd && 'cursor-pointer'
+                    )}
                   >
                     <div
                       className="pointer-events-none absolute inset-0 opacity-40 transition-opacity group-hover:opacity-70"
@@ -483,7 +509,12 @@ export function ChallengesPage() {
                             variant="ghost"
                             size="sm"
                             className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => act(r.id, 'restart')}
+                            onClick={(e) => {
+                              // COHORTSWEEP — the card body now drills to the run
+                              // window; a click here must only restart the run.
+                              e.stopPropagation()
+                              act(r.id, 'restart')
+                            }}
                           >
                             <RotateCcw className="h-3 w-3" /> Run again
                           </Button>

@@ -32,6 +32,8 @@ import {
 } from 'recharts'
 import { Clock, AlertTriangle, TrendingUp, Wallet, Activity, RefreshCw, MoreVertical } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatDateTime, formatNumber, formatPercent, formatTime } from '@/lib/format'
+// COHORTSWEEP — exposure charts drill into the open-positions cohort.
+import { drillToTrades } from '@/lib/drill'
 import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 
@@ -304,11 +306,16 @@ export function OpenTradesPage() {
 
           {/* Exposure breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="p-4 md:p-5">
+            <Card
+              className="p-4 md:p-5"
+              title="Click a sector to open that side's open positions in the Trades table"
+            >
               <h3 className="font-semibold tracking-tight mb-1">Exposure by Side</h3>
-              <p className="text-xs text-muted-foreground mb-3">Long vs short notional exposure</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Long vs short notional exposure · click a side for its open positions
+              </p>
               <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
+                <PieChart style={{ cursor: 'pointer' }}>
                   <Pie
                     data={bySide}
                     dataKey="value"
@@ -316,7 +323,15 @@ export function OpenTradesPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
+                    cursor="pointer"
                     label={(entry: any) => `${entry.name}: ${entry.count}`}
+                    // COHORTSWEEP — sector click → the OPEN positions on that
+                    // side: this pie counts open positions, so the drilled
+                    // cohort is exact (analytics win/loss pie idiom).
+                    onClick={(data: any) => {
+                      const s = bySide.find((c) => c.name === (data?.payload?.name ?? data?.name))
+                      if (s) drillToTrades({ side: s.name === 'Long' ? 'long' : 'short', status: 'open' })
+                    }}
                   >
                     {bySide.map((entry, i) => (
                       <Cell key={i} fill={entry.color} />
@@ -330,11 +345,21 @@ export function OpenTradesPage() {
               </ResponsiveContainer>
             </Card>
 
-            <Card className="p-4 md:p-5">
+            <Card
+              className="p-4 md:p-5"
+              title="Click a bar to open that symbol's open positions in the Trades table"
+            >
               <h3 className="font-semibold tracking-tight mb-1">Exposure by Symbol</h3>
-              <p className="text-xs text-muted-foreground mb-3">Concentration risk per ticker</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Concentration risk per ticker · click a bar for that symbol's open positions
+              </p>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={symbolConcentration} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={symbolConcentration}
+                  layout="vertical"
+                  margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={axisMoney} />
                   <YAxis type="category" dataKey="symbol" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} stroke="var(--border)" width={60} />
@@ -342,7 +367,20 @@ export function OpenTradesPage() {
                     contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', borderRadius: 8, fontSize: 12 }}
                     formatter={(v: any) => [formatCurrencyIn('chart', v), 'Exposure']}
                   />
-                  <Bar dataKey="exposure" radius={[0, 3, 3, 0]} fill="#3b82f6" />
+                  <Bar
+                    dataKey="exposure"
+                    radius={[0, 3, 3, 0]}
+                    fill="#3b82f6"
+                    cursor="pointer"
+                    // COHORTSWEEP — bar click → that symbol's OPEN positions
+                    // (open-trades-summary bar idiom + status pin).
+                    onClick={(data: any) => {
+                      const row = symbolConcentration.find(
+                        (s: any) => s.symbol === (data?.payload?.symbol ?? data?.symbol)
+                      )
+                      if (row) drillToTrades({ symbol: row.symbol, status: 'open' })
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </Card>

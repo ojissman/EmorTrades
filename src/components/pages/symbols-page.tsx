@@ -156,6 +156,16 @@ export function SymbolsPage() {
   const totalPnL = symbolStats.reduce((sum, s) => sum + s.pnl, 0)
   const totalTrades = symbolStats.reduce((sum, s) => sum + s.trades, 0)
 
+  // COHORTSWEEP — exact-cohort drill data for the Winning/Losing cards: the
+  // page fetches every closed trade, so the net-positive / net-negative
+  // symbol sets (from the same search-filtered view the cards count) can
+  // carry their trade ids — tradeIds IS the exact cohort in drillToTrades.
+  const winningSymbols = new Set(symbolStats.filter((s) => s.pnl > 0).map((s) => s.symbol))
+  const losingSymbols = new Set(symbolStats.filter((s) => s.pnl < 0).map((s) => s.symbol))
+  const scopedTrades: any[] = data?.trades ?? []
+  const winningTradeIds = scopedTrades.filter((t) => winningSymbols.has(t.symbol)).map((t) => t.id)
+  const losingTradeIds = scopedTrades.filter((t) => losingSymbols.has(t.symbol)).map((t) => t.id)
+
   return (
     <div className="space-y-4">
       {/* Top Symbols Chart */}
@@ -205,28 +215,62 @@ export function SymbolsPage() {
         </ResponsiveContainer>
       </Card>
 
-      {/* Summary cards */}
+      {/* Summary cards — COHORTSWEEP: Total P&L drills the trades, Winning /
+          Losing drill their exact symbol cohorts via tradeIds; Symbols Traded
+          is a distinct-symbol count (no single cohort) and stays honest. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className="p-4 overflow-hidden"
+          title="Distinct symbols with closed trades in scope — a count, not a single cohort"
+        >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Symbols Traded</p>
           <FitValue className="text-xl font-bold tnum mt-1">{symbolStats.length}</FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            totalTrades > 0 && 'cursor-pointer hover:border-border'
+          )}
+          title={totalTrades > 0 ? 'Open the trades behind this P&L' : 'No closed trades in scope yet'}
+          onClick={totalTrades > 0 ? () => drillToTrades({}) : undefined}
+        >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Total P&L</p>
           <FitValue className={cn('text-xl font-bold tnum mt-1', pnlColor(totalPnL))}>
             {formatCurrencyIn('table', totalPnL)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            winningTradeIds.length > 0 && 'cursor-pointer hover:border-emerald-500/40'
+          )}
+          title={
+            winningTradeIds.length > 0
+              ? `Open the trades behind the ${winningSymbols.size} net-positive symbol${winningSymbols.size === 1 ? '' : 's'}`
+              : 'No net-positive symbols yet'
+          }
+          onClick={winningTradeIds.length > 0 ? () => drillToTrades({ tradeIds: winningTradeIds }) : undefined}
+        >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Winning Symbols</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
-            {symbolStats.filter((s) => s.pnl > 0).length}
+            {winningSymbols.size}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            losingTradeIds.length > 0 && 'cursor-pointer hover:border-red-500/40'
+          )}
+          title={
+            losingTradeIds.length > 0
+              ? `Open the trades behind the ${losingSymbols.size} net-negative symbol${losingSymbols.size === 1 ? '' : 's'}`
+              : 'No net-negative symbols yet'
+          }
+          onClick={losingTradeIds.length > 0 ? () => drillToTrades({ tradeIds: losingTradeIds }) : undefined}
+        >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Losing Symbols</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-red-400">
-            {symbolStats.filter((s) => s.pnl < 0).length}
+            {losingSymbols.size}
           </FitValue>
         </Card>
       </div>

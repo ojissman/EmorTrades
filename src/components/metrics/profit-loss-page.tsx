@@ -32,9 +32,33 @@ export function ProfitLossPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricStat label="Net P&L" value={formatCurrencyIn('kpi', s.net, 'USD')} sub={`${s.wins}W / ${s.losses}L / ${s.breakeven}BE`} tone={s.net >= 0 ? 'good' : 'bad'} big />
-        <MetricStat label="Profit contributors" value={String(winners.length)} sub={`${formatCurrencyIn('kpi', winners.reduce((a, r) => a + r.net, 0), 'USD')} from symbols in profit`} tone="good" />
-        <MetricStat label="P&L drains" value={String(losers.length)} sub={`${formatCurrencyIn('kpi', losers.reduce((a, r) => a + r.net, 0), 'USD')} from symbols losing`} tone="bad" />
+        <MetricStat
+          label="Net P&L"
+          value={formatCurrencyIn('kpi', s.net, 'USD')}
+          sub={`${s.wins}W / ${s.losses}L / ${s.breakeven}BE${s.total > 0 ? ` · open all ${s.total} trades` : ''}`}
+          tone={s.net >= 0 ? 'good' : 'bad'}
+          big
+          // COHORTSWEEP — net tile → every trade in the current scope
+          // (drillToTrades({})); the tile guards its own trade count.
+          onClick={s.total > 0 ? () => drillToTrades({}) : undefined}
+        />
+        <MetricStat
+          label="Profit contributors"
+          value={String(winners.length)}
+          sub={`${formatCurrencyIn('kpi', winners.reduce((a, r) => a + r.net, 0), 'USD')} from symbols in profit${winners.length > 0 ? ' · open the winning trades' : ''}`}
+          tone="good"
+          // COHORTSWEEP — the value counts profitable SYMBOLS, but the cohort
+          // behind them is the winning trades (outcome:'win'); 0 symbols = no drill.
+          onClick={winners.length > 0 ? () => drillToTrades({ outcome: 'win' }) : undefined}
+        />
+        <MetricStat
+          label="P&L drains"
+          value={String(losers.length)}
+          sub={`${formatCurrencyIn('kpi', losers.reduce((a, r) => a + r.net, 0), 'USD')} from symbols losing${losers.length > 0 ? ' · open the losing trades' : ''}`}
+          tone="bad"
+          // COHORTSWEEP — mirror of contributors: the losing-trades cohort.
+          onClick={losers.length > 0 ? () => drillToTrades({ outcome: 'loss' }) : undefined}
+        />
         <MetricStat
           label="Best month"
           value={s.total ? formatCurrencyIn('table', Math.max(...data.monthly.map((m) => m.net), 0), 'USD') : '—'}

@@ -36,7 +36,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { Activity, Target, TrendingUp, Flame, Award, Zap } from 'lucide-react'
-import { drillToTrades, peekTrade, markDrillOrigin } from '@/lib/drill'
+import { drillToTrades, drillToDay, peekTrade, markDrillOrigin } from '@/lib/drill'
 
 export function AnalyticsPage() {
   const { selectedAccountId, dateRange, navigate } = useAppStore()
@@ -197,12 +197,16 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
     }
   })
 
-  // Setup radar chart
+  // Setup radar chart — COHORTSWEEP: keep the API row's setupId (calculateSetupStats
+  // sends it; null = "Uncategorized" → the 'none' drill sentinel) so a sector
+  // click can drill to that setup's trades. The row shape is inferred inline
+  // (the source rows are `any`), so extending the mapping extends the type.
   const setupRadar = dashData.setupStats.slice(0, 8).map((s: any) => ({
     setup: s.setupName.length > 8 ? s.setupName.slice(0, 8) + '…' : s.setupName,
     winRate: s.winRate,
     pnl: Math.abs(s.pnl) > 0 ? 100 : 0,
     trades: s.trades,
+    setupId: s.setupId ?? null,
   }))
 
   return (
@@ -263,12 +267,20 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-semibold tracking-tight">Equity Curve & Drawdown</h3>
-              <p className="text-xs text-muted-foreground">Account balance with drawdown overlay</p>
+              <p className="text-xs text-muted-foreground">Account balance with drawdown overlay — click a point to open that day</p>
             </div>
             <Badge variant="outline">{formatCurrencyIn('kpi', a.finalEquity)}</Badge>
           </div>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={equityCurve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            {/* COHORTSWEEP — rows carry the full ISO `date` (calculateEquityCurve
+                emits exit timestamps), so the drawdown-page activePayload idiom
+                drills to that day's Day Explore. */}
+            <ComposedChart
+              data={equityCurve}
+              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }}
+              style={{ cursor: 'pointer' }}
+            >
               <defs>
                 <linearGradient id="equityGrad2" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
@@ -520,13 +532,26 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="p-4 md:p-5">
           <h3 className="font-semibold tracking-tight mb-1">Setup Win Rate Comparison</h3>
-          <p className="text-xs text-muted-foreground mb-3">Win rate by setup type</p>
+          <p className="text-xs text-muted-foreground mb-3">Win rate by setup type — click a sector for its trades</p>
           <ResponsiveContainer width="100%" height={260}>
             <RadarChart data={setupRadar}>
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="setup" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-              <Radar name="Win Rate %" dataKey="winRate" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.4} />
+              {/* COHORTSWEEP — sector → that setup's trades (0-trade sectors stay
+                  inert; null setupId = the "Uncategorized" bucket → 'none'). */}
+              <Radar
+                name="Win Rate %"
+                dataKey="winRate"
+                stroke="var(--chart-1)"
+                fill="var(--chart-1)"
+                fillOpacity={0.4}
+                cursor="pointer"
+                onClick={(data: any) => {
+                  const p = data?.payload
+                  if (p && p.trades > 0) drillToTrades({ setupId: p.setupId ?? 'none' })
+                }}
+              />
               <Tooltip
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', borderRadius: 8, fontSize: 12 }}
               />

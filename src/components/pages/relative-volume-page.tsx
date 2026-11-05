@@ -182,6 +182,7 @@ export function RelativeVolumePage() {
           value={best ? money(best.net, 'kpi') : '—'}
           sub={best ? `${best.label} · ${best.n}t` : undefined}
           tone={best && best.net >= 0 ? 'good' : 'bad'}
+          onClick={best && best.n > 0 ? () => drillToTrades({ tradeIds: best.tradeIds }) : undefined}
         />
       </div>
 
@@ -189,6 +190,10 @@ export function RelativeVolumePage() {
       <Panel title="Results by volume regime" hint="Session volume vs the prior 14-session mean on the symbol’s own tape">
         <MiniTable
           head={['Regime', 'Trades', 'Net', 'Win rate', 'Avg R', 'Avg RVOL', '']}
+          onRowClick={(i) => {
+            const b = buckets[i]
+            if (b && b.n > 0) drillToTrades({ tradeIds: b.tradeIds })
+          }}
           rows={buckets.map((b) => [
             <span key="l" className="font-semibold whitespace-nowrap">{b.label}</span>,
             b.n === 0 ? <span key="n" style={{ color: 'var(--text-secondary)' }}>no trades</span> : `${b.n} (${b.wins}W)`,

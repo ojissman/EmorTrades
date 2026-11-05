@@ -51,6 +51,7 @@ import {
 } from '@/lib/calendar-intel'
 import { axisMoney, formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { drillToTrades, monthPatch } from '@/lib/drill' // COHORTSWEEP — stat-strip drills
 
 // ---------------------------------------------------------------------------
 // Props
@@ -95,15 +96,38 @@ function StatCell({
   label,
   value,
   valueCls,
+  onClick,
+  title,
 }: {
   label: string
   value: React.ReactNode
   valueCls?: string
+  /** COHORTSWEEP — when set, the value renders as a drill button using the
+   *  best/worst-day affordance (underline on hover + a title naming the
+   *  target); unset cells stay plain and honest. */
+  onClick?: () => void
+  title?: string
 }) {
   return (
     <div className="min-w-0">
       <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={cn('truncate whitespace-nowrap text-sm font-semibold tnum', valueCls)}>{value}</p>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          title={title}
+          className={cn(
+            'block w-full truncate whitespace-nowrap text-left text-sm font-semibold tnum underline-offset-2 hover:underline',
+            valueCls,
+          )}
+        >
+          {value}
+        </button>
+      ) : (
+        <p title={title} className={cn('truncate whitespace-nowrap text-sm font-semibold tnum', valueCls)}>
+          {value}
+        </p>
+      )}
     </div>
   )
 }
@@ -209,6 +233,14 @@ export function MonthlySummary({
 
   const avgDaily = stats.tradingDays > 0 ? stats.netPnl / stats.tradingDays : null
 
+  // COHORTSWEEP — the stat-strip drills: every count-backed cell deep-links
+  // the month's trades (monthPatch window), gross profit/loss + win rate add
+  // outcome:'win'/'loss' (the profit-factor-page precedent). A zero-trade
+  // month drills nothing, and PF stays honest — it's a ratio, not a trade
+  // list (its title says so).
+  const hasTrades = stats.trades > 0
+  const monthDrill = () => drillToTrades(monthPatch(month))
+
   // ---- CSV export (client-side, from monthlySeries + day entries) -----------
 
   function downloadCsv() {
@@ -259,27 +291,46 @@ export function MonthlySummary({
           label="Net P&L"
           value={`${stats.netPnl > 0 ? '+' : ''}${formatCurrencyIn('table', stats.netPnl)}`}
           valueCls={cn(pnlColor(stats.netPnl), 'text-base font-bold')}
+          onClick={hasTrades ? monthDrill : undefined}
+          title={hasTrades ? `Show the ${stats.trades} trades from ${monthLabel}` : undefined}
         />
         <StatCell
           label="Gross profit"
           value={formatCurrencyIn('table', stats.grossProfit)}
           valueCls={stats.grossProfit > 0 ? 'text-profit' : undefined}
+          onClick={hasTrades ? () => drillToTrades({ ...monthPatch(month), outcome: 'win' }) : undefined}
+          title={hasTrades ? `Show this month's ${stats.wins} winning trades` : undefined}
         />
         <StatCell
           label="Gross loss"
           value={stats.grossLoss > 0 ? `-${formatCurrencyIn('table', stats.grossLoss)}` : formatCurrencyIn('table', 0)}
           valueCls={stats.grossLoss > 0 ? 'text-loss' : undefined}
+          onClick={hasTrades ? () => drillToTrades({ ...monthPatch(month), outcome: 'loss' }) : undefined}
+          title={hasTrades ? `Show this month's ${stats.losses} losing trades` : undefined}
         />
-        <StatCell label="Win rate" value={`${stats.winRate.toFixed(1)}%`} />
+        <StatCell
+          label="Win rate"
+          value={`${stats.winRate.toFixed(1)}%`}
+          onClick={hasTrades ? () => drillToTrades({ ...monthPatch(month), outcome: 'win' }) : undefined}
+          title="Open the winning trades"
+        />
         <StatCell
           label="Profit factor"
           value={stats.profitFactor != null ? stats.profitFactor.toFixed(2) : '—'}
+          title="Gross profit ÷ gross loss — a ratio, so there is no trade list to open"
         />
-        <StatCell label="Trades" value={stats.trades} />
+        <StatCell
+          label="Trades"
+          value={stats.trades}
+          onClick={hasTrades ? monthDrill : undefined}
+          title={hasTrades ? `Show all ${stats.trades} trades from ${monthLabel}` : undefined}
+        />
         <StatCell
           label="Avg daily P&L"
           value={avgDaily != null ? `${avgDaily > 0 ? '+' : ''}${formatCurrencyIn('table', avgDaily)}` : '—'}
           valueCls={avgDaily != null ? pnlColor(avgDaily) : undefined}
+          onClick={hasTrades ? monthDrill : undefined}
+          title={hasTrades ? `Show the trades behind the daily average (${monthLabel})` : undefined}
         />
         <div className="min-w-0">
           <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">

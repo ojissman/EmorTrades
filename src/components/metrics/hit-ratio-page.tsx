@@ -40,22 +40,43 @@ export function HitRatioPage() {
         <MetricStat
           label="Hit ratio"
           value={formatPercent(s.winRate, 1)}
-          sub={`${s.wins}W · ${s.losses}L · ${s.breakeven}BE of ${s.total}`}
+          sub={`${s.wins}W · ${s.losses}L · ${s.breakeven}BE of ${s.total}${s.wins > 0 ? ' · open the winning trades' : ''}`}
           tone={s.winRate >= 50 ? 'good' : s.winRate >= 40 ? 'warn' : 'bad'}
           big
+          // COHORTSWEEP — hit-ratio KPI drills to the winner cohort (kpiRenderer
+          // precedent); a 0-win scope has no cohort to open.
+          onClick={s.wins > 0 ? () => drillToTrades({ outcome: 'win' }) : undefined}
         />
+        {/* COHORTSWEEP — payoff is a ratio (avg win ÷ avg loss): no single trade
+            cohort can display a ratio, so this tile stays honestly undrilled —
+            the formula sub doubles as its tooltip. */}
         <MetricStat
           label="Payoff ratio"
           value={s.payoff === null ? '∞' : `${formatNumber(s.payoff)}×`}
           sub={`avg win ${formatCurrencyIn('kpi', s.avgWin, 'USD')} ÷ avg loss ${formatCurrencyIn('kpi', s.avgLoss, 'USD')}`}
           tone={s.payoff !== null && s.payoff >= 1 ? 'good' : 'warn'}
         />
-        <MetricStat label="Break-even trades" value={`${formatNumber(breakevenRate, 1)}%`} sub={`${s.breakeven} trades closed flat`} />
+        <MetricStat
+          label="Break-even trades"
+          value={`${formatNumber(breakevenRate, 1)}%`}
+          sub={`${s.breakeven} trades closed flat`}
+          // COHORTSWEEP — drill the break-even cohort; 0 flat trades = no drill.
+          onClick={s.breakeven > 0 ? () => drillToTrades({ outcome: 'breakeven' }) : undefined}
+        />
         <MetricStat
           label="Longest streaks"
           value={`${s.maxWinStreak}W · ${s.maxLossStreak}L`}
-          sub="consecutive wins / losses"
+          sub={
+            s.maxWinStreak > 0
+              ? `consecutive wins / losses · open the last ${s.maxWinStreak} trades (win-streak tail)`
+              : 'consecutive wins / losses'
+          }
           tone={s.maxLossStreak > s.maxWinStreak ? 'warn' : 'good'}
+          // COHORTSWEEP — one tile carries both streaks, so the drill follows
+          // the WIN streak as a last-N tail (risk-page guardrail approximation:
+          // an exit-ordered streak ≈ the most-recent-trades tail); a 0-length
+          // streak has nothing to open.
+          onClick={s.maxWinStreak > 0 ? () => drillToTrades({ lastTrades: s.maxWinStreak }) : undefined}
         />
       </div>
 

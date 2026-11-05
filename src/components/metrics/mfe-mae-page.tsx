@@ -14,7 +14,8 @@ import { useAppStore } from '@/store/app-store'
 import { ArrowUpRight } from 'lucide-react'
 import { BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { formatCurrencyIn, formatNumber } from '@/lib/format'
-import { peekTrade } from '@/lib/drill'
+// COHORTSWEEP — the histogram bars now drill to their exact trade cohort.
+import { peekTrade, drillToTrades } from '@/lib/drill'
 import { FitValue } from '@/components/fit-value'
 
 export function MfeMaePage() {
@@ -57,7 +58,7 @@ export function MfeMaePage() {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2">
-            <Panel title="Capture-rate histogram" hint="100% = you exited at the absolute peak">
+            <Panel title="Capture-rate histogram" hint="100% = you exited at the absolute peak · click a bar for that band's trades">
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={m.captureHistogram} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
@@ -65,7 +66,21 @@ export function MfeMaePage() {
                     <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} />
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} />
                     <ReTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: 'var(--text-secondary)' }} itemStyle={{ color: 'var(--text-primary)' }} cursor={{ fill: 'var(--bg-hover)', opacity: 0.4 }} />
-                    <Bar dataKey="count" fill="var(--shell-accent)" radius={[3, 3, 0, 0]} maxBarSize={44} name="trades" />
+                    {/* COHORTSWEEP — bar → that capture band's exact cohort (the
+                        chart rows ARE mfeMae.captureHistogram, which now ships
+                        tradeIds; never drill an empty bucket). */}
+                    <Bar
+                      dataKey="count"
+                      fill="var(--shell-accent)"
+                      radius={[3, 3, 0, 0]}
+                      maxBarSize={44}
+                      name="trades"
+                      cursor="pointer"
+                      onClick={(d: any) => {
+                        const p = d?.payload
+                        if (p && p.count > 0) drillToTrades({ tradeIds: p.tradeIds ?? [] })
+                      }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

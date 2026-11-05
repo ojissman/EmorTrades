@@ -89,8 +89,11 @@ interface ExitSuite {
     neverHadItTotal: number
     eodCoverage: { benchmarked: number; total: number }
   }
-  captureBuckets: { range: string; count: number; pnl: number }[]
-  timeToBestBuckets: { range: string; count: number }[]
+  // COHORTSWEEP — each bucket now ships its exact trade cohort (server-side
+  // addition to /api/exit-analysis). Optional so a stale cached bundle can't
+  // crash the page — call sites use (b.tradeIds ?? []).
+  captureBuckets: { range: string; count: number; pnl: number; tradeIds?: string[] }[]
+  timeToBestBuckets: { range: string; count: number; tradeIds?: string[] }[]
   holdLongerCurve: { label: string; avgPnl: number; count: number }[]
   setupLeaks: {
     setupName: string
@@ -393,8 +396,8 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <MetricStat label="Avg capture rate" value={pctTxt(s.avgCaptureRate, 1)} sub="per-trade share of the move kept" tone={s.avgCaptureRate >= 50 ? 'good' : s.avgCaptureRate >= 30 ? 'warn' : 'bad'} big />
             <MetricStat label="Portfolio efficiency" value={pctTxt(s.captureEfficiency, 1)} sub="dollar-weighted capture" />
-            <MetricStat label="Near-perfect exits (80%+)" value={String(data.captureBuckets[5]?.count ?? 0)} sub="trades that kept 80%+ of MFE" tone="good" />
-            <MetricStat label="Round-trippers (0-20%)" value={String(data.captureBuckets[0]?.count ?? 0)} sub="moves seen, gains not kept" tone={(data.captureBuckets[0]?.count ?? 0) > data.captureBuckets[5]?.count ? 'bad' : 'neutral'} />
+            <MetricStat label="Near-perfect exits (80%+)" value={String(data.captureBuckets[5]?.count ?? 0)} sub="trades that kept 80%+ of MFE" tone="good" onClick={(data.captureBuckets[5]?.count ?? 0) > 0 ? () => drillToTrades({ tradeIds: data.captureBuckets[5].tradeIds ?? [] }) : undefined} />
+            <MetricStat label="Round-trippers (0-20%)" value={String(data.captureBuckets[0]?.count ?? 0)} sub="moves seen, gains not kept" tone={(data.captureBuckets[0]?.count ?? 0) > data.captureBuckets[5]?.count ? 'bad' : 'neutral'} onClick={(data.captureBuckets[0]?.count ?? 0) > 0 ? () => drillToTrades({ tradeIds: data.captureBuckets[0].tradeIds ?? [] }) : undefined} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -405,7 +408,18 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                   <XAxis dataKey="range" tick={AXIS_TICK} />
                   <YAxis tick={AXIS_TICK} allowDecimals={false} />
                   <ReTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, _n: unknown, p: { payload?: { pnl?: number } }) => [`${v} trades · ${money(p?.payload?.pnl ?? 0)} net`, 'Bucket']} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {/* COHORTSWEEP — bar → that capture bucket's exact cohort
+                      (chart rows ARE the captureBuckets, which now carry
+                      tradeIds; never drill an empty bucket). */}
+                  <Bar
+                    dataKey="count"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) => {
+                      const b = data.captureBuckets.find((x) => x.range === (d?.payload?.range ?? d?.range))
+                      if (b && b.count > 0) drillToTrades({ tradeIds: b.tradeIds ?? [] })
+                    }}
+                  >
                     {data.captureBuckets.map((b) => (
                       <Cell key={b.range} fill={b.pnl >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'} />
                     ))}
@@ -440,7 +454,10 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
             </Panel>
           </div>
 
-          <Panel title="Bucket economics" hint="Each bucket: trades, net P&L and average P&L per trade inside it">
+          <Panel title="Bucket economics" hint="Each bucket: trades, net P&L and average P&L per trade inside it · click a row for that bucket's trades">
+            {/* COHORTSWEEP — row → that bucket's exact cohort (rows map 1:1
+                over captureBuckets, so the row index resolves the bucket;
+                never drill an empty bucket). */}
             <MiniTable
               head={['Capture bucket', 'Trades', 'Net P&L', 'Avg / trade']}
               rows={data.captureBuckets.map((b) => [
@@ -449,6 +466,10 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                 <span key="p" style={{ color: deltaColor(b.pnl) }}>{money(b.pnl)}</span>,
                 <span key="a" style={{ color: deltaColor(b.count ? b.pnl / b.count : 0) }}>{b.count ? money(b.pnl / b.count) : '—'}</span>,
               ])}
+              onRowClick={(ri) => {
+                const b = data.captureBuckets[ri]
+                if (b && b.count > 0) drillToTrades({ tradeIds: b.tradeIds ?? [] })
+              }}
             />
           </Panel>
 
@@ -479,7 +500,18 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                   <XAxis dataKey="range" tick={AXIS_TICK} />
                   <YAxis tick={AXIS_TICK} allowDecimals={false} />
                   <ReTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v} trades`, 'Time to peak']} />
-                  <Bar dataKey="count" fill="var(--accent, #10b981)" radius={[4, 4, 0, 0]} />
+                  {/* COHORTSWEEP — bar → that time-to-peak bucket's exact
+                      cohort (rows now carry tradeIds; guard count > 0). */}
+                  <Bar
+                    dataKey="count"
+                    fill="var(--accent, #10b981)"
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                    onClick={(d: any) => {
+                      const b = data.timeToBestBuckets.find((x) => x.range === (d?.payload?.range ?? d?.range))
+                      if (b && b.count > 0) drillToTrades({ tradeIds: b.tradeIds ?? [] })
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </Panel>

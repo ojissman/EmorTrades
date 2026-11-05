@@ -10,6 +10,7 @@ import { useMetrics, Panel, MetricStat, EmptyRange, QueryErrorCard, TOOLTIP_STYL
 import { BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid, Cell, LabelList } from 'recharts'
 import { formatCurrency, formatCurrencyIn, formatNumber } from '@/lib/format'
 import { drillToTrades, peekTrade } from '@/lib/drill'
+import { useAppStore } from '@/store/app-store'
 
 export function OpenTradesSummaryPage() {
   const { data, isLoading, isError, error, refetch } = useMetrics()
@@ -39,8 +40,27 @@ export function OpenTradesSummaryPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricStat label="Open positions" value={String(o.count)} sub={`${o.symbols} distinct symbols`} big />
-        <MetricStat label="Total exposure" value={formatCurrencyIn('kpi', o.exposure, 'USD')} sub="quantity × entry price" />
+        <MetricStat
+          label="Open positions"
+          value={String(o.count)}
+          sub={`${o.symbols} distinct symbols`}
+          big
+          // COHORTSWEEP — this tile is a live count, not a cohort: navigate to
+          // the Open Positions page (risk-page guardrail idiom) instead of a
+          // trades drill; the tile guards its own count.
+          onClick={o.count > 0 ? () => useAppStore.getState().navigate('/tables/open-positions') : undefined}
+        />
+        <MetricStat
+          label="Total exposure"
+          value={formatCurrencyIn('kpi', o.exposure, 'USD')}
+          sub={`quantity × entry price${o.count > 0 ? ' · open the Open Positions page' : ''}`}
+          // COHORTSWEEP — exposure is an aggregate over the open positions,
+          // not a trade cohort: same navigation as the count tile.
+          onClick={o.count > 0 ? () => useAppStore.getState().navigate('/tables/open-positions') : undefined}
+        />
+        {/* COHORTSWEEP — a split names two cohorts, not one, and the payload
+            carries no dominant-side marker — honestly undrilled; the long/short
+            counts sub doubles as its tooltip. */}
         <MetricStat
           label="Direction split"
           value={`${formatNumber(longShare, 0)}% long`}
@@ -50,8 +70,20 @@ export function OpenTradesSummaryPage() {
         <MetricStat
           label="Top concentration"
           value={o.bySymbol.length ? `${formatNumber(concentration, 0)}%` : '—'}
-          sub={o.bySymbol.length ? `${o.bySymbol[0].symbol} of total exposure` : undefined}
+          sub={
+            o.bySymbol.length
+              ? `${o.bySymbol[0].symbol} of total exposure · open its open trades`
+              : undefined
+          }
           tone={concentration >= 40 ? 'warn' : 'good'}
+          // COHORTSWEEP — the payload carries the top symbol: drill that
+          // symbol's OPEN trades (status:'open') — the exact positions the
+          // concentration percentage counted; no symbol = no drill.
+          onClick={
+            o.bySymbol.length
+              ? () => drillToTrades({ symbol: o.bySymbol[0].symbol, status: 'open' })
+              : undefined
+          }
         />
       </div>
 
@@ -75,7 +107,11 @@ export function OpenTradesSummaryPage() {
                   cursor="pointer"
                   onClick={(data: any) => {
                     const row = o.bySymbol.find((s) => s.symbol === (data?.payload?.symbol ?? data?.symbol))
-                    if (row) drillToTrades({ symbol: row.symbol })
+                    // COHORTSWEEP — tightened with status:'open': this bar
+                    // counts OPEN-positions exposure (openSummary), so the
+                    // drill must land on that symbol's open trades, not its
+                    // full history.
+                    if (row) drillToTrades({ symbol: row.symbol, status: 'open' })
                   }}
                   radius={[0, 3, 3, 0]}
                   maxBarSize={20}
@@ -107,11 +143,11 @@ export function OpenTradesSummaryPage() {
                     key={s.symbol}
                     role="button"
                     tabIndex={0}
-                    onClick={() => drillToTrades({ symbol: s.symbol })}
+                    onClick={() => drillToTrades({ symbol: s.symbol, status: 'open' })}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        drillToTrades({ symbol: s.symbol })
+                        drillToTrades({ symbol: s.symbol, status: 'open' })
                       }
                     }}
                     className="border-t cursor-pointer transition-colors hover:bg-white/[0.04]"

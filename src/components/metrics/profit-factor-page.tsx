@@ -33,6 +33,10 @@ export function ProfitFactorPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {/* COHORTSWEEP — profit factor is a ratio (gross win ÷ gross loss): a
+            trade cohort cannot display a ratio, so this tile stays honestly
+            undrilled — the formula sub doubles as its tooltip. The gross
+            profit/loss tiles below carry the cohort drills. */}
         <MetricStat
           label="Profit factor"
           value={s.profitFactor === null ? '∞' : formatNumber(s.profitFactor)}
@@ -42,7 +46,15 @@ export function ProfitFactorPage() {
         />
         <MetricStat label="Gross profit" value={formatCurrencyIn('kpi', s.grossWin, 'USD')} sub={`${s.wins} winning trades`} tone="good" onClick={() => drillToTrades({ outcome: 'win' })} />
         <MetricStat label="Gross loss" value={formatCurrencyIn('kpi', -s.grossLoss, 'USD')} sub={`${s.losses} losing trades`} tone="bad" onClick={() => drillToTrades({ outcome: 'loss' })} />
-        <MetricStat label="Net result" value={formatCurrencyIn('kpi', s.net, 'USD')} sub={`after ${formatCurrencyIn('kpi', s.totalCost, 'USD')} costs`} tone={s.net >= 0 ? 'good' : 'bad'} />
+        <MetricStat
+          label="Net result"
+          value={formatCurrencyIn('kpi', s.net, 'USD')}
+          sub={`after ${formatCurrencyIn('kpi', s.totalCost, 'USD')} costs${s.total > 0 ? ` · open all ${s.total} trades` : ''}`}
+          tone={s.net >= 0 ? 'good' : 'bad'}
+          // COHORTSWEEP — net covers the whole current scope → all-trades drill
+          // (drillToTrades({})); the tile guards its own trade count.
+          onClick={s.total > 0 ? () => drillToTrades({}) : undefined}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

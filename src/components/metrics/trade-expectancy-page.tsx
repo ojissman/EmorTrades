@@ -38,10 +38,17 @@ export function TradeExpectancyPage() {
         <MetricStat
           label="Expectancy / trade"
           value={formatCurrencyIn('kpi', s.expectancy, 'USD')}
-          sub={`${s.total} closed trades → ${formatCurrencyIn('kpi', s.net, 'USD')} net`}
+          sub={`${s.total} closed trades → ${formatCurrencyIn('kpi', s.net, 'USD')} net${s.total > 0 ? ` · open all ${s.total} trades` : ''}`}
           tone={s.expectancy >= 0 ? 'good' : 'bad'}
           big
+          // COHORTSWEEP — expectancy averages over the whole current scope →
+          // all-trades drill (drillToTrades({})); the tile guards its own count.
+          onClick={s.total > 0 ? () => drillToTrades({}) : undefined}
         />
+        {/* COHORTSWEEP — Formula check is a decomposition display (winRate ×
+            avgWin − lossRate × avgLoss): every factor is itself an aggregate,
+            so there is no single cohort to open — stays undrilled, and the
+            formula sub doubles as its tooltip. */}
         <MetricStat
           label="Formula check"
           value={formatCurrencyIn('kpi', s.expectancyDecomp, 'USD')}

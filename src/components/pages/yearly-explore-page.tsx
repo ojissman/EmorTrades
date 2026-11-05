@@ -61,6 +61,9 @@ interface TradeRow {
   stopLoss: number | null
   takeProfit: number | null
   setupId: string | null
+  // COHORTSWEEP — the trade's direct system FK (Prisma returns every scalar
+  // alongside the included `system` relation); needed by the "By system" drill.
+  systemId?: string | null
   rating: number | null
   accountId: string
   holdingPeriod: number | null
@@ -255,7 +258,14 @@ export function YearlyExplorePage() {
   const worstMonth = monthly.length ? monthly.reduce((a, b) => (a.pnl < b.pnl ? a : b)) : null
 
   // groupings (pure helpers, compiler-friendly: the memo closes over nothing)
-  const bySystem = useMemo(() => groupTrades(trades, (t) => t.system?.name ?? 'No system'), [trades])
+  // COHORTSWEEP — "By system" rows keep the trade's direct systemId (null =
+  // the "No system" bucket → 'none' drill sentinel) via groupTrades' idOf
+  // slot, renamed onto the row so drillOf reads intent (sibling idiom: bySetup).
+  const bySystem = useMemo(
+    () => groupTrades(trades, (t) => t.system?.name ?? 'No system', (t) => t.systemId ?? undefined)
+      .map((r) => ({ ...r, systemId: r.id ?? null })),
+    [trades],
+  )
   const bySetup = useMemo(() => groupTrades(trades, (t) => t.setup?.name ?? 'No setup', (t) => t.setupId ?? undefined), [trades])
   const bySymbol = useMemo(() => groupTrades(trades, (t) => t.symbol), [trades])
   const byWeekday = useMemo(() => groupWeekdays(trades), [trades])
@@ -487,10 +497,10 @@ export function YearlyExplorePage() {
 
       {/* by system/setup/symbol/session/weekday + R distribution + trend */}
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
-        {/* CLICKSWEEP — "By system" rows stay non-drillable: systems are
-            groupings of setups and no filter param expresses that union yet
-            (honesty over a dead link). Every other list drills for real. */}
-        <MiniList title="By system" rows={bySystem} />
+        {/* COHORTSWEEP — "By system" rows drill via Trade.systemId directly
+            ('none' = the "No system" bucket, mirroring setupId's sentinel).
+            Every list in this grid drills for real now. */}
+        <MiniList title="By system" rows={bySystem} drillOf={(r) => ({ systemId: r.systemId ?? 'none' })} />
         <MiniList title="By setup" rows={bySetup} drillOf={(r) => (r.id ? { setupId: r.id } : null)} />
         <MiniList title="By symbol" rows={bySymbol.slice(0, 10)} drillOf={(r) => ({ symbol: r.label })} />
         <MiniList title="By session" rows={bySession} drillOf={(r) => (r.startHour != null && r.endHour != null && r.startHour >= 0 ? { hourFrom: r.startHour, hourTo: r.endHour } : null)} />
@@ -597,10 +607,10 @@ export function YearlyExplorePage() {
 
 function MiniList(props: {
   title: string
-  rows: { label: string; pnl: number; trades: number; id?: string; startHour?: number | null; endHour?: number | null }[]
+  rows: { label: string; pnl: number; trades: number; id?: string; systemId?: string | null; startHour?: number | null; endHour?: number | null }[]
   /** CLICKSWEEP — optional per-row drill: returns the global-filter patch the
    * row drills to, or null when this row has no expressible cohort. */
-  drillOf?: (row: { label: string; pnl: number; trades: number; id?: string; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
+  drillOf?: (row: { label: string; pnl: number; trades: number; id?: string; systemId?: string | null; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
 }) {
   return (
     <Card className="p-4">

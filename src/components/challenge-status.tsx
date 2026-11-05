@@ -287,7 +287,13 @@ export function ChallengeStrip() {
             return (
               <div
                 key={r.id}
-                className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border"
+                // COHORTSWEEP — the mini-card's hover-border finally honors a
+                // click: open Challenges (same target as the header CTA —
+                // setPage('challenges') → /tools/challenges). No nested
+                // interactive children inside, so nothing to stopPropagation.
+                className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border cursor-pointer"
+                title="Open Challenges"
+                onClick={() => setPage('challenges')}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -551,7 +557,13 @@ export function WeeklyChallengeDigest({
             return (
               <div
                 key={row.id}
-                className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border"
+                // COHORTSWEEP — same fix as the strip's active cards: the
+                // hover-border now opens Challenges (/tools/challenges). The
+                // week-unit dots are passive spans (titles only), no children
+                // to stopPropagation.
+                className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border cursor-pointer"
+                title="Open Challenges"
+                onClick={() => setPage('challenges')}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">

@@ -292,11 +292,35 @@ export function ExecutionsPage() {
             {formatCurrencyIn('table', totalFees)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        {/* COHORTSWEEP — Buys/Sells tiles toggle the fills side-filter
+            (clicking the active side clears it back to all; the tile also
+            jumps to the Fills tab so the effect is visible). The other KPIs
+            are honest non-drills. */}
+        <Card
+          className={cn(
+            'p-4 overflow-hidden cursor-pointer transition-colors',
+            sideFilter === 'buy' ? 'border-emerald-500/40' : 'hover:border-emerald-500/40'
+          )}
+          title="Filter fills to buys"
+          onClick={() => {
+            setSideFilter(sideFilter === 'buy' ? 'all' : 'buy')
+            setTab('fills')
+          }}
+        >
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Buys</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">{buyCount}</FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden cursor-pointer transition-colors',
+            sideFilter === 'sell' ? 'border-red-500/40' : 'hover:border-red-500/40'
+          )}
+          title="Filter fills to sells"
+          onClick={() => {
+            setSideFilter(sideFilter === 'sell' ? 'all' : 'sell')
+            setTab('fills')
+          }}
+        >
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sells</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-red-400">{sellCount}</FitValue>
         </Card>
@@ -416,7 +440,31 @@ export function ExecutionsPage() {
                     </TableRow>
                   )}
                   {executions.slice(0, visible).map((e: any) => (
-                    <TableRow key={e.id} className="hover:bg-muted/40">
+                    // COHORTSWEEP — linked fills peek their journal trade on
+                    // row click (the Linked chip does the same, stopped so it
+                    // doesn't double-fire). Unlinked fills get NO hover/cursor
+                    // — an affordance lie — and the title says why.
+                    <TableRow
+                      key={e.id}
+                      className={cn(e.tradeId ? 'hover:bg-muted/40 cursor-pointer' : '')}
+                      title={
+                        e.tradeId
+                          ? 'Peek the journal trade linked to this fill'
+                          : 'Fill not linked to a journal trade'
+                      }
+                      onClick={
+                        e.tradeId
+                          ? () =>
+                              peekTrade({
+                                id: e.tradeId,
+                                symbol: e.symbol,
+                                side: e.side,
+                                entryTime: e.trade?.entryTime ?? e.timestamp,
+                                pnl: e.trade?.pnl ?? undefined,
+                              })
+                          : undefined
+                      }
+                    >
                       <TableCell className="font-medium">{e.symbol}</TableCell>
                       <TableCell>
                         <Badge
@@ -459,7 +507,10 @@ export function ExecutionsPage() {
                             type="button"
                             data-testid="exec-linked-trade"
                             aria-label={`Open linked trade for ${e.symbol}`}
-                            onClick={() =>
+                            onClick={(ev) => {
+                              // COHORTSWEEP — stop the row's peek from
+                              // double-firing when the chip is clicked.
+                              ev.stopPropagation()
                               peekTrade({
                                 id: e.tradeId,
                                 symbol: e.symbol,
@@ -467,7 +518,7 @@ export function ExecutionsPage() {
                                 entryTime: e.trade?.entryTime ?? null,
                                 pnl: e.trade?.pnl ?? null,
                               })
-                            }
+                            }}
                             className="inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-[10px] font-medium w-fit whitespace-nowrap shrink-0 text-foreground cursor-pointer transition-colors hover:border-emerald-500/50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                           >
                             Linked

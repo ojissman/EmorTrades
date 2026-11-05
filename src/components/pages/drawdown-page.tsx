@@ -144,6 +144,11 @@ export function DrawdownPage() {
       }
       points.push({
         date: new Date(t.exitTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        // COHORTSWEEP-DATEFIX — full UTC day key for the drillToDay deep link
+        // (the MM-DD locale label above is display-only; slicing it produced
+        // garbage day-explore links like ?date=Mar 5 — caught re-verifying
+        // CLICKSWEEP's chart wiring).
+        dateKey: new Date(t.exitTime).toISOString().slice(0, 10),
         equity,
         peak,
         drawdown: peak - equity,
@@ -212,11 +217,26 @@ export function DrawdownPage() {
       : null
   const currentDrawdown = drawdownData.points[drawdownData.points.length - 1]?.drawdown || 0
 
+  // COHORTSWEEP — hero-card drills: the deepest period (periods are sorted
+  // desc by maxDepth, so [0] IS the max-drawdown event) and the ongoing one
+  // (recoveredAt === null is the data's "still underwater" mark) drill
+  // exactly like the Worst-Drawdown-Periods rows do, via drillPeriod.
+  const deepestPeriod: any = drawdownData.periods[0] ?? null
+  const ongoingPeriod: any = drawdownData.periods.find((p: any) => p.recoveredAt === null) ?? null
+
   return (
     <div className="space-y-4">
       {/* Hero stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn('p-4 overflow-hidden transition-colors', deepestPeriod && 'cursor-pointer hover:border-red-500/40')}
+          title={
+            deepestPeriod
+              ? `Show the trades behind the deepest drawdown (${formatDate(deepestPeriod.startedAt)} → ${deepestPeriod.recoveredAt ? formatDate(deepestPeriod.recoveredAt) : 'ongoing'})`
+              : 'No drawdown periods detected in this window'
+          }
+          onClick={deepestPeriod ? () => drillPeriod(deepestPeriod) : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Max Drawdown</p>
             <TrendingDown className="h-3 w-3 text-red-400" />
@@ -226,7 +246,15 @@ export function DrawdownPage() {
           </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">{maxDrawdownPercent.toFixed(1)}% from peak</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn('p-4 overflow-hidden transition-colors', ongoingPeriod && 'cursor-pointer hover:border-amber-500/40')}
+          title={
+            ongoingPeriod
+              ? `Show the trades inside the ongoing drawdown (since ${formatDate(ongoingPeriod.startedAt)})`
+              : 'At peak equity — no ongoing drawdown to explore'
+          }
+          onClick={ongoingPeriod ? () => drillPeriod(ongoingPeriod) : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current Drawdown</p>
             <Activity className="h-3 w-3 text-yellow-400" />
@@ -236,7 +264,12 @@ export function DrawdownPage() {
           </FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">at current equity</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        {/* COHORTSWEEP — honest non-drills: an average across periods and a
+            period count have no single cohort; the period rows below drill. */}
+        <Card
+          className="p-4 overflow-hidden"
+          title="Average time to recover, across recovered drawdowns only — an aggregate, no single cohort to open"
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Recovery</p>
             <Clock className="h-3 w-3 text-blue-400" />
@@ -246,7 +279,10 @@ export function DrawdownPage() {
             {avgRecoveryDays === null ? 'no recovered drawdowns yet' : 'to recover from drawdowns'}
           </p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className="p-4 overflow-hidden"
+          title="All drawdown periods detected in range — an aggregate count; open one via the Worst Drawdown Periods rows below"
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Drawdown Periods</p>
             <AlertTriangle className="h-3 w-3 text-purple-400" />
@@ -264,7 +300,7 @@ export function DrawdownPage() {
         <h3 className="font-semibold tracking-tight mb-1">Equity & Drawdown</h3>
         <p className="text-xs text-muted-foreground mb-3">Equity curve with peak overlay and drawdown area</p>
         <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
+          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.dateKey) drillToDay(String(p.dateKey)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
@@ -310,7 +346,7 @@ export function DrawdownPage() {
         <h3 className="font-semibold tracking-tight mb-1">Drawdown % Over Time</h3>
         <p className="text-xs text-muted-foreground mb-3">Percentage drawdown from peak equity</p>
         <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
+          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.dateKey) drillToDay(String(p.dateKey)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="ddPctGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.5} />

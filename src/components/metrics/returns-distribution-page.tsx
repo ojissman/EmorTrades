@@ -8,7 +8,9 @@
 import { useMetrics, Panel, MetricStat, EmptyRange, QueryErrorCard, AXIS_TICK, TOOLTIP_STYLE } from '@/components/metrics/metrics-kit'
 import { BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Cell } from 'recharts'
 import { formatCurrencyIn, formatNumber, formatPercent, pnlColor } from '@/lib/format'
-import { drillToTrades } from '@/lib/drill'
+// COHORTSWEEP — peekTrade for the Best/Worst trade tiles (id-bearing rows
+// from /api/metrics summary.bestTrade / worstTrade).
+import { drillToTrades, peekTrade } from '@/lib/drill'
 
 export function ReturnsDistributionPage() {
   const { data, isLoading, isError, error, refetch } = useMetrics()
@@ -30,8 +32,23 @@ export function ReturnsDistributionPage() {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricStat label="Std deviation" value={formatCurrencyIn('kpi', s.stdevPnl, 'USD')} sub="dispersion of single-trade outcomes" />
-        <MetricStat label="Best trade" value={formatCurrencyIn('kpi', s.best)} sub="right tail" tone="good" />
-        <MetricStat label="Worst trade" value={formatCurrencyIn('kpi', s.worst)} sub="left tail" tone="bad" />
+        {/* COHORTSWEEP — the tail tiles peek the actual trade behind the
+            number (numeric best/worst stay for display); honest no-op when the
+            bundle doesn't carry an id-bearing row (e.g. stale cache). */}
+        <MetricStat
+          label="Best trade"
+          value={formatCurrencyIn('kpi', s.best)}
+          sub="right tail"
+          tone="good"
+          onClick={s.bestTrade ? () => peekTrade(s.bestTrade) : undefined}
+        />
+        <MetricStat
+          label="Worst trade"
+          value={formatCurrencyIn('kpi', s.worst)}
+          sub="left tail"
+          tone="bad"
+          onClick={s.worstTrade ? () => peekTrade(s.worstTrade) : undefined}
+        />
         <MetricStat
           label="Kelly fraction"
           value={formatPercent(kelly * 100, 1)}

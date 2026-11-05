@@ -41,9 +41,10 @@ import {
 import { Activity, ArrowUpRight, ArrowDownRight, Info, Radio, LineChart } from 'lucide-react'
 import { useAppStore } from '@/store/app-store'
 import { Panel, MetricStat, MiniTable, AXIS_TICK, TOOLTIP_STYLE, axisMoney } from '@/components/metrics/metrics-kit'
-// Task 15-W4 — per-symbol rows drill to that symbol's trades (the only
-// zero-API drill this family supports; regime buckets have no filter
-// counterpart yet — API work, not silent dead links).
+// Task 15-W4 — per-symbol rows drill to that symbol's trades. COHORTSWEEP —
+// regime buckets drill too: the API now carries each bucket's exact trade-id
+// cohort (tape-derived regimes can't be re-expressed as a filter param, so
+// the ids ARE the cohort), wired through drillToTrades({ tradeIds }).
 import { drillToTrades } from '@/lib/drill'
 import { Skeleton } from '@/components/ui/skeleton'
 import { signTone } from '@/lib/screener'
@@ -194,7 +195,7 @@ export function TechnicalAnalysisPage({ mode }: { mode: TaMode }) {
   }
 
   const cov = q.data.coverage
-  const chartData = block.buckets.map((b) => ({ name: b.label.replace(/ \(.*\)/, ''), net: Math.round(b.net), n: b.n }))
+  const chartData = block.buckets.map((b) => ({ name: b.label.replace(/ \(.*\)/, ''), net: Math.round(b.net), n: b.n, tradeIds: b.tradeIds }))
 
   return (
     <div className="space-y-4">
@@ -211,12 +212,14 @@ export function TechnicalAnalysisPage({ mode }: { mode: TaMode }) {
           value={kpis?.best ? money(kpis.best.net, 'kpi') : '—'}
           sub={kpis?.best ? `${kpis.best.label} · ${kpis.best.n}t` : undefined}
           tone={kpis?.best && kpis.best.net >= 0 ? 'good' : 'bad'}
+          onClick={kpis?.best && kpis.best.n > 0 ? () => drillToTrades({ tradeIds: kpis.best!.tradeIds }) : undefined}
         />
         <MetricStat
           label="Worst regime"
           value={kpis?.worst ? money(kpis.worst.net, 'kpi') : '—'}
           sub={kpis?.worst ? `${kpis.worst.label} · ${kpis.worst.n}t` : undefined}
           tone={kpis?.worst && kpis.worst.net >= 0 ? 'good' : 'bad'}
+          onClick={kpis?.worst && kpis.worst.n > 0 ? () => drillToTrades({ tradeIds: kpis.worst!.tradeIds }) : undefined}
         />
         <MetricStat
           label="Avg-R spread"
@@ -229,6 +232,10 @@ export function TechnicalAnalysisPage({ mode }: { mode: TaMode }) {
       <Panel title={meta.title} hint={meta.hint}>
         <MiniTable
           head={['Regime', 'Trades', 'Net', 'Win rate', 'Avg R', '']}
+          onRowClick={(i) => {
+            const b = block.buckets[i]
+            if (b && b.n > 0) drillToTrades({ tradeIds: b.tradeIds })
+          }}
           rows={block.buckets.map((b) => [
             <span key="l" className="font-semibold whitespace-nowrap">{b.label}</span>,
             b.n === 0 ? <span key="n" style={{ color: 'var(--text-secondary)' }}>no trades</span> : `${b.n} (${b.wins}W)`,
@@ -282,7 +289,15 @@ export function TechnicalAnalysisPage({ mode }: { mode: TaMode }) {
                 formatter={(value: number | string, _name, p) => [money(Number(value), 'chart'), `${(p as { payload?: { n?: number } }).payload?.n ?? 0} trades`]}
               />
               <ReferenceLine y={0} stroke="var(--border-strong)" />
-              <Bar dataKey="net" radius={[3, 3, 0, 0]} maxBarSize={64}>
+              <Bar
+                dataKey="net"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={64}
+                onClick={(data: any) => {
+                  const p = data?.payload
+                  if (p && p.n > 0 && Array.isArray(p.tradeIds) && p.tradeIds.length > 0) drillToTrades({ tradeIds: p.tradeIds })
+                }}
+              >
                 {chartData.map((c, i) => (
                   <Cell key={i} fill={c.n === 0 ? 'var(--border-strong)' : c.net >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'} fillOpacity={c.n === 0 ? 0.4 : 0.85} />
                 ))}

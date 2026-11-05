@@ -60,6 +60,9 @@ interface TradeRow {
   stopLoss: number | null
   takeProfit: number | null
   setupId: string | null
+  // COHORTSWEEP — the trade's direct system FK (Prisma returns every scalar
+  // alongside the included `system` relation); needed by the "By system" drill.
+  systemId?: string | null
   rating: number | null
   accountId: string
   holdingPeriod: number | null
@@ -267,10 +270,13 @@ export function MonthlyExplorePage() {
     return [...m.entries()].map(([label, v]) => ({ label, ...v })).sort((a, b) => b.pnl - a.pnl)
   }, [trades])
   const bySystem = useMemo(() => {
-    const m = new Map<string, { pnl: number; trades: number; wins: number; respected: number; broke: number }>()
+    // COHORTSWEEP — keep the trade's direct systemId on each grouped row
+    // (null = the "No system" bucket → the 'none' drill sentinel) so the
+    // "By system" table can drill (sibling idiom: bySetup keeps setupId).
+    const m = new Map<string, { pnl: number; trades: number; wins: number; respected: number; broke: number; systemId: string | null }>()
     for (const t of trades) {
       const key = t.system?.name ?? 'No system'
-      const cur = m.get(key) ?? { pnl: 0, trades: 0, wins: 0, respected: 0, broke: 0 }
+      const cur = m.get(key) ?? { pnl: 0, trades: 0, wins: 0, respected: 0, broke: 0, systemId: t.systemId ?? null }
       cur.pnl += t.pnl; cur.trades++; if (t.pnl > 0) cur.wins++
       if (t.adherenceStatus === 'followed') cur.respected++
       if (t.adherenceStatus === 'broke') cur.broke++
@@ -546,12 +552,16 @@ export function MonthlyExplorePage() {
 
       {/* groupings */}
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
-        {/* CLICKSWEEP — every group row drills to its cohort in the Trades
-            table ("By system" stays honest: no filter param expresses a
-            system's setup union yet). */}
+        {/* COHORTSWEEP — every group row drills to its cohort in the Trades
+            table ("By system" now drills via Trade.systemId directly — 'none'
+            is the "No system" bucket, mirroring setupId's sentinel). */}
         <GroupTable title="By symbol" rows={bySymbol} drillOf={(r) => ({ symbol: r.label })} />
         <GroupTable title="By setup" rows={bySetup} drillOf={(r) => (r.setupId ? { setupId: r.setupId } : null)} />
-        <GroupTable title="By system" rows={bySystem.map((s) => ({ label: s.label, pnl: s.pnl, trades: s.trades, extra: `${s.respected} kept · ${s.broke} broke` }))} />
+        <GroupTable
+          title="By system"
+          rows={bySystem.map((s) => ({ label: s.label, pnl: s.pnl, trades: s.trades, systemId: s.systemId, extra: `${s.respected} kept · ${s.broke} broke` }))}
+          drillOf={(r) => ({ systemId: r.systemId ?? 'none' })}
+        />
         <GroupTable title="By session" rows={bySession} drillOf={(r) => (r.startHour != null && r.endHour != null && r.startHour >= 0 ? { hourFrom: r.startHour, hourTo: r.endHour } : null)} />
         <GroupTable title="By weekday" rows={byWeekday} drillOf={(r) => { const d = dayOfWeekIndex(r.label); return d === undefined ? null : { dayOfWeek: d } }} />
       </div>
@@ -684,9 +694,9 @@ export function MonthlyExplorePage() {
 
 function GroupTable(props: {
   title: string
-  rows: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; startHour?: number | null; endHour?: number | null }[]
+  rows: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; systemId?: string | null; startHour?: number | null; endHour?: number | null }[]
   /** CLICKSWEEP — optional per-row drill (global-filter patch or null). */
-  drillOf?: (row: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
+  drillOf?: (row: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; systemId?: string | null; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
 }) {
   return (
     <Card className="p-4">

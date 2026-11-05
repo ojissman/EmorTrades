@@ -48,7 +48,7 @@ import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 import { axisMoney, formatCurrencyIn, formatDate } from '@/lib/format'
-import { drillToTrades, drillToDay } from '@/lib/drill'
+import { drillToTrades, drillToDay, markDrillOrigin } from '@/lib/drill'
 import {
   ResponsiveContainer,
   LineChart,
@@ -554,7 +554,13 @@ export function EquitiesCurvePage() {
     <div className="space-y-4">
       {/* KPI strip — L1 verbatim metrics (`Start Equity` · `End Equity` · `Change %` · `Max Drawdown %`) */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-        <Card className="p-4 overflow-hidden">
+        {/* COHORTSWEEP — Start/End Equity are levels, not cohorts (honest
+            non-drills); Change % drills the curve's trades; Max DD % opens
+            the dedicated Drawdown View (analytics Max-DD tile idiom). */}
+        <Card
+          className="p-4 overflow-hidden"
+          title="Combined starting balances of the accounts in scope — an equity level, not a trade cohort"
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Start Equity</p>
             <Wallet className="h-3 w-3 text-muted-foreground" />
@@ -562,7 +568,10 @@ export function EquitiesCurvePage() {
           <FitValue className="text-xl font-bold tnum">{formatCurrencyIn('kpi', startEquity)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">combined starting balances</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className="p-4 overflow-hidden"
+          title="Where the Overall curve ends (incl. toggled cash flows) — an equity level, not a trade cohort"
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">End Equity</p>
             <TrendingUp className="h-3 w-3 text-muted-foreground" />
@@ -573,7 +582,18 @@ export function EquitiesCurvePage() {
             {(includeDeposits || includeWithdrawals) ? ' · incl. cash flows' : ''}
           </p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            overallDef.trades.length > 0 && 'cursor-pointer hover:border-border'
+          )}
+          title={
+            overallDef.trades.length > 0
+              ? 'Open the closed trades behind this change'
+              : 'No closed trades in scope yet — nothing to open'
+          }
+          onClick={overallDef.trades.length > 0 ? () => drillToTrades({}) : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change %</p>
             <Percent className="h-3 w-3 text-muted-foreground" />
@@ -591,7 +611,14 @@ export function EquitiesCurvePage() {
             {formatCurrencyIn('table', Math.abs(totalReturn))} all time
           </p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className="p-4 overflow-hidden cursor-pointer transition-colors hover:border-amber-500/40"
+          title="Open the Drawdown View"
+          onClick={() => {
+            markDrillOrigin('/summaries/drawdown-view')
+            navigate('/summaries/drawdown-view')
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Max Drawdown %</p>
             <TrendingDown className="h-3 w-3 text-amber-400" />

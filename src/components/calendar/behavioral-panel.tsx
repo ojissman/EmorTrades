@@ -36,6 +36,7 @@ import type { BehavioralSignals, Confidence } from '@/lib/calendar-intel'
 import { confidenceLevel } from '@/lib/calendar-intel'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { drillToTrades } from '@/lib/drill' // COHORTSWEEP — mistake-chip drill-through
 
 export interface BehavioralPanelProps {
   /** pre-computed by behavioralSignals() — null when the period has no closed trades */
@@ -93,7 +94,11 @@ function SignalRow({
   return (
     <div
       title={title}
-      className="flex items-start gap-2.5 rounded-md px-1 py-1 transition-colors hover:bg-white/[0.03]"
+      // COHORTSWEEP — heuristic signal rows have no drill target (the filter
+      // store cannot express “entries ≤30min after a loss” / “after a win” /
+      // “early exit”), so the old hover affordance was a lie — removed. Each
+      // row's title explains exactly what the observation is instead.
+      className="flex items-start gap-2.5 rounded-md px-1 py-1"
     >
       <Icon className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', iconCls)} aria-hidden />
       <div className="min-w-0 flex-1">
@@ -197,7 +202,12 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
 
           {/* After-loss vs after-win — the tilt expectancy contrast */}
           {signals.afterLoss || signals.afterWin ? (
-            <SignalRow icon={Scale} iconCls="text-sky-400" label="After a loss vs after a win">
+            <SignalRow
+              icon={Scale}
+              iconCls="text-sky-400"
+              label="After a loss vs after a win"
+              title="Expectancy of the trade that immediately followed a closed loss vs a closed win — a timestamp observation, not drillable."
+            >
               <div className="grid grid-cols-2 gap-2">
                 <ContrastCell title="After a loss" data={signals.afterLoss} />
                 <ContrastCell title="After a win" data={signals.afterWin} />
@@ -208,7 +218,12 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
           {/* Early exits — three honest states (flag / all-clear / no data) */}
           {signals.earlyExits ? (
             signals.earlyExits.count > 0 ? (
-              <SignalRow icon={DoorOpen} iconCls="text-amber-400" label="Early exits">
+              <SignalRow
+                icon={DoorOpen}
+                iconCls="text-amber-400"
+                label="Early exits"
+                title="Winners that closed well below their recorded best exit — an observation, not a drillable cohort."
+              >
                 <p className="text-xs leading-relaxed text-foreground/90">
                   <span className="tnum">{signals.earlyExits.count}</span> winners closed well below
                   their best exit
@@ -218,7 +233,12 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
                 </p>
               </SignalRow>
             ) : (
-              <SignalRow icon={DoorOpen} iconCls="text-amber-400" label="Early exits">
+              <SignalRow
+                icon={DoorOpen}
+                iconCls="text-amber-400"
+                label="Early exits"
+                title="No winner closed well below its recorded best exit."
+              >
                 <p className="flex items-start gap-1.5 text-xs leading-relaxed text-foreground/90">
                   <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-400" aria-hidden />
                   No early-exit patterns — winners captured their exits.
@@ -226,7 +246,12 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
               </SignalRow>
             )
           ) : (
-            <SignalRow icon={DoorOpen} iconCls="text-amber-400" label="Early exits">
+            <SignalRow
+              icon={DoorOpen}
+              iconCls="text-amber-400"
+              label="Early exits"
+              title="Best-exit data was never recorded on these trades."
+            >
               <p className="text-[10px] leading-relaxed text-muted-foreground/70">
                 best-exit data not recorded on these trades
               </p>
@@ -235,7 +260,12 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
 
           {/* Overtrading — activity vs the account's average traded day */}
           {signals.overtrading ? (
-            <SignalRow icon={Gauge} iconCls="text-amber-400" label="Overtrading">
+            <SignalRow
+              icon={Gauge}
+              iconCls="text-amber-400"
+              label="Overtrading"
+              title="Period trade count vs your average traded day — 2× trips the flag. An observation, not a drillable cohort."
+            >
               <p className="text-xs leading-relaxed text-foreground/90">
                 <span className="tnum">{signals.overtrading.trades}</span> trades vs your{' '}
                 <span className="tnum">{signals.overtrading.avg.toFixed(1)}</span>/day average —{' '}
@@ -249,21 +279,47 @@ export function BehavioralPanel({ signals, periodLabel, className }: BehavioralP
 
           {/* Recurring mistakes tagged on the period's trades */}
           {signals.topMistakes.length > 0 ? (
-            <div className="flex items-start gap-2.5 rounded-md px-1 py-1 transition-colors hover:bg-white/[0.03]">
+            <div className="flex items-start gap-2.5 rounded-md px-1 py-1">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-400" aria-hidden />
               <div className="min-w-0 flex-1">
-                <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Recurring mistakes
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Recurring mistakes
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/70">click a mistake for its trades</span>
+                </div>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  {signals.topMistakes.map((m) => (
-                    <span
-                      key={m.name}
-                      className="rounded-sm border border-border bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-foreground/80"
-                    >
-                      {m.name} <span className="tnum text-muted-foreground">×{m.count}</span>
-                    </span>
-                  ))}
+                  {signals.topMistakes.map((m) => {
+                    // COHORTSWEEP — a chip with a mistakeId deep-links the
+                    // trades tagged with that mistake; id-less chips stay
+                    // inert spans (honesty over affordance).
+                    const id = m.mistakeId
+                    const chipCls =
+                      'rounded-sm border border-border bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-foreground/80'
+                    if (!id) {
+                      return (
+                        <span
+                          key={m.name}
+                          title={`${m.name}: tagged on ${m.count} trades`}
+                          className={chipCls}
+                        >
+                          {m.name} <span className="tnum text-muted-foreground">×{m.count}</span>
+                        </span>
+                      )
+                    }
+                    return (
+                      <button
+                        key={m.name}
+                        type="button"
+                        onClick={() => drillToTrades({ mistakeIds: [id] })}
+                        title={`Show the ${m.count} trades tagged “${m.name}”`}
+                        aria-label={`${m.name}: tagged on ${m.count} trades — open them in the trades table`}
+                        className={cn(chipCls, 'cursor-pointer transition-colors hover:bg-white/[0.07]')}
+                      >
+                        {m.name} <span className="tnum text-muted-foreground">×{m.count}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>

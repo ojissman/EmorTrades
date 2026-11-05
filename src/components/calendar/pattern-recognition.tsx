@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { CalendarAiResponse } from '@/lib/calendar-intel'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { drillToDay } from '@/lib/drill' // COHORTSWEEP — matched-day deep link
 
 const STALE_MS = 5 * 60 * 1000
 
@@ -191,26 +192,56 @@ export function PatternRecognitionPanel({
           {/* Matched days — compact scroll list */}
           {pattern.days.length > 0 ? (
             <div>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80">Matched days</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80">Matched days</span>
+                <span className="text-[10px] text-muted-foreground/70">click a day to open it</span>
+              </div>
               <div
                 className="mt-1.5 max-h-40 divide-y divide-border overflow-y-auto rounded-md border border-border"
                 role="list"
                 aria-label="Matched similar days"
                 data-testid="calendar-pattern-days"
               >
-                {pattern.days.map((d) => (
-                  <div
-                    key={d.date}
-                    role="listitem"
-                    className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-foreground/[0.03]"
-                  >
-                    <span className="shrink-0 text-foreground/90">{fmtDayLabel(d.date)}</span>
-                    <span className="tnum text-muted-foreground">{d.trades}t</span>
-                    <span className={cn('ml-auto tnum font-medium', pnlColor(d.pnl))}>
-                      {signedMoney(d.pnl)}
-                    </span>
-                  </div>
-                ))}
+                {pattern.days.map((d) => {
+                  // COHORTSWEEP — a matched day deep-links day-explore
+                  // (drillToDay). Matched days come from grouped traded days,
+                  // but an empty row never drills — honesty over affordance.
+                  const drillable = d.trades > 0
+                  return (
+                    <div
+                      key={d.date}
+                      role="listitem"
+                      {...(drillable
+                        ? {
+                            tabIndex: 0,
+                            onClick: () => drillToDay(d.date),
+                            onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                              if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                                e.preventDefault()
+                                drillToDay(d.date)
+                              }
+                            },
+                          }
+                        : {})}
+                      aria-label={
+                        drillable
+                          ? `${fmtDayLabel(d.date)}: ${d.trades} trades, ${signedMoney(d.pnl)} — open this day`
+                          : undefined
+                      }
+                      title={drillable ? `Open ${d.date} in day explore` : undefined}
+                      className={cn(
+                        'flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors',
+                        drillable && 'cursor-pointer hover:bg-foreground/[0.03]',
+                      )}
+                    >
+                      <span className="shrink-0 text-foreground/90">{fmtDayLabel(d.date)}</span>
+                      <span className="tnum text-muted-foreground">{d.trades}t</span>
+                      <span className={cn('ml-auto tnum font-medium', pnlColor(d.pnl))}>
+                        {signedMoney(d.pnl)}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ) : null}

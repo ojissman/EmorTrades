@@ -49,6 +49,7 @@ import {
 } from '@/lib/calendar-intel'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { drillToTrades } from '@/lib/drill' // COHORTSWEEP — row drill-throughs
 
 // ---------------------------------------------------------------------------
 // Local helpers (file grammar — mirrors calendar-analytics)
@@ -106,6 +107,30 @@ function EmptyNote({
 function looksLikeColor(c: string): boolean {
   const v = (c ?? '').trim()
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) || /^rgba?\(\s*\d/i.test(v)
+}
+
+/** Keyboard/active-state behavior shared by clickable rows (the deck grammar,
+ *  mirrored from calendar-analytics so the week cards drill identically). */
+function rowA11y(onActivate: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+        e.preventDefault()
+        onActivate()
+      }
+    },
+  }
+}
+
+/** COHORTSWEEP — the sessions-page Task-13 idiom: drill a session row's
+ *  entry-hour window into the trades table. Rows without a real window
+ *  (Off-session carries null hours) never get here — honesty over affordance. */
+function drillSessionRow(s: WeekSession) {
+  if (s.startHour === null || s.endHour === null) return
+  drillToTrades({ hourFrom: s.startHour, hourTo: s.endHour })
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +251,10 @@ interface WeekSession {
   name: string
   color: string
   window: string
+  /** COHORTSWEEP — numeric window bounds (Task 13) so a row can drill
+   *  hourFrom/hourTo exactly; null = no window (Off-session) → no drill. */
+  startHour: number | null
+  endHour: number | null
   trades: number
   wins: number
   losses: number
@@ -278,7 +307,7 @@ export function WeekSessionIntel({
         icon={Clock3}
         accent="text-sky-400"
         label="Session intelligence"
-        right={<span className="text-[10px] text-muted-foreground/70">entries by trading window</span>}
+        right={<span className="text-[10px] text-muted-foreground/70">click a traded window for its trades</span>}
       />
       {sessionsQ.isLoading ? (
         <div className="space-y-2">
@@ -307,10 +336,28 @@ export function WeekSessionIntel({
           {[...traded, ...untraded].map((s) => {
             const dotStyle = looksLikeColor(s.color) ? { backgroundColor: s.color } : undefined
             const isTraded = s.trades > 0
+            // COHORTSWEEP — only a traded row with a real window drills;
+            // untraded rows stay dimmed and inert, Off-session stays honest.
+            const drillable = isTraded && s.startHour !== null && s.endHour !== null
             return (
               <div
                 key={s.name}
-                className={cn('flex items-center gap-2.5 px-2 py-1.5', !isTraded && 'opacity-50')}
+                {...(drillable ? rowA11y(() => drillSessionRow(s)) : {})}
+                aria-label={
+                  drillable ? `${s.name}: ${s.trades} trades — open them in the trades table` : undefined
+                }
+                title={
+                  drillable
+                    ? `Show the ${s.trades} trades entered in ${s.window}`
+                    : isTraded
+                      ? 'Entries outside every window — no hour range to drill'
+                      : undefined
+                }
+                className={cn(
+                  'flex items-center gap-2.5 rounded-sm px-2 py-1.5 transition-colors',
+                  drillable && 'cursor-pointer hover:bg-foreground/[0.04]',
+                  !isTraded && 'opacity-50',
+                )}
               >
                 <span
                   aria-hidden
@@ -378,7 +425,7 @@ export function WinLossDistribution({ trades }: { trades: CalendarTrade[] }) {
         icon={BarChartHorizontal}
         accent="text-amber-400"
         label="Win / loss distribution"
-        right={<span className="text-[10px] text-muted-foreground/70">per-trade P&L buckets</span>}
+        right={<span className="text-[10px] text-muted-foreground/70">per-trade P&L buckets — click a bucket</span>}
       />
       {trades.length === 0 ? (
         <EmptyNote icon={BarChartHorizontal}>No closed trades this week.</EmptyNote>
@@ -387,8 +434,28 @@ export function WinLossDistribution({ trades }: { trades: CalendarTrade[] }) {
           <div className="space-y-1.5">
             {buckets.map((b) => {
               const label = bucketLabel(b)
+              // COHORTSWEEP — the analytics-page P&L-distribution drill: a
+              // bucket deep-links minPnl/maxPnl (null edge = unbounded side,
+              // passed as undefined so a stale bound can't intersect in).
+              // Empty buckets never drill — honesty over affordance.
+              const drillable = b.count > 0
               return (
-                <div key={label} className="flex items-center gap-2">
+                <div
+                  key={label}
+                  {...(drillable
+                    ? rowA11y(() =>
+                        drillToTrades({ minPnl: b.from ?? undefined, maxPnl: b.to ?? undefined }),
+                      )
+                    : {})}
+                  aria-label={
+                    drillable ? `${label}: ${b.count} trades — open them in the trades table` : undefined
+                  }
+                  title={drillable ? `Show the ${b.count} trades in this P&L bucket` : 'No trades in this bucket'}
+                  className={cn(
+                    'flex items-center gap-2 rounded-sm py-0.5 transition-colors',
+                    drillable && 'cursor-pointer hover:bg-foreground/[0.04]',
+                  )}
+                >
                   <span className="w-24 shrink-0 truncate text-right text-[10px] tnum text-muted-foreground">
                     {label}
                   </span>
@@ -443,7 +510,12 @@ export function WeekTopSetups({ trades }: { trades: CalendarTrade[] }) {
 
   return (
     <Card className="p-3 md:p-4" data-testid="week-top-setups">
-      <SectionHead icon={CandlestickChart} accent="text-amber-400" label="Strategies this week" />
+      <SectionHead
+        icon={CandlestickChart}
+        accent="text-amber-400"
+        label="Strategies this week"
+        right={<span className="text-[10px] text-muted-foreground/70">click a row for its trades</span>}
+      />
       {trades.length === 0 ? (
         <EmptyNote icon={CandlestickChart}>
           No closed trades this week — tag trades with a setup to build this breakdown.
@@ -467,11 +539,14 @@ export function WeekTopSetups({ trades }: { trades: CalendarTrade[] }) {
             {rows.map((r) => (
               <div
                 key={r.name}
-                className="grid grid-cols-[minmax(0,1fr)_28px_44px_76px] items-center gap-x-2 py-1.5"
+                // COHORTSWEEP — setup drill; null setupId = the
+                // "Unassigned" bucket → the 'none' sentinel.
+                {...rowA11y(() => drillToTrades({ setupId: r.setupId ?? 'none' }))}
+                aria-label={`${r.name}: ${r.trades} trades — open them in the trades table`}
+                title={`Show the ${r.trades} trades tagged ${r.name}`}
+                className="grid cursor-pointer grid-cols-[minmax(0,1fr)_28px_44px_76px] items-center gap-x-2 py-1.5 transition-colors hover:bg-foreground/[0.04]"
               >
-                <span className="max-w-[10rem] truncate text-xs font-semibold" title={r.name}>
-                  {r.name}
-                </span>
+                <span className="max-w-[10rem] truncate text-xs font-semibold">{r.name}</span>
                 <span className="text-right text-[10px] tnum text-muted-foreground">{r.trades}</span>
                 <span
                   className={cn(
@@ -504,13 +579,24 @@ export function WeekTopSymbols({ trades }: { trades: CalendarTrade[] }) {
 
   return (
     <Card className="p-3 md:p-4" data-testid="week-top-symbols">
-      <SectionHead icon={Layers} accent="text-sky-400" label="Instruments this week" />
+      <SectionHead
+        icon={Layers}
+        accent="text-sky-400"
+        label="Instruments this week"
+        right={<span className="text-[10px] text-muted-foreground/70">click a row for its trades</span>}
+      />
       {rows.length === 0 ? (
         <EmptyNote icon={Layers}>No instruments traded this week.</EmptyNote>
       ) : (
         <div className="space-y-0.5">
           {rows.map((s) => (
-            <div key={s.symbol} className="py-1.5">
+            <div
+              key={s.symbol}
+              {...rowA11y(() => drillToTrades({ symbol: s.symbol }))} // COHORTSWEEP — instrument drill
+              aria-label={`${s.symbol}: ${s.trades} trades — open them in the trades table`}
+              title={`Show the ${s.trades} trades on ${s.symbol}`}
+              className="cursor-pointer rounded-sm py-1.5 transition-colors hover:bg-foreground/[0.04]"
+            >
               <div className="flex items-center gap-2.5">
                 <SymbolTag symbol={s.symbol} className="w-[72px] shrink-0 text-xs" />
                 <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground tnum">

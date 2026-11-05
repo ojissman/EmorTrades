@@ -269,7 +269,7 @@ export function HeatmapsPage() {
         <Card className="p-4 md:p-5">
           <h3 className="font-semibold tracking-tight mb-1">Performance by Day of Month</h3>
           <p className="text-xs text-muted-foreground mb-4">
-            Spot monthly calendar patterns (1st vs mid-month vs end).
+            Spot monthly calendar patterns (1st vs mid-month vs end) · click a day to open its trades.
           </p>
           <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
             {heatmapData.cells.map((cell) => (
@@ -280,6 +280,10 @@ export function HeatmapsPage() {
                 metric={metric}
                 maxAbs={heatmapData.maxAbs}
                 compact
+                // COHORTSWEEP — day-of-month cells drill via the new dayOfMonth
+                // filter param (entry-UTC day-of-month, the same key the buckets
+                // use); empty days stay inert like their siblings.
+                onClick={cell.trades > 0 ? () => drillToTrades({ dayOfMonth: cell.day }) : undefined}
               />
             ))}
           </div>
@@ -332,8 +336,8 @@ function HeatmapCell({
   return (
     <div
       // Task 6 — cells are genuinely clickable now (drill to the trades
-      // table); day-of-month cells have no filter counterpart and render
-      // inert instead of faking the pointer affordance.
+      // table); COHORTSWEEP — every dimension has a filter counterpart since
+      // dayOfMonth landed, so a cell only stays inert when its bucket is empty.
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -473,12 +477,13 @@ function InsightsCard({ cells, type }: { cells: any[]; type: HeatmapType }) {
     return `Day ${c.day}`
   }
   // Task 15-W4 — the insight cards name the same slots the grid drills, so
-  // they drill with the identical patch (dayOfMonth has no filter
-  // counterpart — the cards stay non-clickable there, matching the grid).
-  const patchOf = (c: any): { dayOfWeek?: number; hourOfDay?: number } | null => {
+  // they drill with the identical patch (COHORTSWEEP — dayOfMonth joined the
+  // sweep: its slots drill via the dayOfMonth filter param, matching the grid).
+  const patchOf = (c: any): { dayOfWeek?: number; hourOfDay?: number; dayOfMonth?: number } | null => {
     if (type === 'dayHour') return { dayOfWeek: c.day, hourOfDay: c.hour }
     if (type === 'dayOfWeek') return { dayOfWeek: c.day }
     if (type === 'hourOfDay') return { hourOfDay: c.hour }
+    if (type === 'dayOfMonth') return { dayOfMonth: c.day }
     return null
   }
 

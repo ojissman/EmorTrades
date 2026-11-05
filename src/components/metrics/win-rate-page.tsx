@@ -30,10 +30,31 @@ export function WinRatePage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricStat label="Hit ratio" value={formatPercent(s.winRate, 1)} sub={`${s.wins}W · ${s.losses}L · ${s.breakeven}BE of ${s.total}`} tone={s.winRate >= 50 ? 'good' : s.winRate >= 40 ? 'warn' : 'bad'} big />
+        <MetricStat
+          label="Hit ratio"
+          value={formatPercent(s.winRate, 1)}
+          sub={`${s.wins}W · ${s.losses}L · ${s.breakeven}BE of ${s.total}${s.wins > 0 ? ' · open the winning trades' : ''}`}
+          tone={s.winRate >= 50 ? 'good' : s.winRate >= 40 ? 'warn' : 'bad'}
+          big
+          // COHORTSWEEP — hit-ratio KPI drills to the winner cohort (kpiRenderer
+          // precedent, same treatment as hit-ratio-page); 0 wins = no cohort.
+          onClick={s.wins > 0 ? () => drillToTrades({ outcome: 'win' }) : undefined}
+        />
         <MetricStat label="Best month" value={bestMonth ? formatPercent(bestMonth.winRate, 0) : '—'} sub={bestMonth ? `${bestMonth.month} · ${bestMonth.trades} trades` : undefined} tone="good" onClick={bestMonth ? () => drillToTrades(monthPatch(bestMonth.month)) : undefined} />
         <MetricStat label="Weakest month" value={worstMonth ? formatPercent(worstMonth.winRate, 0) : '—'} sub={worstMonth ? `${worstMonth.month} · ${worstMonth.trades} trades` : undefined} tone={worstMonth && worstMonth.winRate < 40 ? 'bad' : 'warn'} onClick={worstMonth ? () => drillToTrades(monthPatch(worstMonth.month)) : undefined} />
-        <MetricStat label="Streaks" value={`${s.maxWinStreak}W · ${s.maxLossStreak}L`} sub="longest consecutive runs" />
+        <MetricStat
+          label="Streaks"
+          value={`${s.maxWinStreak}W · ${s.maxLossStreak}L`}
+          sub={
+            s.maxWinStreak > 0
+              ? `longest consecutive runs · open the last ${s.maxWinStreak} trades (win-streak tail)`
+              : 'longest consecutive runs'
+          }
+          // COHORTSWEEP — both streaks share this tile, so the drill follows
+          // the WIN streak as a last-N tail (risk-page guardrail approximation);
+          // a 0-length streak has nothing to open.
+          onClick={s.maxWinStreak > 0 ? () => drillToTrades({ lastTrades: s.maxWinStreak }) : undefined}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -152,7 +173,7 @@ export function WinRatePage() {
           <div className="grid grid-cols-2 gap-3 pt-1">
             <MetricStat label="Winners" value={String(s.wins)} sub={formatPercent(s.winRate, 1)} tone="good" onClick={() => drillToTrades({ outcome: 'win' })} />
             <MetricStat label="Losers" value={String(s.losses)} sub={formatPercent(s.lossRate, 1)} tone="bad" onClick={() => drillToTrades({ outcome: 'loss' })} />
-            <MetricStat label="Break-even" value={String(s.breakeven)} sub="closed flat" onClick={() => drillToTrades({ outcome: 'breakeven' })} />
+            <MetricStat label="Break-even" value={String(s.breakeven)} sub="closed flat" onClick={s.breakeven > 0 ? () => drillToTrades({ outcome: 'breakeven' }) : undefined} />
             <MetricStat label="Avg win : avg loss" value={s.payoff === null ? '∞' : `${formatNumber(s.payoff)}×`} sub="payoff behind the ratio" />
           </div>
         </Panel>

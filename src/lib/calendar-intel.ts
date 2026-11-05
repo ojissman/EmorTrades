@@ -41,7 +41,7 @@ export interface CalendarTrade {
   /** contract multiplier (futures) — powers position-size (notional) discipline */
   multiplier?: number | null
   setup?: { id: string; name: string } | null
-  mistakes?: { mistake: { name: string; color?: string } }[]
+  mistakes?: { mistake: { id?: string; name: string; color?: string } }[]
   journal?: { mood?: string | null; emotion?: string | null; confidence?: number | null } | null
   screenshots?: { id: string; url: string; caption?: string | null; tag?: string | null }[]
   tags?: { tag: { name: string } }[]
@@ -229,7 +229,10 @@ export interface BehavioralSignals {
   earlyExits: { count: number; missed: number } | null
   /** period trade count vs the account's average traded day */
   overtrading: { trades: number; avg: number; ratio: number } | null
-  topMistakes: { name: string; count: number }[]
+  /** COHORTSWEEP — mistakeId rides along so behavioral-panel chips can
+   *  deep-link the trades tagged with that mistake (absent only when the
+   *  underlying row carried no id — those chips stay non-drilling). */
+  topMistakes: { name: string; count: number; mistakeId?: string }[]
   /** how many trades the signals were computed on */
   sample: number
 }
@@ -747,10 +750,13 @@ export function behavioralSignals(
     }
   }
 
-  const mistakes = new Map<string, number>()
+  // COHORTSWEEP — the map keeps each mistake's id next to its count so the
+  // topMistakes payload can carry it through (first id seen wins; additive).
+  const mistakes = new Map<string, { count: number; id?: string }>()
   for (const t of chrono) {
     for (const m of t.mistakes ?? []) {
-      mistakes.set(m.mistake.name, (mistakes.get(m.mistake.name) ?? 0) + 1)
+      const prev = mistakes.get(m.mistake.name)
+      mistakes.set(m.mistake.name, { count: (prev?.count ?? 0) + 1, id: prev?.id ?? m.mistake.id })
     }
   }
 
@@ -768,7 +774,7 @@ export function behavioralSignals(
         ? { trades: chrono.length, avg: +avgDayTrades.toFixed(1), ratio: +(chrono.length / avgDayTrades).toFixed(1) }
         : null,
     topMistakes: Array.from(mistakes.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, a]) => ({ name, count: a.count, mistakeId: a.id }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 4),
     sample: chrono.length,

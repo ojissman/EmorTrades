@@ -152,6 +152,10 @@ function careerQuarters(trades: TradeLike[]) {
         winRate: Math.round(s.winRate),
         avgR: s.avgR,
         n: s.n,
+        // COHORTSWEEP — the quarter's exact trade ids (the model already holds
+        // the chrono rows client-side), so bars and cards can drill to
+        // precisely the cohort they aggregated.
+        ids: slice.map((t) => t.id),
       }
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
@@ -379,7 +383,7 @@ export function TrendAnalysisPage() {
       </div>
 
       {/* Career quarters */}
-      <Panel title="Career quarters — the sequence split in four" hint="Equal-size chunks of your trade history, oldest → newest. The direction across quarters is your trajectory.">
+      <Panel title="Career quarters — the sequence split in four" hint="Equal-size chunks of your trade history, oldest → newest. The direction across quarters is your trajectory · click a quarter for its trades.">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={model.quarters} margin={{ left: 0, right: 12, top: 8, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-strong)" vertical={false} />
@@ -391,7 +395,17 @@ export function TrendAnalysisPage() {
               labelFormatter={(l) => model.quarters.find((q) => q.short === l)?.label ?? String(l)}
             />
             <ReferenceLine y={0} stroke="var(--border-strong)" />
-            <Bar dataKey="net" name="net" radius={[4, 4, 0, 0]}>
+            <Bar
+              dataKey="net"
+              name="net"
+              radius={[4, 4, 0, 0]}
+              cursor="pointer"
+              onClick={(data: any) => {
+                // COHORTSWEEP — bar → that quarter's exact trade cohort.
+                const p = data?.payload
+                if (p && p.n > 0) drillToTrades({ tradeIds: p.ids })
+              }}
+            >
               {model.quarters.map((q) => (
                 <Cell key={q.short} fill={signColor(q.net)} />
               ))}
@@ -400,7 +414,28 @@ export function TrendAnalysisPage() {
         </ResponsiveContainer>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
           {model.quarters.map((q) => (
-            <div key={q.short} className="rounded-lg px-3 py-2" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
+            <div
+              key={q.short}
+              // COHORTSWEEP — quarter card drills to its exact cohort (the ids
+              // careerQuarters carried out of the chrono sequence). DayCard
+              // keyboard idiom; empty quarters never render (filtered upstream).
+              onClick={q.n > 0 ? () => drillToTrades({ tradeIds: q.ids }) : undefined}
+              role={q.n > 0 ? 'button' : undefined}
+              tabIndex={q.n > 0 ? 0 : undefined}
+              onKeyDown={
+                q.n > 0
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        drillToTrades({ tradeIds: q.ids })
+                      }
+                    }
+                  : undefined
+              }
+              title={q.n > 0 ? 'Open this quarter’s trades' : undefined}
+              className={`rounded-lg px-3 py-2 transition-transform hover:-translate-y-0.5 ${q.n > 0 ? 'cursor-pointer' : ''}`}
+              style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
+            >
               <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
                 {q.label}
               </p>

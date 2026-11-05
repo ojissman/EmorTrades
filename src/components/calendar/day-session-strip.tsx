@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { drillToTrades } from '@/lib/drill' // COHORTSWEEP — session-row drill-through
 
 export interface DaySessionStripProps {
   /** 'YYYY-MM-DD' */
@@ -35,6 +36,10 @@ interface RawSession {
   name?: string | null
   color?: string | null
   window?: string | null
+  /** COHORTSWEEP — numeric window bounds (Task 13) so a row can drill
+   *  hourFrom/hourTo exactly; null/absent = no window (Off-session). */
+  startHour?: number | null
+  endHour?: number | null
   trades?: number | null
   wins?: number | null
   losses?: number | null
@@ -51,6 +56,9 @@ interface SessionRowData {
   name: string
   color: string | null
   timeWindow: string
+  /** COHORTSWEEP — drill bounds; null = no real window (never drills). */
+  startHour: number | null
+  endHour: number | null
   trades: number
   wins: number
   losses: number
@@ -81,17 +89,53 @@ function num(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
+/** Keyboard/active-state behavior shared by clickable rows (the calendar deck
+ *  grammar, mirrored from calendar-analytics). */
+function rowA11y(onActivate: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+        e.preventDefault()
+        onActivate()
+      }
+    },
+  }
+}
+
+/** COHORTSWEEP — the sessions-page Task-13 idiom: drill a session row's
+ *  entry-hour window into the trades table. Rows without a real window
+ *  (Off-session carries null hours) never get here — honesty over affordance. */
+function drillSessionWindow(s: SessionRowData) {
+  if (s.startHour === null || s.endHour === null) return
+  drillToTrades({ hourFrom: s.startHour, hourTo: s.endHour })
+}
+
 /** One session row — colored dot, name + window, count · win rate, net P&L. */
 function SessionRowView({ s, untraded }: { s: SessionRowData; untraded?: boolean }) {
   const rawColor = typeof s.color === 'string' ? s.color.trim() : ''
   const dotStyle = COLOR_RE.test(rawColor) ? { backgroundColor: rawColor } : undefined
-  const title = `${s.name} (${s.timeWindow || '—'}): ${s.trades} trades, ${s.wins}W/${s.losses}L, net ${signedMoney(s.netPnl)}`
+  const statsTitle = `${s.name} (${s.timeWindow || '—'}): ${s.trades} trades, ${s.wins}W/${s.losses}L, net ${signedMoney(s.netPnl)}`
+  // COHORTSWEEP — only a traded row with a real window drills its entry-hour
+  // range; untraded rows and Off-session (null hours) stay inert + honest,
+  // so the hover affordance only exists where a click actually goes somewhere.
+  const drillable = !untraded && s.trades > 0 && s.startHour !== null && s.endHour !== null
+  const title = drillable
+    ? `${statsTitle} — show these trades`
+    : untraded
+      ? `${s.name} (${s.timeWindow || '—'}): no entries in this window`
+      : `${statsTitle} — entries outside every window, no hour range to drill`
 
   return (
     <div
+      {...(drillable ? rowA11y(() => drillSessionWindow(s)) : {})}
+      aria-label={drillable ? `${s.name}: ${s.trades} trades — open them in the trades table` : undefined}
       title={title}
       className={cn(
-        'flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-white/[0.03]',
+        'flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors',
+        drillable && 'cursor-pointer hover:bg-white/[0.03]',
         untraded && 'opacity-50',
       )}
     >
@@ -145,6 +189,9 @@ export function DaySessionStrip({ dateKey, accountId }: DaySessionStripProps) {
         name: (s.name ?? '').trim(),
         color: typeof s.color === 'string' ? s.color : null,
         timeWindow: typeof s.window === 'string' ? s.window : '',
+        // COHORTSWEEP — carry the numeric window bounds through for the drill.
+        startHour: typeof s.startHour === 'number' && Number.isFinite(s.startHour) ? s.startHour : null,
+        endHour: typeof s.endHour === 'number' && Number.isFinite(s.endHour) ? s.endHour : null,
         trades: num(s.trades),
         wins: num(s.wins),
         losses: num(s.losses),

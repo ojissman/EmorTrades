@@ -78,9 +78,15 @@ export function KpiStrip({ items }: { items: Kpi[] }) {
     >
       {items.map((k) => (
         <motion.div key={k.id} variants={fadeUp}>
+          {/* COHORTSWEEP — these KPI cards are pure progress aggregates
+              (hit-rate / in-force / momentum / streak / at-risk / achieved
+              roll up ALL goals — no single planId or window cohort behind
+              any of them), so the hover-border suggested a drill that
+              doesn't exist: affordance removed (honesty over affordance).
+              The title says what the number is instead. */}
           <Card
-            className="p-3.5 h-full relative overflow-hidden group hover:border-border/80 transition-colors"
-            title={k.hint}
+            className="p-3.5 h-full relative overflow-hidden"
+            title={k.hint ?? 'Goal progress aggregate — no single trade cohort behind this number'}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">

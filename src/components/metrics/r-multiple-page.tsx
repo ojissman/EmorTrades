@@ -8,7 +8,9 @@
 import { useMetrics, Panel, MetricStat, EmptyRange, QueryErrorCard, AXIS_TICK, TOOLTIP_STYLE } from '@/components/metrics/metrics-kit'
 import { AreaChart, Area, BarChart, Bar, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis, CartesianGrid, ReferenceLine, Cell } from 'recharts'
 import { formatNumber, formatPercent } from '@/lib/format'
-import { drillToTrades } from '@/lib/drill'
+// COHORTSWEEP — peekTrade for the cumulative-R point peeks and the Best/Worst
+// R tiles (id-bearing rows from the new rDetail series).
+import { drillToTrades, peekTrade } from '@/lib/drill'
 
 export function RMultiplePage() {
   const { data, isLoading, isError, error, refetch } = useMetrics()
@@ -23,9 +25,17 @@ export function RMultiplePage() {
   const r = data.summary.rStats
   const hasR = r.count > 0
 
+  // COHORTSWEEP — id-bearing R series (exit-chronological, /api/metrics
+  // rDetail). Powers the cumulative-R point peeks and the Best/Worst R tiles;
+  // rList stays the histogram's math source. ?? [] so a stale cached bundle
+  // can't crash the page.
+  const detail = data.rDetail ?? []
+  const bestR = detail.length ? detail.reduce((a, b) => (b.r > a.r ? b : a)) : null
+  const worstR = detail.length ? detail.reduce((a, b) => (b.r < a.r ? b : a)) : null
+
   // Histogram of R values (fixed 1R bins from floor(min) to ceil(max))
   let hist: { label: string; count: number; min: number; max: number }[] = []
-  let cumR: { i: number; label: string; cum: number }[] = []
+  let cumR: { i: number; label: string; cum: number; id: string; symbol: string; side: string; entryTime: string; pnl: number }[] = []
   if (hasR) {
     const list = data.rList
     const lo = Math.floor(Math.min(...list))
@@ -38,20 +48,58 @@ export function RMultiplePage() {
     for (let b = lo; b < hi; b++) {
       hist.push({ label: `${b}…${b + 1}R`, count: bins.get(b) ?? 0, min: b, max: b + 1 })
     }
+    // COHORTSWEEP — cumulative R now walks rDetail (exit-chronological and
+    // id-bearing) instead of rList, so the #i axis is true exit order and a
+    // point click can peek the exact trade. Same cumulative math.
     let acc = 0
-    cumR = list.map((v, i) => {
-      acc += v
-      return { i: i + 1, label: `#${i + 1}`, cum: Math.round(acc * 100) / 100 }
+    cumR = detail.map((t, i) => {
+      acc += t.r
+      return { i: i + 1, label: `#${i + 1}`, cum: Math.round(acc * 100) / 100, id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }
     })
   }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricStat label="Average R" value={hasR ? `${r.avg >= 0 ? '+' : ''}${formatNumber(r.avg)}R` : '—'} sub={`expectancy per unit of risk`} tone={r.avg >= 0 ? 'good' : 'bad'} big />
-        <MetricStat label="R median" value={hasR ? `${formatNumber(r.median)}R` : '—'} sub={`typical outcome`} />
-        <MetricStat label="Best / worst" value={hasR ? `+${formatNumber(r.best)}R / ${formatNumber(r.worst)}R` : '—'} sub="range of outcomes" />
-        <MetricStat label="Positive R share" value={hasR ? formatPercent(r.positiveShare, 0) : '—'} sub={`${r.count} trades with R data`} tone={r.positiveShare >= 50 ? 'good' : 'warn'} />
+        {/* COHORTSWEEP — honest wiring: Average R and R median are pure
+            aggregates (the drill API can't express "trades with R data" as a
+            cohort), so they stay no-ops; MetricStat renders sub as
+            title={sub}, so the aggregate note doubles as the hover tooltip
+            (the C5a sibling idiom). Best/Worst R peek the exact extreme
+            trade from rDetail; Positive R share drills the minR: 0 cohort. */}
+        <MetricStat
+          label="Average R"
+          value={hasR ? `${r.avg >= 0 ? '+' : ''}${formatNumber(r.avg)}R` : '—'}
+          sub="expectancy per unit of risk — aggregate, no drill cohort"
+          tone={r.avg >= 0 ? 'good' : 'bad'}
+          big
+        />
+        <MetricStat
+          label="R median"
+          value={hasR ? `${formatNumber(r.median)}R` : '—'}
+          sub="typical outcome — aggregate, no drill cohort"
+        />
+        <MetricStat
+          label="Best R"
+          value={hasR ? `+${formatNumber(r.best)}R` : '—'}
+          sub="biggest risk-adjusted winner"
+          tone="good"
+          onClick={bestR ? () => peekTrade({ id: bestR.id, symbol: bestR.symbol, side: bestR.side, entryTime: bestR.entryTime, pnl: bestR.pnl }) : undefined}
+        />
+        <MetricStat
+          label="Worst R"
+          value={hasR ? `${formatNumber(r.worst)}R` : '—'}
+          sub="biggest risk-adjusted loser"
+          tone="bad"
+          onClick={worstR ? () => peekTrade({ id: worstR.id, symbol: worstR.symbol, side: worstR.side, entryTime: worstR.entryTime, pnl: worstR.pnl }) : undefined}
+        />
+        <MetricStat
+          label="Positive R share"
+          value={hasR ? formatPercent(r.positiveShare, 0) : '—'}
+          sub={`${r.count} trades with R data`}
+          tone={r.positiveShare >= 50 ? 'good' : 'warn'}
+          onClick={hasR ? () => drillToTrades({ minR: 0 }) : undefined}
+        />
       </div>
 
       {!hasR ? (
@@ -95,8 +143,8 @@ export function RMultiplePage() {
               </div>
             </Panel>
 
-            <Panel title="Cumulative R" hint="your edge in risk units, trade by trade">
-              <div className="h-60">
+            <Panel title="Cumulative R" hint="your edge in risk units, trade by trade · click a point to peek the trade">
+              <div className="h-60 cursor-pointer">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={cumR} margin={{ top: 4, right: 4, bottom: 0, left: -14 }}>
                     <defs>
@@ -110,7 +158,21 @@ export function RMultiplePage() {
                     <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={44} />
                     <ReTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: 'var(--text-secondary)' }} itemStyle={{ color: 'var(--text-primary)' }} />
                     <ReferenceLine y={0} stroke="var(--border-strong)" />
-                    <Area type="monotone" dataKey="cum" stroke="var(--shell-accent-hover)" strokeWidth={2} fill="url(#rCum)" name="Σ R" />
+                    {/* COHORTSWEEP — point → peek that exact trade (rows are
+                        rDetail-backed and id-bearing now). */}
+                    <Area
+                      type="monotone"
+                      dataKey="cum"
+                      stroke="var(--shell-accent-hover)"
+                      strokeWidth={2}
+                      fill="url(#rCum)"
+                      name="Σ R"
+                      cursor="pointer"
+                      onClick={(d: any) => {
+                        const p = d?.payload
+                        if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl })
+                      }}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
