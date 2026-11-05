@@ -9178,6 +9178,155 @@ actionable numbers; every actionable value in the app remains
 server-computed.)
 
 
+## Task TOOLS-AI-VERIFY — day gate + fresh-pull re-verification of the Tool Group AI surfaces (owner: "Pull Github latest")
+
+**Agent:** Z.ai Code (Claude) · **Type:** CONTINUE (from TOOLS-AI 69abf59) · **Scope:** NORMAL
+
+**Task:** Owner: "Pull Github latest" + fresh GitHub PAT + the secrets
+passphrase (the NEW-DAY PROTOCOL trigger for 2026-11-05). Continuation
+duty per the CONTINUE rule: this session inherited the prior TOOLS-AI /
+WATCHLIST-AI pushes sight-unseen after context loss — spot-check the
+finished parts in the RUNNING APP on a fresh production pull before
+trusting the inherited certificates; close the day cycle (commit + push
+carrying the Auto-Backup ride-along).
+
+**Work Log:**
+1. BEFORE gate 12:24:55Z: ritual blocks snapshotted (identical md5
+   fa3d2a5b… ×3, markers=1 each). Open-cycle check: tree clean;
+   WATCHLIST-AI f128935 and TOOLS-AI 69abf59 already pushed (origin tip
+   2026-11-04T23:06Z); only the Auto-Backup bot commit 5543760 ahead —
+   db/custom.db sidecar only = Policy B ride-along, NOT an open cycle.
+   .sync-state/.day-state were MISSING (platform recycle lost the
+   gitignored state files) → ENFORCE-4 correctly held the preview at
+   DRIFT lock; the day gate's sync was the sanctioned recovery.
+2. bun run day:start (PAT repaired origin → ojissman/EmorTrades;
+   passphrase on stdin, never stored): OPEN-CYCLE ride-along notice
+   (proceeded per Policy B); .env was missing 18 keys after the platform
+   recycle — auto-restored from backups/secrets.enc (11 keys,
+   manifest-exact, hash match); LIVE production pull 12:27:05Z
+   users=4 trades=386; strict schema push (additive); client
+   regenerated; dev relaunched → CLEARED TO WORK 12:27:24Z. Drift
+   resolved (pull epoch 1793881644 > push tip 1793833560); the honest
+   WARN banner stays until this push lifts it.
+3. Spot-check E2E on the fresh pull (minted demo session, curl-warm
+   first, OOM discipline). Watchlists — KPI band real (1 list, 1 symbol,
+   0 armed, 1 journal-linked, best mover KC −6.1%, closest-to-target
+   "—" honest), My Lists | All Symbols tabs; All Symbols unified table
+   (KC row: list chip, live 8.1000/−6.1%, "Unarmed", "—", journal chip
+   1t·0%·−$232.20, AI + Trades row actions); row AI deep-open →
+   AiSymbolModal real LLM: Rethink verdict, snapshot 8.1000/−6.14%
+   Downtrend (SMA20 −5.0% / SMA50 −13.0%), ATR 0.4086 = 5.0% of price,
+   60-session range 7.57–12.53, journal cites the real −$232.2 / −1.13 R
+   289 days ago, bracket entry 8.1000/stop 8.5100/target — with R:R
+   honestly "—" (no target armed → never fabricated), provenance
+   "generated 07:30 AM" (not degraded).
+4. Executions — global envelope honored (2024 fills visible under Full
+   Range); KPI band 104 / 6 / $890,380.86 / −$87.54 / 52 / 52
+   (API-exact); Fills (search, side filters, sortable Symbol/Value/Time,
+   show-more); By Symbol (USTEC.V 38 fills $777,320.48 −$123.16; US500
+   +$16.79; CADJPY −$118.07 — DISTINCT-trade journal P&L); AI Review
+   idle teaser (nothing auto-fires) → Generate = real LLM citing
+   52/52 balance, $60.38 = 69% fee share, USTEC.V 36.5% fills / 87.3%
+   notional, 9.5 fills/day over 11 active days.
+5. Risk Tools — Guardrails: equity $76,253.45 (Σ startingBalance 40,000
+   + realized 36,253.45 — the baseline fix live), 2% daily limit
+   $1,525.07, risk/trade $762.53, 12 open / $692,369.82 notional, plan
+   limits ORB Swing v3; Position Sizing calculator hand-check
+   reproduced EXACTLY (entry 4075.50 / stop 4035 / target 4160 / 1% →
+   Long, $762.53 risk, 18.83 units, $76,733.56 value, R:R 1:2.09);
+   Kelly 50.1% WR / 1.61 payoff / 19.08% full / 9.54% half; AI Risk
+   Desk Generate = real LLM (worst loss −$1,875.20 = 2.5× the $762.53
+   target; 2 of 12 unstopped; 19.3%/9.65% Kelly; 50.3% WR / 1.63 PF /
+   $98.51 expectancy; daily-loss usage 0%).
+6. Challenges — AI Discipline Coach Generate = real LLM (38 no-stop ≈
+   10.3% of closed; 11 FOMO entries; overtrading days 12/9/7; ES −$891.1
+   / WTI −$874.5; 1-trade loss streak; recommendations cite EXACT
+   catalog titles 'Stop-Loss On Every Trade' / 'No Revenge
+   Re-entries').
+7. Mobile 390×844 ×4 pages: scrollWidth=390 (zero overflow), isNarrow
+   active. Browser console zero errors/warnings (Fast Refresh lines
+   only); server log all 200s, 4 AI POSTs 200 (4.2–5.5s), no ⨯.
+   Unauth guards proven live: POST /api/ai/tools 401, POST
+   /api/ai/watchlist 401, GET /api/executions 401, GET /api/watchlists
+   401 (405 = method-not-allowed on the POST-only AI routes).
+   Pre-existing dev-only notice: Next.js allowedDevOrigins cross-origin
+   warning from the preview host — config deprecation, not an app error.
+8. KPI hand-check (prisma direct, userId-scoped, diffed against the UI
+   and the AI citations): 16/16 exact — baseline 40,000; closed 369
+   (185W/184L = 50.1%); realized 36,253.45; equity 76,253.45; no-stop
+   38; open 12 (2 unstopped); KC 1t −$232.20; executions 104 / 6
+   symbols; fees −87.54 (fees+commission, stored negative); notional
+   890,380.86; buys/sells 52/52; watchlists 1 / 1 symbol / 1
+   journal-linked; worst loss −$1,875.20. A first unscoped pass proved
+   the filter matters (all-users equity 108,175.45 ≠ demo 76,253.45) —
+   the app's userId scoping is correct and the UI matches it exactly.
+9. Gates serialized (browser closed first, dev stopped around tsc per
+   the OOM discipline, double-fork relaunch after): lint 0 · tsc
+   --noEmit 0 (cold) · vitest 195/195 (15 files) · dev 200 ·
+   ritual-state honest WARN (ahead=1 ride-along).
+
+**Verification:** as itemized above — every number from a command run
+this session; zero code changes needed (all inherited TOOLS-AI /
+WATCHLIST-AI surfaces verified live on the fresh pull, so nothing was
+reimplemented and nothing was found broken).
+
+**Cleanup report:** no dead code, no deps, no routes touched
+(verification only — nothing to delete, nothing dead found). Session
+scratch purged: 16 untracked /tmp files (2 handcheck scripts + 14
+snapshots, KB-scale; /tmp 77MB → 77MB net 0 — bulk is the platform
+/tmp/my-project refill + keepers, all cold). .tmp-handcheck.ts removed
+immediately after use. ritual.before.* kept until after push (block
+proof).
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — TOOLS-AI-VERIFY
+Date (UTC, from `date -u`):         2026-11-05T12:36:45Z
+Task started / finished:            2026-11-05T12:24:55Z / 2026-11-05T12:36Z
+Last production pull (sync:prod):   2026-11-05T12:27:05Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 195/195 passing (15 files)
+Pages/flows verified (list):        Watchlists (KPI band, tabs, All
+                                    Symbols table, AI deep-open);
+                                    Executions (envelope, KPIs, Fills,
+                                    By Symbol, AI Review generate);
+                                    Risk Tools (Guardrails, Position
+                                    Sizing hand-check, Simulations
+                                    intact, AI Risk Desk generate);
+                                    Challenges (AI Coach generate);
+                                    mobile 390×844 ×4; unauth 401 ×4
+Console + server-log errors:        0 / 0
+Touched-area audit:                 PASS (every TOOLS-AI surface
+                                    re-verified live on fresh pulled
+                                    data; all pre-existing surfaces
+                                    render alongside intact)
+KPIs hand-checked vs raw DB:        16/16 exact match
+Security: every touched handler guarded, own-data only:  PASS (no
+                                    handler code touched this session;
+                                    guards proven live: 401s above;
+                                    AI endpoints served the minted
+                                    demo session only)
+Dead code removed:                  0 files, 0 deps, 0 routes
+                                    (verification session; nothing
+                                    dead found)
+Junk purged:                        ~0 MB net (16 scratch files,
+                                    KB-scale; /tmp 77MB → 77MB)
+Orphan DB models needing owner decision: none
+Ritual block intact in all 3 files: YES (verified below)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull = LIVE production sync 12:27:05Z (users=4,
+trades=386) via day:start · this entry above the block · AGENTS.md
+unchanged this cycle (no role/function change — noted here per step 5)
+· CLAUDE.md unchanged this cycle (no discipline change — noted here per
+step 6) · commit + push last (carries the Auto-Backup ride-along
+5543760).
+
+**Needs owner decision / left over:** none.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
