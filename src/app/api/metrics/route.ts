@@ -177,6 +177,14 @@ function aggregate(closed: MetricsTrade[]) {
     maxLossStreak: maxL,
     best: closed.length ? round(Math.max(...closed.map((t) => t.pnl))) : 0,
     worst: closed.length ? round(Math.min(...closed.map((t) => t.pnl))) : 0,
+    // COHORTSWEEP — id-bearing best/worst so the returns-distribution hero
+    // tiles can peek the actual trade (same shape /api/dashboard ships for
+    // its best/worst widgets). Numeric best/worst stay untouched (three
+    // sibling pages render them).
+    bestTrade: closed.length
+      ? closed.reduce((a, b) => (b.pnl > a.pnl ? b : a))
+      : null,
+    worstTrade: closed.length ? closed.reduce((a, b) => (b.pnl < a.pnl ? b : a)) : null,
     stdevPnl: round(stdDev(closed.map((t) => t.pnl))),
   }
 }
@@ -357,11 +365,20 @@ function mfeMaeStats(closed: MetricsTrade[]) {
   const capture = capturable.map((t) => clampPct((t.pnl / (t.mfe as number)) * 100))
   const maeHits = withData.filter((t) => t.mae !== null && t.mae < 0)
   const edges = [0, 10, 25, 50, 75, 90, 101]
+  // COHORTSWEEP — bucket by ITERATING THE TRADES (not the capture numbers)
+  // so each histogram bar carries its exact trade-id cohort for the drill.
   const hist = edges.slice(0, -1).map((lo, i) => {
     const hi = edges[i + 1]
     const label = `${lo}–${hi - 1}%`
-    const inBucket = capture.filter((c) => c >= lo && c < hi).length
-    return { label, count: inBucket }
+    const ids: string[] = []
+    let inBucket = 0
+    for (let j = 0; j < capturable.length; j++) {
+      if (capture[j] >= lo && capture[j] < hi) {
+        inBucket++
+        ids.push(capturable[j].id)
+      }
+    }
+    return { label, count: inBucket, tradeIds: ids }
   })
   const missed = [...capturable]
     .sort((a, b) => (b.mfe as number) - b.pnl - ((a.mfe as number) - a.pnl))
@@ -576,6 +593,25 @@ export async function GET(req: NextRequest) {
       byWeekday: weekdayRows,
       bySide: groupStats(closed, (t) => t.side),
       rList: closed.map((t) => t.rMultiple).filter((r): r is number => r !== null && Number.isFinite(r)),
+      // COHORTSWEEP — exit-chronological R series WITH trade ids (rList was
+      // DB-order + id-less, so the cumulative-R chart couldn't peek a point
+      // and its #i axis was arbitrary). Same ordering as runningPnl; rList
+      // itself stays untouched (the histogram math keeps its contract).
+      rDetail: [...closed]
+        .sort(
+          (a, b) =>
+            new Date(a.exitTime ?? a.entryTime).getTime() - new Date(b.exitTime ?? b.entryTime).getTime(),
+        )
+        .filter((t) => t.rMultiple !== null && Number.isFinite(t.rMultiple))
+        .map((t) => ({
+          id: t.id,
+          symbol: t.symbol,
+          side: t.side,
+          entryTime: t.entryTime,
+          exitTime: t.exitTime,
+          pnl: round(t.pnl),
+          r: t.rMultiple as number,
+        })),
       mfeMae: mfeMaeStats(closed),
       accounts: accountRows,
       openSummary: {

@@ -45,6 +45,9 @@ export interface BucketStats {
   wins: number
   net: number
   avgR: number | null
+  /** COHORTSWEEP — exact trade-id cohort (regimes are tape-derived, so a
+   *  filter param can never reproduce membership; the ids carry it). */
+  tradeIds: string[]
 }
 
 export interface IndicatorBlock {
@@ -224,7 +227,7 @@ const BUCKET_DEFS: BucketDef[] = [
 function bucketsForDef(
   def: BucketDef,
   tapes: SessionRow[][], // reference sessions for threshold percentiles
-  pairs: { session: SessionRow | null; pnl: number | null; r: number | null }[],
+  pairs: { session: SessionRow | null; pnl: number | null; r: number | null; id: string }[],
 ): IndicatorBlock {
   let thresholds: Record<string, number | string> = {}
   let edges: { key: string; label: string; test: (v: number) => boolean }[] = []
@@ -249,10 +252,10 @@ function bucketsForDef(
     thresholds = { unit: def.unit }
   }
 
-  const buckets: BucketStats[] = edges.map((e) => ({ key: e.key, label: e.label, n: 0, wins: 0, net: 0, avgR: null }))
+  const buckets: BucketStats[] = edges.map((e) => ({ key: e.key, label: e.label, n: 0, wins: 0, net: 0, avgR: null, tradeIds: [] }))
   const rSum = new Array(buckets.length).fill(0)
   const rN = new Array(buckets.length).fill(0)
-  for (const { session, pnl, r } of pairs) {
+  for (const { session, pnl, r, id } of pairs) {
     if (!session) continue
     const v = def.valueOf(session)
     if (v === null) continue
@@ -260,6 +263,7 @@ function bucketsForDef(
     if (idx === -1) continue
     buckets[idx].n += 1
     buckets[idx].net += pnl ?? 0
+    buckets[idx].tradeIds.push(id)
     if ((pnl ?? 0) > 0) buckets[idx].wins += 1
     if (r !== null) {
       rSum[idx] += r
@@ -353,6 +357,7 @@ export async function buildTechnicalAnalysis(scope: Scope, accountId?: string | 
     session: benchByKey.get(dayKey(t.entryTime)) ?? null,
     pnl: t.pnl,
     r: t.rMultiple,
+    id: t.id,
   }))
   const matchedBench = benchPairs.filter((p) => p.session !== null).length
 
@@ -370,7 +375,7 @@ export async function buildTechnicalAnalysis(scope: Scope, accountId?: string | 
       const byKey = sessionByKey(tape)
       const pairs = trades
         .filter((t) => t.symbol === sym)
-        .map((t) => ({ session: byKey.get(dayKey(t.entryTime)) ?? null, pnl: t.pnl, r: t.rMultiple }))
+        .map((t) => ({ session: byKey.get(dayKey(t.entryTime)) ?? null, pnl: t.pnl, r: t.rMultiple, id: t.id }))
       const ind = {} as Partial<Record<IndicatorKey, IndicatorBlock>>
       for (const def of BUCKET_DEFS) ind[def.key] = bucketsForDef(def, [tape], pairs)
       return { symbol: sym, trades: trades.filter((t) => t.symbol === sym).length, matched: pairs.filter((p) => p.session !== null).length, indicators: ind }
@@ -464,6 +469,8 @@ export interface RvolBucket {
   net: number
   avgR: number | null
   avgRvol: number | null
+  /** COHORTSWEEP — exact trade-id cohort for the regime drill. */
+  tradeIds: string[]
 }
 
 export interface RvolSymbolRow {
@@ -567,7 +574,7 @@ export async function buildRelativeVolume(accountId?: string | null): Promise<Re
   ]
 
   const rows: RvolTradeRow[] = []
-  const bucketAgg = RVOL_BUCKETS.map((b) => ({ ...b, n: 0, wins: 0, net: 0, rSum: 0, rN: 0, rvolSum: 0 }))
+  const bucketAgg = RVOL_BUCKETS.map((b) => ({ ...b, n: 0, wins: 0, net: 0, rSum: 0, rN: 0, rvolSum: 0, ids: [] as string[] }))
   const corrPairsR: [number, number][] = []
   const corrPairsPnl: [number, number][] = []
   const noVolumeSymbols = new Set<string>()
@@ -603,6 +610,7 @@ export async function buildRelativeVolume(accountId?: string | null): Promise<Re
             b.n += 1
             b.net += row.pnl
             b.rvolSum += row.rvol
+            b.ids.push(row.tradeId)
             if (row.pnl > 0) b.wins += 1
             if (row.r !== null) {
               b.rSum += row.r
@@ -628,6 +636,7 @@ export async function buildRelativeVolume(accountId?: string | null): Promise<Re
     net: Math.round(b.net * 100) / 100,
     avgR: b.rN ? Math.round((b.rSum / b.rN) * 100) / 100 : null,
     avgRvol: b.n ? Math.round((b.rvolSum / b.n) * 100) / 100 : null,
+    tradeIds: b.ids,
   }))
   const perSymbol: RvolSymbolRow[] = Array.from(symAgg.values())
     .map((a) => ({

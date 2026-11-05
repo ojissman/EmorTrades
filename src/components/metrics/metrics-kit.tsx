@@ -45,6 +45,10 @@ export interface MetricsSummary {
   maxLossStreak: number
   best: number
   worst: number
+  /** COHORTSWEEP — id-bearing best/worst rows (returns-distribution hero
+   *  peek; same shape /api/dashboard ships). Superset fields allowed. */
+  bestTrade: { id: string; symbol: string; side: string; entryTime: string; exitTime?: string | null; pnl: number } | null
+  worstTrade: { id: string; symbol: string; side: string; entryTime: string; exitTime?: string | null; pnl: number } | null
   stdevPnl: number
 }
 
@@ -72,6 +76,8 @@ export interface MetricsBundle {
   byWeekday: GroupRow[]
   bySide: GroupRow[]
   rList: number[]
+  /** COHORTSWEEP — exit-chrono R series with trade ids (cumulative-R peek). */
+  rDetail: { id: string; symbol: string; side: string; entryTime: string; exitTime: string | null; pnl: number; r: number }[]
   mfeMae: {
     withData: number
     avgCapture: number | null
@@ -79,7 +85,7 @@ export interface MetricsBundle {
     avgMfe: number
     avgMae: number
     totalLeft: number
-    captureHistogram: { label: string; count: number }[]
+    captureHistogram: { label: string; count: number; tradeIds: string[] }[]
     missed: { id: string; symbol: string; captured: number; leftOnTable: number; capturePct: number; date: string }[]
   }
   accounts: (MetricsSummary & { id: string; name: string; broker: string; startingBalance: number })[]

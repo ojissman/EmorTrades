@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
     let gaveBackTotal = 0
     let neverHadItCount = 0
     let neverHadItTotal = 0
+    // COHORTSWEEP — exact cohorts for the Gave-back / Never-had-it cards.
+    const gaveBackIds: string[] = []
+    const neverHadItIds: string[] = []
     let totalMfe = 0
     let totalMae = 0
     let tradesWithMfe = 0
@@ -50,22 +53,24 @@ export async function GET(req: NextRequest) {
     const setupLeaks = new Map<string, any>()
 
     // Distribution of capture rate buckets
+    // COHORTSWEEP — every bucket carries its exact trade-id cohort so the
+    // distribution bars drill to precisely the trades they counted.
     const captureBuckets = [
-      { range: '0-20%', count: 0, pnl: 0 },
-      { range: '20-40%', count: 0, pnl: 0 },
-      { range: '40-60%', count: 0, pnl: 0 },
-      { range: '60-80%', count: 0, pnl: 0 },
-      { range: '80-100%', count: 0, pnl: 0 },
-      { range: '100%+', count: 0, pnl: 0 },
+      { range: '0-20%', count: 0, pnl: 0, tradeIds: [] as string[] },
+      { range: '20-40%', count: 0, pnl: 0, tradeIds: [] as string[] },
+      { range: '40-60%', count: 0, pnl: 0, tradeIds: [] as string[] },
+      { range: '60-80%', count: 0, pnl: 0, tradeIds: [] as string[] },
+      { range: '80-100%', count: 0, pnl: 0, tradeIds: [] as string[] },
+      { range: '100%+', count: 0, pnl: 0, tradeIds: [] as string[] },
     ]
 
     // Time to best exit distribution
     const timeToBestBuckets = [
-      { range: '0-15m', count: 0 },
-      { range: '15-60m', count: 0 },
-      { range: '1-4h', count: 0 },
-      { range: '4-24h', count: 0 },
-      { range: '1d+', count: 0 },
+      { range: '0-15m', count: 0, tradeIds: [] as string[] },
+      { range: '15-60m', count: 0, tradeIds: [] as string[] },
+      { range: '1-4h', count: 0, tradeIds: [] as string[] },
+      { range: '4-24h', count: 0, tradeIds: [] as string[] },
+      { range: '1d+', count: 0, tradeIds: [] as string[] },
     ]
 
     // Hold-longer curve: avg PnL if held N minutes longer
@@ -100,9 +105,11 @@ export async function GET(req: NextRequest) {
         if (captureRate >= 100) {
           captureBuckets[5].count++
           captureBuckets[5].pnl += t.pnl
+          captureBuckets[5].tradeIds.push(t.id)
         } else {
           captureBuckets[Math.max(0, bucketIdx)].count++
           captureBuckets[Math.max(0, bucketIdx)].pnl += t.pnl
+          captureBuckets[Math.max(0, bucketIdx)].tradeIds.push(t.id)
         }
 
         // Round-trip vs cut-early
@@ -111,11 +118,13 @@ export async function GET(req: NextRequest) {
           if (captureRate < 60) {
             gaveBackCount++
             gaveBackTotal += (t.mfe - t.pnl)
+            gaveBackIds.push(t.id)
           }
         } else {
           // Loser that never had it
           neverHadItCount++
           neverHadItTotal += Math.abs(t.pnl)
+          neverHadItIds.push(t.id)
         }
       }
       if (t.mae && t.mae < 0) {
@@ -126,11 +135,11 @@ export async function GET(req: NextRequest) {
       // Time to best exit
       if (t.mfeTime && t.entryTime) {
         const minutes = (new Date(t.mfeTime).getTime() - new Date(t.entryTime).getTime()) / 60000
-        if (minutes < 15) timeToBestBuckets[0].count++
-        else if (minutes < 60) timeToBestBuckets[1].count++
-        else if (minutes < 240) timeToBestBuckets[2].count++
-        else if (minutes < 1440) timeToBestBuckets[3].count++
-        else timeToBestBuckets[4].count++
+        if (minutes < 15) { timeToBestBuckets[0].count++; timeToBestBuckets[0].tradeIds.push(t.id) }
+        else if (minutes < 60) { timeToBestBuckets[1].count++; timeToBestBuckets[1].tradeIds.push(t.id) }
+        else if (minutes < 240) { timeToBestBuckets[2].count++; timeToBestBuckets[2].tradeIds.push(t.id) }
+        else if (minutes < 1440) { timeToBestBuckets[3].count++; timeToBestBuckets[3].tradeIds.push(t.id) }
+        else { timeToBestBuckets[4].count++; timeToBestBuckets[4].tradeIds.push(t.id) }
       }
 
       // Hold-longer: just actual + EOD (others are estimates)
@@ -230,6 +239,8 @@ export async function GET(req: NextRequest) {
         gaveBackTotal,
         neverHadItCount,
         neverHadItTotal,
+        gaveBackIds,
+        neverHadItIds,
         eodCoverage: { benchmarked: eodBenchmarked, total: trades.length },
       },
       captureBuckets,
