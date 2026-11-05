@@ -146,7 +146,7 @@ export function RMultiplePage() {
             <Panel title="Cumulative R" hint="your edge in risk units, trade by trade · click a point to peek the trade">
               <div className="h-60 cursor-pointer">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={cumR} margin={{ top: 4, right: 4, bottom: 0, left: -14 }}>
+                  <AreaChart data={cumR} margin={{ top: 4, right: 4, bottom: 0, left: -14 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl }) }} style={{ cursor: 'pointer' }}>
                     <defs>
                       <linearGradient id="rCum" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--shell-accent-hover)" stopOpacity={0.35} />
@@ -159,7 +159,10 @@ export function RMultiplePage() {
                     <ReTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: 'var(--text-secondary)' }} itemStyle={{ color: 'var(--text-primary)' }} />
                     <ReferenceLine y={0} stroke="var(--border-strong)" />
                     {/* COHORTSWEEP — point → peek that exact trade (rows are
-                        rDetail-backed and id-bearing now). */}
+                        rDetail-backed and id-bearing). The handler lives on
+                        the CHART (activePayload idiom — the drawdown-page
+                        pattern; the Area-level onClick never fires on fill
+                        clicks in this recharts version). */}
                     <Area
                       type="monotone"
                       dataKey="cum"
@@ -167,11 +170,6 @@ export function RMultiplePage() {
                       strokeWidth={2}
                       fill="url(#rCum)"
                       name="Σ R"
-                      cursor="pointer"
-                      onClick={(d: any) => {
-                        const p = d?.payload
-                        if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl })
-                      }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>

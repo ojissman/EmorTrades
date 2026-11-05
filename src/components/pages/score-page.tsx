@@ -225,11 +225,15 @@ export function ScorePage() {
           <h3 className="font-semibold tracking-tight mb-1">Score Breakdown - Radar</h3>
           <p className="text-xs text-muted-foreground mb-3">Component contributions to your composite score</p>
           <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData}>
+            {/* COHORTSWEEP — the handler lives on the CHART (activePayload
+                idiom): the Radar polygon is ONE shape for the whole series,
+                so the CLICKSWEEP-era polygon-level onClick never fired (the
+                component BARS were the working path, which is why E2E passed). */}
+            <RadarChart data={radarData} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; const n = p?.name; const r = n && COMPONENT_ROUTE[n]; if (r) navigate(r) }} style={{ cursor: 'pointer' }}>
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-              <Radar name="Score" dataKey="value" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.4} cursor="pointer" onClick={(data: any) => { const n = data?.payload?.name ?? data?.name; const r = n && COMPONENT_ROUTE[n]; if (r) navigate(r) }} />
+              <Radar name="Score" dataKey="value" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.4} />
               <Tooltip
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--popover-foreground)' }}
               />

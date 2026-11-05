@@ -449,7 +449,9 @@ export function DeskEquityCurve({
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={chartH}>
-          <AreaChart data={curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          {/* COHORTSWEEP — handler on the CHART (activePayload idiom; the
+              Area shape-level onClick never fires in this recharts version). */}
+          <AreaChart data={curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="equityGradDesk" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
@@ -516,11 +518,6 @@ export function DeskEquityCurve({
               stroke="var(--chart-1)"
               strokeWidth={2}
               fill="url(#equityGradDesk)"
-              cursor="pointer"
-              onClick={(state: any) => {
-                const p = state?.activePayload?.[0]?.payload
-                if (p?.date) drillToDay(String(p.date).slice(0, 10))
-              }}
             />
           </AreaChart>
         </ResponsiveContainer>

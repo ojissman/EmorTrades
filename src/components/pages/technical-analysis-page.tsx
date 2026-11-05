@@ -59,6 +59,8 @@ interface BucketStats {
   wins: number
   net: number
   avgR: number | null
+  /** COHORTSWEEP — exact trade-id cohort (mirrors the API's BucketStats). */
+  tradeIds?: string[]
 }
 
 interface IndicatorBlock {
@@ -417,4 +419,6 @@ interface _bucketBest {
   label: string
   n: number
   net: number
+  /** COHORTSWEEP — carried from BucketStats for the regime drill. */
+  tradeIds?: string[]
 }

@@ -456,6 +456,18 @@ export function ChallengesPage() {
                         ? `Open the trades recorded during this ${r.template.title} run`
                         : undefined
                     }
+                    role={runEnd ? 'button' : undefined}
+                    tabIndex={runEnd ? 0 : undefined}
+                    onKeyDown={
+                      runEnd
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              drillToTrades({ customStartDate: r.startedAt, customEndDate: runEnd! })
+                            }
+                          }
+                        : undefined
+                    }
                     className={cn(
                       'group relative overflow-hidden border-amber-500/25 p-5 transition-colors hover:border-amber-500/50',
                       runEnd && 'cursor-pointer'

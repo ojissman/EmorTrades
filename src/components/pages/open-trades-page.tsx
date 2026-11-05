@@ -194,8 +194,8 @@ export function OpenTradesPage() {
     acc[t.symbol].count += 1
     acc[t.symbol].trades.push(t)
     return acc
-  }, {})
-  const symbolConcentration = Object.values(bySymbol).sort((a: any, b: any) => b.exposure - a.exposure)
+  }, {} as any)
+  const symbolConcentration = (Object.values(bySymbol) as any[]).sort((a: any, b: any) => b.exposure - a.exposure)
 
   // By side
   const bySide = [
@@ -375,9 +375,8 @@ export function OpenTradesPage() {
                     // COHORTSWEEP — bar click → that symbol's OPEN positions
                     // (open-trades-summary bar idiom + status pin).
                     onClick={(data: any) => {
-                      const row = symbolConcentration.find(
-                        (s: any) => s.symbol === (data?.payload?.symbol ?? data?.symbol)
-                      )
+                      const sym: string | undefined = data?.payload?.symbol ?? data?.symbol
+                      const row = symbolConcentration.find((s: any) => s.symbol === sym)
                       if (row) drillToTrades({ symbol: row.symbol, status: 'open' })
                     }}
                   />

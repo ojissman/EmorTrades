@@ -2174,7 +2174,6 @@ export function TradesPage() {
                 filterStore.clearFilter('systemId')
                 filterStore.clearFilter('dayOfMonth')
               }}
-              className="cohort-clear-all"
             >
               Clear all
             </Button>

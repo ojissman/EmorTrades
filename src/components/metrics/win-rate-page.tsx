@@ -62,7 +62,10 @@ export function WinRatePage() {
           <div className="h-56">
             {months.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={months} margin={{ top: 8, right: 4, bottom: 0, left: -18 }}>
+                {/* COHORTSWEEP — handler on the CHART (activePayload idiom):
+                    the Area shape-level onClick never fires in this recharts
+                    version (same latent defect as the score radar). */}
+                <AreaChart data={months} margin={{ top: 8, right: 4, bottom: 0, left: -18 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; const row = p && months.find((m) => m.month === p.month); if (row) drillToTrades(monthPatch(row.month)) }} style={{ cursor: 'pointer' }}>
                   <defs>
                     <linearGradient id="wrArea" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="var(--shell-accent-hover)" stopOpacity={0.35} />
@@ -81,11 +84,6 @@ export function WinRatePage() {
                     strokeWidth={2}
                     fill="url(#wrArea)"
                     name="Win %"
-                    cursor="pointer"
-                    onClick={(data: any) => {
-                      const row = months.find((m) => m.month === (data?.payload?.month ?? data?.month))
-                      if (row) drillToTrades(monthPatch(row.month))
-                    }}
                   />
                 </AreaChart>
               </ResponsiveContainer>

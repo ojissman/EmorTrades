@@ -40,14 +40,14 @@ export function ReturnsDistributionPage() {
           value={formatCurrencyIn('kpi', s.best)}
           sub="right tail"
           tone="good"
-          onClick={s.bestTrade ? () => peekTrade(s.bestTrade) : undefined}
+          onClick={s.bestTrade ? () => peekTrade({ ...s.bestTrade! }) : undefined}
         />
         <MetricStat
           label="Worst trade"
           value={formatCurrencyIn('kpi', s.worst)}
           sub="left tail"
           tone="bad"
-          onClick={s.worstTrade ? () => peekTrade(s.worstTrade) : undefined}
+          onClick={s.worstTrade ? () => peekTrade({ ...s.worstTrade! }) : undefined}
         />
         <MetricStat
           label="Kelly fraction"

@@ -51,6 +51,8 @@ interface RvolBucket {
   net: number
   avgR: number | null
   avgRvol: number | null
+  /** COHORTSWEEP — exact trade-id cohort (mirrors the API's RvolBucket). */
+  tradeIds?: string[]
 }
 
 interface Payload {

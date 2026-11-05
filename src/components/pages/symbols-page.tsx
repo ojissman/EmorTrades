@@ -232,7 +232,11 @@ export function SymbolsPage() {
             totalTrades > 0 && 'cursor-pointer hover:border-border'
           )}
           title={totalTrades > 0 ? 'Open the trades behind this P&L' : 'No closed trades in scope yet'}
+          role={totalTrades > 0 ? 'button' : undefined}
+          tabIndex={totalTrades > 0 ? 0 : undefined}
+          aria-label={totalTrades > 0 ? `Total P&L ${formatCurrencyIn('table', totalPnL)} — open matching trades` : undefined}
           onClick={totalTrades > 0 ? () => drillToTrades({}) : undefined}
+          onKeyDown={totalTrades > 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToTrades({}) } } : undefined}
         >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Total P&L</p>
           <FitValue className={cn('text-xl font-bold tnum mt-1', pnlColor(totalPnL))}>
@@ -250,6 +254,10 @@ export function SymbolsPage() {
               : 'No net-positive symbols yet'
           }
           onClick={winningTradeIds.length > 0 ? () => drillToTrades({ tradeIds: winningTradeIds }) : undefined}
+          role={winningTradeIds.length > 0 ? 'button' : undefined}
+          tabIndex={winningTradeIds.length > 0 ? 0 : undefined}
+          aria-label={winningTradeIds.length > 0 ? `Winning symbols: ${winningSymbols.size} — open their trades` : undefined}
+          onKeyDown={winningTradeIds.length > 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToTrades({ tradeIds: winningTradeIds }) } } : undefined}
         >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Winning Symbols</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
@@ -267,6 +275,10 @@ export function SymbolsPage() {
               : 'No net-negative symbols yet'
           }
           onClick={losingTradeIds.length > 0 ? () => drillToTrades({ tradeIds: losingTradeIds }) : undefined}
+          role={losingTradeIds.length > 0 ? 'button' : undefined}
+          tabIndex={losingTradeIds.length > 0 ? 0 : undefined}
+          aria-label={losingTradeIds.length > 0 ? `Losing symbols: ${losingSymbols.size} — open their trades` : undefined}
+          onKeyDown={losingTradeIds.length > 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drillToTrades({ tradeIds: losingTradeIds }) } } : undefined}
         >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Losing Symbols</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-red-400">

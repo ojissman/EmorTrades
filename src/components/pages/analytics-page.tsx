@@ -534,23 +534,21 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
           <h3 className="font-semibold tracking-tight mb-1">Setup Win Rate Comparison</h3>
           <p className="text-xs text-muted-foreground mb-3">Win rate by setup type — click a sector for its trades</p>
           <ResponsiveContainer width="100%" height={260}>
-            <RadarChart data={setupRadar}>
+            <RadarChart data={setupRadar} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p && p.trades > 0) drillToTrades({ setupId: p.setupId ?? 'none' }) }} style={{ cursor: 'pointer' }}>
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="setup" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               {/* COHORTSWEEP — sector → that setup's trades (0-trade sectors stay
-                  inert; null setupId = the "Uncategorized" bucket → 'none'). */}
+                  inert; null setupId = the "Uncategorized" bucket → 'none').
+                  The handler lives on the CHART (activePayload idiom — the
+                  Radar polygon is ONE shape for the whole series, so a
+                  shape-level onClick can't identify the sector). */}
               <Radar
                 name="Win Rate %"
                 dataKey="winRate"
                 stroke="var(--chart-1)"
                 fill="var(--chart-1)"
                 fillOpacity={0.4}
-                cursor="pointer"
-                onClick={(data: any) => {
-                  const p = data?.payload
-                  if (p && p.trades > 0) drillToTrades({ setupId: p.setupId ?? 'none' })
-                }}
               />
               <Tooltip
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', borderRadius: 8, fontSize: 12 }}

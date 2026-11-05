@@ -231,7 +231,9 @@ export function EquityChart({
     <div style={{ height }}>
       {curve.length > 1 ? (
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={curve} margin={{ top: 6, right: showAxes ? 4 : 10, bottom: 0, left: 0 }}>
+          {/* COHORTSWEEP — handler on the CHART (activePayload idiom; the
+              Area shape-level onClick never fires in this recharts version). */}
+          <AreaChart data={curve} margin={{ top: 6, right: showAxes ? 4 : 10, bottom: 0, left: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={EQUITY_STROKE} stopOpacity={0.32} />
@@ -266,7 +268,7 @@ export function EquityChart({
                 )
               }}
             />
-            <Area type="monotone" dataKey="equity" stroke={EQUITY_STROKE} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} cursor="pointer" onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} />
+            <Area type="monotone" dataKey="equity" stroke={EQUITY_STROKE} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
             {!showAxes && last && <ReferenceLine x={last.date} stroke={EQUITY_STROKE} strokeDasharray="2 3" strokeOpacity={0.5} />}
           </AreaChart>
         </ResponsiveContainer>

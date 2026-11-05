@@ -293,7 +293,16 @@ export function ChallengeStrip() {
                 // interactive children inside, so nothing to stopPropagation.
                 className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border cursor-pointer"
                 title="Open Challenges"
+                role="button"
+                tabIndex={0}
+                aria-label={`${t.title || 'Challenge'} — open Challenges`}
                 onClick={() => setPage('challenges')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setPage('challenges')
+                  }
+                }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
@@ -563,7 +572,16 @@ export function WeeklyChallengeDigest({
                 // to stopPropagation.
                 className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border cursor-pointer"
                 title="Open Challenges"
+                role="button"
+                tabIndex={0}
+                aria-label="Open Challenges"
                 onClick={() => setPage('challenges')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setPage('challenges')
+                  }
+                }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
