@@ -35,6 +35,11 @@ export async function GET(req: NextRequest) {
     // TP — tradingPlanId scopes by the Trading Plan link.
     const tradingPlanId = searchParams.get('tradingPlanId')
     const planFollowed = searchParams.get('planFollowed')
+    // COHORTSWEEP — exact-cohort deep link (aggregate bucket membership) and
+    // the system scope deep link (explore "By system" rows; 'none' = the
+    // "No system" bucket, mirroring setupId's sentinel contract).
+    const tradeIds = searchParams.getAll('tradeId')
+    const systemId = searchParams.get('systemId')
     const limit = parseInt(searchParams.get('limit') || '500')
     const offset = parseInt(searchParams.get('offset') || '0')
     const sortBy = searchParams.get('sortBy') || 'entryTime'
@@ -59,6 +64,11 @@ export async function GET(req: NextRequest) {
     if (tradingPlanId && tradingPlanId !== 'all') {
       where.tradingPlanId = tradingPlanId === 'none' ? null : tradingPlanId
     }
+    // COHORTSWEEP — exact cohort: the ids an aggregate bucket counted. Pure
+    // SQL; userId scoping above still applies (foreign ids simply match 0).
+    if (tradeIds.length > 0) where.id = { in: tradeIds }
+    // COHORTSWEEP — system scope (Trade.systemId column; 'none' sentinel).
+    if (systemId && systemId !== 'all') where.systemId = systemId === 'none' ? null : systemId
     if (planFollowed === 'true') where.planFollowed = true
     if (planFollowed === 'false') where.planFollowed = false
     // TP-7-l — the unmarked cohort (planFollowed IS NULL): the plan-analytics
@@ -153,11 +163,12 @@ export async function GET(req: NextRequest) {
       const lookups = await loadScopeLookups(user.id)
       const scoped = all.filter((t) => {
         if (!tradeInScope(t, { ...scope, tagIds, side, status, outcome, minPnl: minPnl ? parseFloat(minPnl) : undefined, maxPnl: maxPnl ? parseFloat(maxPnl) : undefined, minR: minR ? parseFloat(minR) : undefined, maxR: maxR ? parseFloat(maxR) : undefined }, lookups)) return false
-        if (scope.dayOfWeek !== null || scope.hourOfDay !== null) {
+        if (scope.dayOfWeek !== null || scope.hourOfDay !== null || scope.dayOfMonth !== null) {
           if (!t.entryTime) return false
           const d = new Date(t.entryTime)
           if (scope.dayOfWeek !== null && d.getUTCDay() !== scope.dayOfWeek) return false
           if (scope.hourOfDay !== null && d.getUTCHours() !== scope.hourOfDay) return false
+          if (scope.dayOfMonth !== null && d.getUTCDate() !== scope.dayOfMonth) return false
         }
         // Task 13 — session-window deep link (sessions-analytics rows/bars):
         // same clock + wrap semantics as the bucketing there, so the drill

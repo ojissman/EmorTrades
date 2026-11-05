@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
-import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope } from '@/lib/server/trade-scope'
+import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope, hourInSessionWindow } from '@/lib/server/trade-scope'
 import { endBoundFromParam } from '@/lib/day-bounds'
 
 export const dynamic = 'force-dynamic'
@@ -400,6 +400,11 @@ export async function GET(req: NextRequest) {
     const side = searchParams.get('side') ?? 'all'
     const setupId = searchParams.get('setupId')
     const symbol = searchParams.get('symbol')
+    // COHORTSWEEP — the drill params the filter store emits (toQueryParams)
+    // so metrics pages agree with /api/trades row-for-row while a drill scope
+    // is active (same metric, same value everywhere).
+    const tradeIds = searchParams.getAll('tradeId')
+    const systemId = searchParams.get('systemId')
 
     // Task 148 — cache on the FULL query string so every global-scope param
     // (L2 global_params envelope) participates in the cache key.
@@ -420,6 +425,9 @@ export async function GET(req: NextRequest) {
     if (side && side !== 'all') where.side = side
     if (setupId && setupId !== 'all') where.setupId = setupId
     if (symbol) where.symbol = symbol
+    // COHORTSWEEP — exact cohort + system scope (same SQL as /api/trades).
+    if (tradeIds.length > 0) where.id = { in: tradeIds }
+    if (systemId && systemId !== 'all') where.systemId = systemId === 'none' ? null : systemId
     if (startDate || endDate) {
       // Task 6 — entry-anchored date windows (see src/lib/trade-day.ts): the
       // metrics family must agree with /api/trades and the calendar on which
@@ -462,13 +470,38 @@ export async function GET(req: NextRequest) {
     let scoped = trades
     if (scopeNeedsPostFilter(scope)) {
       const lookups = await loadScopeLookups(user.id)
-      scoped = trades.filter((t) =>
-        tradeInScope(
-          t as never,
-          { ...scope, side: side === 'all' ? null : side, status: 'closed', outcome: null },
-          lookups,
-        ),
-      )
+      scoped = trades.filter((t) => {
+        if (
+          !tradeInScope(
+            t as never,
+            { ...scope, side: side === 'all' ? null : side, status: 'closed', outcome: null },
+            lookups,
+          )
+        )
+          return false
+        // COHORTSWEEP — the day/hour deep-link params parsed by parseScope
+        // were never APPLIED here (metrics silently ignored a weekday/hour/
+        // session drill while /api/trades honored it — same metric, different
+        // value). Mirrors the /api/trades post-filter exactly.
+        if (
+          scope.dayOfWeek !== null ||
+          scope.hourOfDay !== null ||
+          scope.dayOfMonth !== null ||
+          scope.hourFrom !== null ||
+          scope.hourTo !== null
+        ) {
+          if (!t.entryTime) return false
+          const d = new Date(t.entryTime)
+          if (scope.dayOfWeek !== null && d.getUTCDay() !== scope.dayOfWeek) return false
+          if (scope.hourOfDay !== null && d.getUTCHours() !== scope.hourOfDay) return false
+          if (scope.dayOfMonth !== null && d.getUTCDate() !== scope.dayOfMonth) return false
+          if (scope.hourFrom !== null || scope.hourTo !== null) {
+            const h = d.getUTCHours()
+            if (!hourInSessionWindow(h, scope.hourFrom ?? 0, scope.hourTo ?? 24)) return false
+          }
+        }
+        return true
+      })
     }
 
     // Account names (for accounts statistics)

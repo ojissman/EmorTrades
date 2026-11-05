@@ -69,6 +69,20 @@ export interface FilterState extends GlobalScopeFields {
    *  goal belongs to, so "view this period's trades" lands on the plan's own
    *  trades. A drill param like planFollowed, not a drawer family. */
   tradingPlanId?: string
+  /** COHORTSWEEP — exact-cohort deep link: the trade ids an aggregate
+   *  bucket counted (technical-analysis regimes, relative-volume buckets,
+   *  exit capture/time cohorts, MFE histogram bars, trend quarters, …).
+   *  Carries the bucket's exact membership server-side, so tape-derived
+   *  cohorts (ATR/gap/rvol regimes — not DB-expressible) drill precisely.
+   *  A drill param, not a drawer family. */
+  tradeIds?: string[]
+  /** COHORTSWEEP — system scope deep link (explore "By system" rows):
+   *  the trade's direct systemId; 'none' = the "No system" bucket. Mirrors
+   *  setupId's contract (SQL column, 'none' sentinel for null). */
+  systemId?: string | 'all'
+  /** COHORTSWEEP — day-of-month deep link (heatmap dayOfMonth cells),
+   *  1-31, dayOfWeek-style post-filter on the entry UTC date. */
+  dayOfMonth?: number
   // Outcome filter
   outcome?: 'win' | 'loss' | 'breakeven' | 'all'
   // Sorting
@@ -164,6 +178,11 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
       hourTo: undefined,
       planFollowed: undefined,
       tradingPlanId: undefined,
+      // COHORTSWEEP — same Task-141 lesson: explicit voids for the drill
+      // params so a stale cohort scope can't intersect the next deep link.
+      tradeIds: undefined,
+      systemId: undefined,
+      dayOfMonth: undefined,
       // Task 141 lesson applies to the scope arrays too — explicit voids.
       symbol: undefined,
     }),
@@ -232,6 +251,9 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
       s.hourTo !== undefined ||
       s.planFollowed !== undefined ||
       s.tradingPlanId !== undefined ||
+      (s.tradeIds && s.tradeIds.length > 0) ||
+      (s.systemId && s.systemId !== 'all') ||
+      s.dayOfMonth !== undefined ||
       s.customStartDate !== undefined ||
       s.minPnl !== undefined ||
       s.maxPnl !== undefined ||
@@ -276,6 +298,10 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
     if (s.planFollowed !== undefined) params.set('planFollowed', String(s.planFollowed))
     // TP2-P4 — plan-scope deep link (goals page drill).
     if (s.tradingPlanId) params.set('tradingPlanId', s.tradingPlanId)
+    // COHORTSWEEP — exact-cohort + system + day-of-month deep links.
+    if (s.tradeIds && s.tradeIds.length > 0) s.tradeIds.forEach((t) => params.append('tradeId', t))
+    if (s.systemId && s.systemId !== 'all') params.set('systemId', s.systemId)
+    if (s.dayOfMonth !== undefined) params.set('dayOfMonth', String(s.dayOfMonth))
     if (s.minPnl !== undefined) params.set('minPnl', String(s.minPnl))
     if (s.maxPnl !== undefined) params.set('maxPnl', String(s.maxPnl))
     if (s.minR !== undefined) params.set('minR', String(s.minR))
@@ -342,6 +368,9 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
     if (s.dayOfWeek !== undefined) count++
     if (s.hourOfDay !== undefined) count++
     if (s.hourFrom !== undefined || s.hourTo !== undefined) count++
+    if (s.tradeIds && s.tradeIds.length > 0) count++
+    if (s.systemId && s.systemId !== 'all') count++
+    if (s.dayOfMonth !== undefined) count++
     if (s.customStartDate !== undefined) count++
     if (s.minPnl !== undefined) count++
     if (s.maxPnl !== undefined) count++

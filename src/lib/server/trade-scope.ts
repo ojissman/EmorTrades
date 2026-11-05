@@ -26,6 +26,9 @@ export interface ParsedScope extends GlobalScopeFields {
   /** legacy single-day / single-hour deep-link params (Behavior Radar) */
   dayOfWeek: number | null
   hourOfDay: number | null
+  /** COHORTSWEEP — day-of-month deep link (heatmap dayOfMonth cells),
+   *  1-31, entry-UTC date like dayOfWeek above. */
+  dayOfMonth: number | null
   /**
    * Task 13 — session-window deep-link params (Sessions Analytics rows/bars).\n   * `hourFrom` inclusive, `hourTo` EXCLUSIVE (0-24; to <= from wraps midnight
    * — the same semantics /api/sessions-analytics uses to bucket trades). The
@@ -41,6 +44,7 @@ export function scopeNeedsPostFilter(sp: ParsedScope): boolean {
   return (
     sp.dayOfWeek !== null ||
     sp.hourOfDay !== null ||
+    sp.dayOfMonth !== null ||
     sp.hourFrom !== null ||
     sp.hourTo !== null ||
     sp.tradeDuration !== 'both' ||
@@ -97,6 +101,7 @@ export function parseScope(req: NextRequest): ParsedScope {
     rValueBuckets: csv(p.get('rValueBuckets')),
     dayOfWeek: p.get('dayOfWeek') !== null ? parseInt(p.get('dayOfWeek') as string, 10) : null,
     hourOfDay: p.get('hourOfDay') !== null ? parseInt(p.get('hourOfDay') as string, 10) : null,
+    dayOfMonth: p.get('dayOfMonth') !== null ? parseInt(p.get('dayOfMonth') as string, 10) : null,
     hourFrom: p.get('hourFrom') !== null ? parseInt(p.get('hourFrom') as string, 10) : null,
     hourTo: p.get('hourTo') !== null ? parseInt(p.get('hourTo') as string, 10) : null,
   }

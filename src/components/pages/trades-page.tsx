@@ -1300,6 +1300,22 @@ export function TradesPage() {
         },
       })
     }
+    // COHORTSWEEP — exact-cohort deep link (aggregate bucket membership).
+    if (fs.tradeIds?.length) {
+      chips.push({ key: 'tradeIds', label: `Cohort: ${fs.tradeIds.length} trades`, onRemove: clear('tradeIds') })
+    }
+    // COHORTSWEEP — system scope (explore "By system" rows; 'none' bucket).
+    if (fs.systemId && fs.systemId !== 'all') {
+      const sysName =
+        fs.systemId === 'none'
+          ? 'No system'
+          : (trades.find((t: any) => t.systemId === fs.systemId)?.system?.name ?? 'system')
+      chips.push({ key: 'systemId', label: `System: ${sysName}`, onRemove: clear('systemId') })
+    }
+    // COHORTSWEEP — day-of-month deep link (heatmap cells).
+    if (fs.dayOfMonth !== undefined) {
+      chips.push({ key: 'dayOfMonth', label: `Day ${fs.dayOfMonth} of month`, onRemove: clear('dayOfMonth') })
+    }
     if (fs.customStartDate) {
       const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       chips.push({
@@ -1318,7 +1334,7 @@ export function TradesPage() {
       chips.push({ key: 'advanced', label: `+${advanced} advanced scope`, onRemove: () => setFiltersDrawerOpen(true) })
     }
     return chips
-  }, [filterStore, setups])
+  }, [filterStore, setups, trades])
 
   // Grid column-filter count for the Filters panel — synced when the panel
   // opens (the click handler is an event, so reading the api is safe) and
@@ -1860,7 +1876,10 @@ export function TradesPage() {
           (filterStore.tagIds && filterStore.tagIds.length > 0) ||
           (filterStore.mistakeIds && filterStore.mistakeIds.length > 0) ||
           filterStore.planFollowed !== undefined ||
-          filterStore.tradingPlanId !== undefined) && (
+          filterStore.tradingPlanId !== undefined ||
+          (filterStore.tradeIds && filterStore.tradeIds.length > 0) ||
+          (filterStore.systemId && filterStore.systemId !== 'all') ||
+          filterStore.dayOfMonth !== undefined) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
               Context:
@@ -2086,6 +2105,46 @@ export function TradesPage() {
                 Plan: {tpBulkPlans.find((p: any) => p.id === filterStore.tradingPlanId)?.name ?? 'plan'} ✕
               </Badge>
             )}
+            {/* COHORTSWEEP — exact-cohort deep link (aggregate bucket). */}
+            {filterStore.tradeIds && filterStore.tradeIds.length > 0 && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[10px] cursor-pointer hover:bg-accent border-violet-500/30 bg-violet-500/10 text-violet-300"
+                onClick={() => filterStore.clearFilter('tradeIds')}
+                title="Exact cohort (the aggregate bucket's trades) — click to remove"
+                data-testid="cohort-chip"
+              >
+                Cohort: {filterStore.tradeIds.length} trades ✕
+              </Badge>
+            )}
+            {/* COHORTSWEEP — system scope (explore "By system" rows). */}
+            {filterStore.systemId && filterStore.systemId !== 'all' && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[10px] cursor-pointer hover:bg-accent border-teal-500/30 bg-teal-500/10 text-teal-300"
+                onClick={() => filterStore.clearFilter('systemId')}
+                title="System scope — click to remove"
+                data-testid="system-chip"
+              >
+                System:{' '}
+                {filterStore.systemId === 'none'
+                  ? 'No system'
+                  : (trades.find((t: any) => t.systemId === filterStore.systemId)?.system?.name ?? 'system')}{' '}
+                ✕
+              </Badge>
+            )}
+            {/* COHORTSWEEP — day-of-month deep link (heatmap cells). */}
+            {filterStore.dayOfMonth !== undefined && (
+              <Badge
+                variant="outline"
+                className="gap-1 text-[10px] cursor-pointer hover:bg-accent border-sky-500/30 bg-sky-500/10 text-sky-300"
+                onClick={() => filterStore.clearFilter('dayOfMonth')}
+                title="Day-of-month cohort — click to remove"
+                data-testid="day-of-month-chip"
+              >
+                Day {filterStore.dayOfMonth} of month ✕
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -2111,7 +2170,11 @@ export function TradesPage() {
                 filterStore.clearFilter('mistakeIds')
                 filterStore.clearFilter('planFollowed')
                 filterStore.clearFilter('tradingPlanId')
+                filterStore.clearFilter('tradeIds')
+                filterStore.clearFilter('systemId')
+                filterStore.clearFilter('dayOfMonth')
               }}
+              className="cohort-clear-all"
             >
               Clear all
             </Button>
