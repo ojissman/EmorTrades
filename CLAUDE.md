@@ -331,6 +331,31 @@ Tool Group AI discipline (TOOLS-AI, 2026-11-04 night): the Tool Group
   (filterStore.toQueryParams) like the trades page — new global-scope
   consumers follow the same idiom.
 
+One-link Setup discipline (MODAL-SETUP-UNIFY, 2026-11-05): the Trade
+  Modal's "Setup" field and the plan chain's third picker are ONE link
+  on ONE column (Trade.setupId) — never two competing pickers again.
+  trade-modal.tsx keeps them in sync via applySetupLink/clearSetupLink:
+  a setup living in an ACTIVE plan's system auto-completes the chain;
+  a standalone (or archived-plan) setup is a plain link with the chain
+  cleared; chain picks mirror the Setup field, and the chain's
+  plan/system cascade clears it. Server rule (shouldCreateLink in
+  src/lib/plan-link.ts): a setup-only value is a plain link persisted
+  by the trade write itself — it NEVER goes through linkTrade (which
+  rejects it with a spurious "Pick a plan"); only a real chain (plan,
+  or at least a system) starts a versioned link. POST /api/trades
+  returns tpWarning in its JSON — the modal toasts it (link failures
+  are never silent). The modal's fresh-open path RESETS the whole TP
+  link state (chain + rule-engine fields + warnings) — fresh opens
+  never inherit a previous edit's chain; the edit path snapshots the
+  chain in tpOrigChain so a downgrade clears via the link API BEFORE
+  the PUT (linkTrade's clear nulls setupId too — the PUT's plain
+  setupId must land on top). API-shape trap: /api/setups lifts plan
+  to TOP LEVEL (s.plan, not s.system.plan). Chain trigger labels fall
+  back to the setups catalog for values whose items are not mounted
+  (plain links, archived plans, cold tree fetches) — pass the computed
+  label as SelectValue children; a value with no matching item renders
+  a BLANK trigger otherwise.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

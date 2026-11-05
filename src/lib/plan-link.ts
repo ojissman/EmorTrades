@@ -16,6 +16,19 @@ export interface LinkInput {
   setupId?: string | null
 }
 
+/**
+ * MODAL-SETUP-UNIFY — when should a trade create/start a PLAN LINK at all.
+ * Trade.setupId is ONE column shared by two surfaces (the Setup field and
+ * the plan chain's third picker). A setup value alone is a PLAIN link —
+ * the same kind the historical journal rows carry — and is persisted by
+ * the trade write itself: it must NOT be pushed through linkTrade, which
+ * would reject it with a spurious "Pick a plan". Only a real chain
+ * (a plan, or at least a system) starts a versioned link.
+ */
+export function shouldCreateLink(link: LinkInput): boolean {
+  return !!(link.tradingPlanId || link.systemId)
+}
+
 export interface LinkOutcome {
   ok: boolean
   error?: string

@@ -273,3 +273,46 @@ Performed in Phase 5 (after fixes) and recorded in §5 — the audit walked: log
 10. **Rate limiter is in-memory single-instance** — resets on restart; fine for the current single-instance deployment, worth Redis if horizontally scaled.
 
 **Production readiness verdict:** every flow audited and re-verified end-to-end (auth/session, trade CRUD, filters, analytics, calendar, explore, import parse, settings, admin, security guards, mobile, metrics math). The app is production-ready with the items above documented as follow-ups/decisions, none of which break or fake functionality.
+
+---
+
+## Audit addendum — MODAL-SETUP-UNIFY (2026-11-05, NORMAL scope, notable finds)
+
+Owner question: "why are there two 'Setup' Linking in the [Add Trade / Trade] Modal?"
+Root cause: two eras sharing ONE column. The original journal's direct setup
+tag (the "Setup" dropdown → Trade.setupId) and the Trading-Plan system's
+versioned chain (Plan → System → Setup, versions pinned at entry) whose third
+picker wrote the SAME column — never synchronized. The schema comment records
+the repurposing: "setupId above now means the setup VARIANT inside a system".
+
+Issues found and fixed (all verified E2E on live pulled data):
+
+1. SEVERE — save collision (creation path): the modal payload's later
+   `setupId: tpSetupId || null` silently overwrote or NULLED the Setup
+   dropdown's choice (an uncompleted chain wiped the dropdown's pick; the
+   missed-trade prefill's seeded setup was wiped the same way).
+2. SEVERE — missing fresh-open resets: a previous edit's plan chain (+
+   rule-engine fields + warnings) bled into the NEXT new trade's payload
+   (a comment promised the resets; no code followed it).
+3. MODERATE — create-path link failures silently discarded: tpPostCreate's
+   comment claimed the error "surfaces in the response tpWarning"; both call
+   sites dropped the return value. Now returned + toasted in the modal.
+4. MODERATE — spurious link rejections on plain-link edits: comparing setupId
+   against the chain fired the link API with {null, null, setupId} →
+   linkTrade's "Pick a plan" 400 toast on every plain-link setup change; a
+   chain→plain downgrade corrupted the row (old plan kept + foreign setupId).
+5. COSMETIC/UX — the chain's third picker rendered BLANK for the 325
+   plain-linked demo trades (value with no matching item). Labels now fall
+   back to the setups catalog (SelectValue children).
+
+Fix design: ONE link, two synchronized pickers (applySetupLink /
+clearSetupLink); shouldCreateLink server rule (plain links skip linkTrade);
+tpWarning in POST /api/trades responses; downgrade clears via the link API
+BEFORE the PUT (linkTrade's clear nulls setupId too). +8 tests
+(trade-setup-link.test.ts); 203/203 suite. No schema change, no dead code
+found in the touched area, nothing deleted.
+
+Remaining (owner-visible, none blocking): missed-trade prefill E2E pending a
+live missedTrade row with a setup (0 exist; the branch rides the same
+resolver verified 4×); POST /api/trades validates zod before auth
+(pre-existing ordering — 401 on valid bodies, no leak).

@@ -6,6 +6,7 @@ import { autoAttachNewsToTrade } from '../trade-news/route'
 import { parseScope, scopeNeedsPostFilter, loadScopeLookups, tradeInScope, hourInSessionWindow } from '@/lib/server/trade-scope'
 import { aggregateLegs, classifyStrategy, computeLegPnl, STRATEGY_KINDS, type LegInput } from '@/lib/legs'
 import { endBoundFromParam } from '@/lib/day-bounds'
+import { shouldCreateLink } from '@/lib/plan-link'
 
 export const dynamic = 'force-dynamic'
 
@@ -457,7 +458,10 @@ export async function POST(req: NextRequest) {
       autoAttachNewsToTrade(trade.id).catch((e) => {
         console.error('Failed to auto-attach news for trade', trade.id, e)
       })
-      await tpPostCreate(user.id, trade, stopLoss, tpLink)
+      // MODAL-SETUP-UNIFY — capture the link outcome: failures were silently
+      // discarded here; they are now returned as tpWarning (the modal toasts
+      // them) instead of vanishing.
+      const tpWarning = await tpPostCreate(user.id, trade, stopLoss, tpLink)
       // TP2 Phase 5 — record the warnings the form showed (multi-leg path)
       if (Array.isArray(body.warningsShown) && body.warningsShown.length > 0) {
         await db.tradeWarningLog.create({
@@ -470,7 +474,7 @@ export async function POST(req: NextRequest) {
         }).catch(() => {})
       }
 
-      return NextResponse.json({ trade })
+      return NextResponse.json({ trade, tpWarning })
     }
 
     if (exitPrice !== null) {
@@ -545,7 +549,7 @@ export async function POST(req: NextRequest) {
     autoAttachNewsToTrade(trade.id).catch((e) => {
       console.error('Failed to auto-attach news for trade', trade.id, e)
     })
-    await tpPostCreate(user.id, trade, stopLoss, tpLink)
+    const tpWarning = await tpPostCreate(user.id, trade, stopLoss, tpLink)
     // TP2 Phase 5 — record which warnings the form showed and that the trade
     // was saved anyway (append-only log; the mark + review read it later).
     if (Array.isArray(body.warningsShown) && body.warningsShown.length > 0) {
@@ -559,7 +563,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {})
     }
 
-    return NextResponse.json({ trade })
+    return NextResponse.json({ trade, tpWarning })
   } catch (e) {
     console.error('POST /api/trades error:', e)
     return NextResponse.json(
@@ -590,7 +594,11 @@ async function tpPostCreate(
         data: { userId, tradeId: trade.id, stopLoss, setAt: now, source: 'manual' },
       })
     }
-    if (link.tradingPlanId || link.systemId || link.setupId) {
+    // MODAL-SETUP-UNIFY — a setup value alone is a plain link (persisted by
+    // the trade write itself); only a real chain (plan, or at least a
+    // system) starts a versioned link. Pushing a setup-only value through
+    // linkTrade used to end in a spurious "Pick a plan" failure.
+    if (shouldCreateLink(link)) {
       const { linkTrade } = await import('@/lib/plan-link')
       await linkTrade(userId, trade.id, link)
     }

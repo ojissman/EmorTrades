@@ -9327,6 +9327,243 @@ step 6) · commit + push last (carries the Auto-Backup ride-along
 **Needs owner decision / left over:** none.
 
 
+---
+
+## Task MODAL-SETUP-UNIFY — the Trade Modal's two "Setup" linkings explained, unified, and their four silent defects fixed (owner question, 2026-11-05)
+
+**Agent:** Z.ai Code (Claude) · **Type:** NEW (owner question on a live surface) · **Scope:** NORMAL
+
+**Task:** Owner: 'Now "Add Trade/ Trade Modal" why are there two "Setup"
+Linking in the Modal?' Acceptance criteria: (1) a factual, code- and
+DB-proven answer; (2) the incoherence resolved — one link, not two fighting
+pickers; (3) every defect found in the touched area fixed end-to-end with
+E2E proof on live pulled data; zero mocks.
+
+**The answer (proven, not guessed):** there are two Setup linkings because
+the app grew across two eras. The original journal linked a trade straight
+to a setup from the user's catalog — the "Setup" dropdown in the main form
+(`Trade.setupId`). The Trading-Plan (TP) system later added the versioned
+"Plan link (versioned)" chain (Plan → System → Setup) that pins the plan/
+system/setup versions in force at entry — its third picker is the SECOND
+"Setup" linking. The schema records the repurposing verbatim:
+`// setupId above now means the setup VARIANT inside a system` — one
+column, TWO surfaces, never synchronized. DB reality on the fresh pull:
+demo user has 11 setups, ALL living inside plan systems (0 standalone);
+329 of 381 trades carry a setupId but only 4 have a plan link — 325
+"plain links" the chain could not even display (blank-disabled picker).
+
+**Four real defects found and fixed:**
+1. **Save collision (both surfaces, creation path):** the modal's payload
+   set `setupId: form.setupId || null` and then, on creation,
+   `setupId: tpSetupId || null` — last write wins, so the chain's setup
+   silently OVERWROTE the Setup dropdown's choice, and an unused chain
+   silently NULLED it (the dropdown's pick was discarded on every save
+   that didn't complete the chain — the missed-trade prefill's seeded
+   setup was wiped this way too).
+2. **Missing fresh-open resets:** the "TP — fresh link state for a new
+   trade" comment had NO code after it — a previous edit's chain (and
+   rule-engine fields + warnings) bled into the NEXT new trade's payload,
+   silently linking it to the previous trade's plan.
+3. **Create-path link failures silently discarded:** tpPostCreate's
+   comment claimed "errors surface in the response tpWarning" — the
+   return value was dropped at both call sites; a failed versioned link
+   was invisible (E2E-proven: the version-less "ORB Push" setup now
+   toasts "Cannot link to the future: the setup has no version in force
+   at entry", previously silent).
+4. **Spurious link rejections on plain-link edits:** the edit path
+   compared setupId against the chain and fired the link API with
+   {null, null, setupId} for every plain-link setup change — linkTrade
+   rejected each with "Pick a plan" (a 400 toast for a save that had
+   already succeeded); and a chain→plain DOWNGRADE ended in a mixed row
+   (old plan kept + foreign setupId).
+
+**Work Log:**
+1. BEFORE gate 13:08:51Z: rules read (CLAUDE/AGENTS/worklog protocol +
+   last 3 entries); ritual blocks snapshotted — identical md5
+   fa3d2a5b… ×3, markers=1. Open-cycle check: tree clean, origin tip
+   411d318 (TOOLS-AI-VERIFY pushed; only the db sidecar ride-along
+   pattern); no open cycle. Day gate already ran today (CLEARED TO WORK
+   12:27:24Z per TOOLS-AI-VERIFY — same day, not the first task).
+2. PULL FIRST 13:10:45Z: production UP (200) → LIVE sync:prod
+   (users=4, trades=386, 1,634,304 bytes; strict schema push additive;
+   dev relaunched by the script, 200 at 13:11:07).
+3. Investigation (code + DB, no guessing): mapped both surfaces
+   (trade-modal.tsx Setup dropdown at the main form; the plan chain's
+   third picker under "Plan link (versioned)"), the save payload's key
+   collision, /api/trades POST (tpLink construction), link/route +
+   src/lib/plan-link.ts linkTrade (clear path nulls setupId too — the
+   ordering constraint), /api/setups response shape (plan is TOP-LEVEL,
+   not inside system — caught live in E2E when the auto-fill didn't
+   fire; fixed the mapping), the 325-trades display state, and the
+   DB reality above (bun scripts against the pulled DB).
+4. Implementation (all additive, no schema change):
+   - src/lib/plan-link.ts: NEW exported shouldCreateLink(link) — a
+     setup-only value is a plain link persisted by the trade write
+     itself; only a real chain (plan, or at least a system) starts a
+     versioned link.
+   - src/app/api/trades/route.ts: tpPostCreate's guard now uses
+     shouldCreateLink (fixes defect 3's root and the spurious
+     linkTrade calls); both create paths CAPTURE the tpPostCreate
+     return and include `tpWarning` in the response JSON (was
+     discarded); import added.
+   - src/components/trade/trade-modal.tsx: (a) enriched Setup rows
+     (systemId/planId/systemName/planName from /api/setups — the
+     modal used to drop the plan-tree home); (b) applySetupLink /
+     clearSetupLink — the shared resolver: picking a setup that lives
+     in an ACTIVE plan's system auto-completes the chain (plan+system
+     fill, quick tag still gets version pinning); a standalone setup
+     (or archived-plan setup) stays a plain link with the chain
+     cleared so it cannot fight the Setup field over the same column;
+     (c) two-way sync — chain setup pick mirrors the Setup field, the
+     chain's plan/system cascade clears it, Setup 'None' clears only
+     the setup component; (d) the missing fresh-open TP resets
+     (plan/system/setup/warnings/rule-engine fields + tpOrigChain
+     snapshot reset); missed-trade prefill seeds route through the
+     same resolver; (e) edit-open snapshots the chain (tpOrigChain)
+     — the post-save decision diffs against it: a DOWNGRADE
+     (chain → plain) now clears via the link API BEFORE the PUT (the
+     clear nulls setupId; the PUT lands the new plain setupId on
+     top), and the setupId compare was removed (defect 4); (f) chain
+     trigger labels fall back to the catalog so values whose items
+     are not mounted (plain links, archived plans, cold tree fetches)
+     show their NAME instead of a blank; (g) one-link helper texts on
+     the Setup field and under the plan chain (answers the owner's
+     question in the UI itself); (h) create-path tpWarning toast.
+5. tests/trade-setup-link.test.ts (NEW, 8 tests): shouldCreateLink
+   matrix (5) + linkTrade DB contract on a temp SQLite — full chain
+   pins versions + append-only event + lands on the SAME
+   Trade.setupId; the clear path nulls chain AND setupId (the
+   downgrade ordering proof); a setup without a plan is rejected
+   (the documented reason shouldCreateLink exists).
+
+**Verification (every number from a command run this session):**
+- Gates serialized (browser closed first, dev stopped around tsc,
+  double-fork relaunch after): lint 0 errors · tsc --noEmit 0 errors ·
+  vitest 203/203 (16 files; 195 prior + 8 new) · dev 200.
+- E2E on the fresh pull (minted demo session, curl-warm first,
+  OOM discipline; dev was found dead once mid-session — relaunch via
+  the canonical double-fork per sync-prod-db §8, then 200):
+  1. Fresh modal: chain all "No plan/No system/No setup" + both
+     helper texts render (labels via SelectValue children — the
+     none-states render correctly).
+  2. THE SYNC: pick "Range Fade" in the Setup dropdown → chain
+     auto-fills "Imported / Imported System / Range Fade" (after the
+     /api/setups shape fix — first attempt proved the E2E catches
+     real bugs: plan is top-level, not s.system.plan).
+  3. Full-chain create (E2E1): saved → DB setupId=Range Fade +
+     tradingPlanId/systemId set + all three version pins +
+     TradeLinkEvent 'set', linkTiming after_close (honest); toast
+     "Trade added", NO tpWarning.
+  4. Version-less setup create (E2E2, second "ORB Push", pubVers=0):
+     toast "Trade added" + the NEW surfacing: "Plan link not applied —
+     Cannot link to the future: the setup has no version in force at
+     entry. Publish a version first (or backdate it for imports).";
+     DB = coherent plain link (setupId set, chain null, pins null,
+     0 events, no partial state).
+  5. Fresh reopen after both saves: chain fully reset — the previous
+     save's chain did NOT bleed (the missing-resets fix; pre-fix the
+     E2E1 chain would have ridden into E2E2's form).
+  6. Legacy plain-link EDIT (E2E2 via ?editTrade deep link): the
+     chain's third picker SHOWS "ORB Push" (was blank-disabled — the
+     325-trades display fix); changed the dropdown to "Trend
+     Pullback" → chain auto-filled → saved: setupId updated, plain
+     link UPGRADED to full chain (pins + event 'set'), no spurious
+     toast (pre-fix: a "Pick a plan" 400 toast fired on every
+     plain-link setup edit).
+  7. Chain DOWNGRADE (JNJ, the plan-linked trade): plan picker →
+     "No plan (unlinked)" → cascade cleared BOTH surfaces (Setup
+     dropdown + chain) → saved: DB chain nulled, pins nulled,
+     adherenceStatus no_plan, event 'cleared' appended (history
+     intact). RESTORED fully afterward: same setup/plan/system, the
+     same deterministic version pins, adherenceStatus restored to
+     cant_tell from its live mark (unclear · 50% — matches the
+     historical record). The JNJ event history now honestly shows the
+     E2E: changed@11:31Z ×2 (the owner's own live-testing that likely
+     prompted this question), cleared@13:35Z, set@13:36Z.
+  8. Both E2E trades deleted via the API (the same DELETE the modal
+     button calls; browser confirms auto-dismiss by design); DB
+     re-checked — gone.
+  9. Mobile 390×844: modal renders, matchMedia(max-width:1023px)=true,
+     scrollWidth 390 (zero overflow). Console: zero errors (empty
+     agent-browser errors output ×3 checks).
+  10. Unauth guards: POST /api/trades/[id]/link 401, GET /api/setups
+      401, POST /api/trades 401 (valid body; invalid body 400 first —
+      pre-existing zod-before-auth ordering, no leak, every handler
+      still guarded; noted, not touched).
+  11. Server log: all E2E requests 200; the ONE expected error line
+      is the E2E2 tpWarning path (by design); pre-existing 429s from
+      the owner's earlier z-ai lane usage (not this session; the app
+      degrades honestly per the briefing pattern).
+
+**Cleanup report:** no dead code, no deps, no routes deleted
+(additive task; the old guard line inside tpPostCreate was replaced
+in place). No orphan candidates found in the touched area. Junk
+purged: 12 /tmp scratch scripts (KB-scale) + tsconfig.tsbuildinfo
+(774KB, from tsc) + /tmp/my-project contents 19M (platform restore
+debris, lsof-cold; the root-owned dir skeleton EPERMs — platform
+property, 4KB, inert; recorded, not a blocker). /tmp 77MB → 58MB;
+keepers untouched (ritual.before.* until push, next-dev.out = the
+running tee's handle, uv locks, tectonic). No git clean -x, no
+purity before commit.
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — MODAL-SETUP-UNIFY
+Date (UTC, from `date -u`):         2026-11-05T13:41:30Z
+Task started / finished:            2026-11-05T13:08:51Z / 2026-11-05T13:41:30Z
+Last production pull (sync:prod):   2026-11-05T13:10:45Z   users=4 trades=386
+Production URL health:              200 (HTTPS)            Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 203/203 passing (16 files)
+Pages/flows verified (list):        Add Trade modal (fresh open, sync
+                                    both ways, full-chain create,
+                                    version-less tpWarning create,
+                                    fresh-reset after saves); Edit
+                                    modal (legacy plain link display +
+                                    upgrade via dropdown; plan-linked
+                                    prefill; chain downgrade + restore);
+                                    unauth 401 ×3; mobile 390×844
+Console + server-log errors:        0 / 0 (one expected tpWarning
+                                    error line by design; pre-existing
+                                    429s are the owner's earlier usage)
+Touched-area audit:                 PASS (Setup field + plan chain
+                                    pickers, labels, helper texts,
+                                    payload, link API ordering; every
+                                    pre-existing surface alongside
+                                    intact)
+KPIs hand-checked vs raw DB:        not touched (no metric changed;
+                                    the E2E verified the DB state of
+                                    every link outcome directly)
+Security: every touched handler guarded, own-data only:  PASS (no
+                                    guard logic changed; guards proven
+                                    live: 401s above; linkTrade
+                                    userId-scoped)
+Dead code removed:                  0 files, 0 deps, 0 routes
+                                    (additive task; nothing dead found)
+Junk purged:                        ~19.8 MB (project —, .git —,
+                                    /tmp 77MB→58MB; the bulk of /tmp is
+                                    keepers: tectonic 57M)
+Orphan DB models needing owner decision: none (no schema change)
+Ritual block intact in all 3 files: YES (verified at push)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull = LIVE production sync 13:10:45Z (users=4,
+trades=386) · this entry above the block · AGENTS.md task entry added
+above its block (step 5) · CLAUDE.md discipline bullet added above its
+block (step 6) · AUDIT_REPORT.md addendum appended (6.1b — notable
+finds) · commit + push last.
+
+**Needs owner decision / left over:** (a) missed-trade prefill E2E not
+run with live data — the demo journal has 0 missedTrade rows; the
+prefill branch rides the SAME resolver verified 4× in this E2E and the
+pre-seed wiring is unchanged (honest gap, dormant path until a missed
+trade with a setup exists); (b) POST /api/trades validates the body
+(zod) before auth — pre-existing ordering, no leak (401 on valid
+bodies, 400 on invalid ones); noted, not touched; (c) /tmp/my-project
+root dir skeleton is platform-owned (EPERM) — 4KB, inert, recorded.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

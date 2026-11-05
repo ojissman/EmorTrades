@@ -1095,6 +1095,43 @@ Risk Tools, Challenges) must become AI-Powered. Delivered:
 - tests/tools-ai.test.ts: 22 tests over the deterministic builders +
   sanitizer (195/195 suite total).
 
+## Task MODAL-SETUP-UNIFY — one link, two pickers: the Trade Modal's Setup unification (2026-11-05)
+
+Owner question: 'why are there two "Setup" Linking in the Modal?' Answer:
+two eras — the original journal's direct setup tag (the "Setup" dropdown,
+`Trade.setupId`) and the Trading-Plan system's versioned chain (Plan →
+System → Setup) whose third picker wrote the SAME column; never
+synchronized. Delivered:
+
+- ONE link, two synchronized surfaces: src/components/trade/trade-modal.tsx
+  applySetupLink/clearSetupLink — picking a setup that lives in an ACTIVE
+  plan's system auto-completes the plan chain (a quick tag still gets its
+  versions pinned at entry); a standalone setup (or one whose plan is
+  archived) stays a plain link with the chain cleared. Chain picks mirror
+  the Setup field; the chain's plan/system cascade clears it. Helper texts
+  answer the question in the UI itself.
+- src/lib/plan-link.ts: NEW shouldCreateLink(link) — a setup-only value is
+  a PLAIN link persisted by the trade write itself; only a real chain
+  (plan, or at least a system) goes through linkTrade. Fixes the spurious
+  "Pick a plan" rejections (and the mixed-row downgrade corruption).
+- POST /api/trades now returns tpWarning (link failures were silently
+  discarded; the modal toasts them).
+- Modal fresh-open resets for the whole TP link state were MISSING — a
+  previous edit's chain bled into the next new trade's payload; every TP
+  surface (chain + rule-engine fields + warnings) resets on a fresh open
+  now, and the edit path snapshots the chain (tpOrigChain) so a
+  chain→plain DOWNGRADE clears via the link API BEFORE the PUT (the clear
+  path nulls setupId; the PUT lands the new plain setupId on top).
+- Chain trigger labels fall back to the /api/setups catalog so values
+  whose items are not mounted (plain links — 325 demo trades, archived
+  plans, cold tree fetches) show their NAME instead of a blank picker.
+- API-shape lesson: /api/setups lifts plan to TOP LEVEL (s.plan, not
+  s.system.plan) — the modal's enrichment maps it accordingly.
+- tests/trade-setup-link.test.ts (+8): shouldCreateLink matrix + linkTrade
+  DB contract (full chain pins + same-column landing; the clear nulls
+  chain AND setupId — the downgrade ordering proof; setup-without-plan
+  rejection documented). 203/203 suite total.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
