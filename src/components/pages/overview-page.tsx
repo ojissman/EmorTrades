@@ -271,8 +271,8 @@ function SimpleView({ stats, banner, onboarding, equityCurve }: ViewProps) {
                 useAppStore.getState().navigate(`/explore/trade-explore?trade=${stats.worst!.id}`)
               } : undefined}
             />
-            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
-            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
+            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" onClick={() => drillToTrades({ outcome: 'win' })} />
+            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" onClick={() => drillToTrades({ outcome: 'loss' })} />
           </div>
         </div>
 
@@ -300,12 +300,12 @@ function ChartsTableView({ stats, trades, banner, onboarding, equityCurve, equit
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => useAppStore.getState().navigate('/tables/trades')} />
-        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
+        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({})} />
+        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} onClick={() => drillToTrades({ outcome: 'win' })} />
         <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
         <Kpi label="Expectancy" icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} />
-        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" />
-        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" />
+        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" onClick={() => drillToTrades({ outcome: 'win' })} />
+        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" onClick={() => drillToTrades({ outcome: 'loss' })} />
       </div>
 
       <SectionLabel icon={LineChart}>Charts</SectionLabel>
@@ -447,13 +447,13 @@ function MultiAllInOneView({ stats, banner, onboarding, equityCurve, equityStart
         {/* Column 1 — PERFORMANCE */}
         <div className="space-y-3">
           <SectionLabel icon={Gauge}>Performance</SectionLabel>
-          <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
+          <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({})} />
           <WinRateMeter stats={stats} />
           <div className="grid grid-cols-2 gap-3">
             <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" compact />
             <Kpi label="Expectancy" icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} compact />
-            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" compact />
-            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" compact />
+            <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} sub="per winner" color="var(--shell-success)" compact onClick={() => drillToTrades({ outcome: 'win' })} />
+            <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} sub="per loser" color="var(--shell-danger)" compact onClick={() => drillToTrades({ outcome: 'loss' })} />
           </div>
           <Panel title="Best / Worst" icon={Trophy} bodyClassName="px-3 pb-3">
             <BestWorstRows stats={stats} />

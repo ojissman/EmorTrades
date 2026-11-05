@@ -201,15 +201,6 @@ export const THEMES: ThemeDef[] = [
 
 export const DEFAULT_THEME_ID = 'midnight'
 
-export function themeById(id: string | null | undefined): ThemeDef {
-  return THEMES.find((t) => t.id === id) ?? THEMES[0]
-}
-
-/** Themes grouped for pickers (Dark row, Light row). */
-export function themesByMode(mode: ThemeMode): ThemeDef[] {
-  return THEMES.filter((t) => t.mode === mode)
-}
-
 /**
  * darkLift → % of white mixed into dark surfaces via CSS `color-mix(in oklab)`.
  * Max lift (0.08 lightness) ≈ 10% white — visible but never washed out.

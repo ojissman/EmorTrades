@@ -47,18 +47,6 @@ export interface ImportManifest {
   outcomes: RowOutcome[]
 }
 
-export async function saveOriginalFile(
-  bytes: Uint8Array,
-  originalName: string,
-): Promise<{ storedName: string; storedPath: string; sha: string }> {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const storedName = `${stamp}__${sanitizeName(originalName)}`
-  const storedPath = path.join(IMPORTS_DIR, storedName)
-  await fs.mkdir(IMPORTS_DIR, { recursive: true })
-  await fs.writeFile(storedPath, bytes)
-  return { storedName, storedPath, sha: sha256(bytes) }
-}
-
 export async function writeManifest(manifest: ImportManifest): Promise<void> {
   await fs.mkdir(IMPORTS_DIR, { recursive: true })
   await fs.writeFile(
@@ -66,60 +54,4 @@ export async function writeManifest(manifest: ImportManifest): Promise<void> {
     JSON.stringify(manifest, null, 2),
     'utf-8',
   )
-}
-
-/** File-level idempotency: was this exact file already imported (any account)? */
-export async function findPriorImport(sha: string): Promise<ImportManifest | null> {
-  try {
-    const files = await fs.readdir(IMPORTS_DIR)
-    for (const f of files) {
-      if (!f.endsWith('.manifest.json')) continue
-      try {
-        const raw = await fs.readFile(path.join(IMPORTS_DIR, f), 'utf-8')
-        const m = JSON.parse(raw) as ImportManifest
-        if (m.sha256 === sha) return m
-      } catch {
-        // unreadable manifest — skip, don't crash the import
-      }
-    }
-  } catch {
-    // no imports dir yet
-  }
-  return null
-}
-
-/** List retained imports (newest first) — for the audit/settings surfaces. */
-export async function listRetainedImports(limit = 50): Promise<
-  { storedName: string; originalName: string; importedAt: string; detectedFormat: string; importedTrades: number; sizeBytes: number }[]
-> {
-  try {
-    const files = await fs.readdir(IMPORTS_DIR)
-    const manifests = files.filter((f) => f.endsWith('.manifest.json'))
-    const out: {
-      storedName: string
-      originalName: string
-      importedAt: string
-      detectedFormat: string
-      importedTrades: number
-      sizeBytes: number
-    }[] = []
-    for (const f of manifests.slice(-limit)) {
-      try {
-        const m = JSON.parse(await fs.readFile(path.join(IMPORTS_DIR, f), 'utf-8')) as ImportManifest
-        out.push({
-          storedName: m.storedName,
-          originalName: m.originalName,
-          importedAt: m.storedAt,
-          detectedFormat: m.detectedFormat,
-          importedTrades: m.importedTrades,
-          sizeBytes: m.sizeBytes,
-        })
-      } catch {
-        // skip unreadable
-      }
-    }
-    return out.reverse()
-  } catch {
-    return []
-  }
 }

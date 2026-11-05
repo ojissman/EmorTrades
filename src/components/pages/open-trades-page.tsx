@@ -149,12 +149,14 @@ export function OpenTradesPage() {
   const longExposure = openTrades.filter((t: any) => t.side === 'long').reduce((s: number, t: any) => s + t.quantity * t.entryPrice * multOf(t), 0)
   const shortExposure = openTrades.filter((t: any) => t.side === 'short').reduce((s: number, t: any) => s + t.quantity * t.entryPrice * multOf(t), 0)
 
-  // Worst-case risk (if all stops hit)
+  // Worst-case risk (if all stops hit) — AUDIT §6.5/CLICKSWEEP: scales by
+  // the futures multiplier like exposure/unrealized (ES/CL stops were
+  // under-reported by the contract multiple).
   const worstCaseRisk = openTrades.reduce((sum: number, t: any) => {
     if (!t.stopLoss) return sum
     const risk = t.side === 'long'
-      ? (t.entryPrice - t.stopLoss) * t.quantity
-      : (t.stopLoss - t.entryPrice) * t.quantity
+      ? (t.entryPrice - t.stopLoss) * t.quantity * multOf(t)
+      : (t.stopLoss - t.entryPrice) * t.quantity * multOf(t)
     return sum + risk
   }, 0)
 
@@ -375,12 +377,14 @@ export function OpenTradesPage() {
                   {openTrades.map((t: any) => {
                     // AUDIT M8 — exposure/unrealized scale by the futures
                     // contract multiplier (see multOf above; default 1).
+                    // CLICKSWEEP §6.5 — stop-risk scales too (same fix as the
+                    // aggregate worstCaseRisk above).
                     const mult = multOf(t)
                     const exposure = t.quantity * t.entryPrice * mult
                     const risk = t.stopLoss
                       ? t.side === 'long'
-                        ? (t.entryPrice - t.stopLoss) * t.quantity
-                        : (t.stopLoss - t.entryPrice) * t.quantity
+                        ? (t.entryPrice - t.stopLoss) * t.quantity * mult
+                        : (t.stopLoss - t.entryPrice) * t.quantity * mult
                       : null
                     const quote: MarketQuote | undefined = quoteMap[t.symbol]
                     const price = quote?.price ?? null

@@ -229,7 +229,7 @@ export function ScorePage() {
               <PolarGrid stroke="var(--border)" />
               <PolarAngleAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-              <Radar name="Score" dataKey="value" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.4} />
+              <Radar name="Score" dataKey="value" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.4} cursor="pointer" onClick={(data: any) => { const n = data?.payload?.name ?? data?.name; const r = n && COMPONENT_ROUTE[n]; if (r) navigate(r) }} />
               <Tooltip
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--popover-foreground)' }}
               />
@@ -259,7 +259,7 @@ export function ScorePage() {
                   )
                 }}
               />
-              <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              <Bar dataKey="value" radius={[0, 3, 3, 0]} className="cursor-pointer" onClick={(data: any) => { const n = data?.payload?.name ?? data?.name; const r = n && COMPONENT_ROUTE[n]; if (r) navigate(r) }}>
                 {barData.map((d: any, i: number) => (
                   <Cell key={i} fill={d.color} />
                 ))}

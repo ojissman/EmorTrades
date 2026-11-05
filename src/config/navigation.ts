@@ -530,8 +530,3 @@ export function groupTabsForRoute(route: string): GroupTabsSpec | null {
 
   return { groupLabel: group.label, rows, total: leaves.length }
 }
-
-/** Full nav items (Simple Mode renders SIMPLE_MODE_NAV instead — Fix 3). */
-export function topLevelForMode(_simpleMode: boolean): NavItem[] {
-  return NAV_ITEMS
-}

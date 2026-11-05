@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { peekTrade } from '@/lib/drill'
+import { drillToTrades, drillToDay, monthPatch, dayOfWeekIndex } from '@/lib/drill'
 import { useAppStore } from '@/store/app-store'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
@@ -86,13 +86,14 @@ function toAnalyticsInput(t: TradeRow): TradeInput {
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function groupTrades(trades: TradeRow[], keyOf: (t: TradeRow) => string): { label: string; pnl: number; trades: number }[] {
-  const m = new Map<string, { label: string; pnl: number; trades: number }>()
+function groupTrades(trades: TradeRow[], keyOf: (t: TradeRow) => string, idOf?: (t: TradeRow) => string | undefined): { label: string; pnl: number; trades: number; id?: string }[] {
+  const m = new Map<string, { label: string; pnl: number; trades: number; id?: string }>()
   for (const t of trades) {
     const k = keyOf(t)
-    const cur = m.get(k) ?? { label: k, pnl: 0, trades: 0 }
+    const cur = m.get(k) ?? { label: k, pnl: 0, trades: 0, id: idOf?.(t) }
     cur.pnl += t.pnl
     cur.trades++
+    if (cur.id === undefined) cur.id = idOf?.(t)
     m.set(k, cur)
   }
   return [...m.values()].sort((a, b) => b.pnl - a.pnl)
@@ -192,7 +193,7 @@ export function YearlyExplorePage() {
       })
       const res = await fetch(`/api/sessions-analytics?${params}`)
       if (!res.ok) throw new Error('Failed')
-      return (await res.json()) as { sessions: { name: string; trades: number; netPnl: number }[] }
+      return (await res.json()) as { sessions: { name: string; trades: number; netPnl: number; startHour: number | null; endHour: number | null }[] }
     },
     enabled: !!from && !!to,
   })
@@ -255,12 +256,12 @@ export function YearlyExplorePage() {
 
   // groupings (pure helpers, compiler-friendly: the memo closes over nothing)
   const bySystem = useMemo(() => groupTrades(trades, (t) => t.system?.name ?? 'No system'), [trades])
-  const bySetup = useMemo(() => groupTrades(trades, (t) => t.setup?.name ?? 'No setup'), [trades])
+  const bySetup = useMemo(() => groupTrades(trades, (t) => t.setup?.name ?? 'No setup', (t) => t.setupId ?? undefined), [trades])
   const bySymbol = useMemo(() => groupTrades(trades, (t) => t.symbol), [trades])
   const byWeekday = useMemo(() => groupWeekdays(trades), [trades])
   const bySession = useMemo(() => {
     const rows = (sessionsQ.data?.sessions ?? []).filter((s) => s.trades > 0)
-    return rows.map((s) => ({ label: s.name, pnl: s.netPnl, trades: s.trades })).sort((a, b) => b.pnl - a.pnl)
+    return rows.map((s) => ({ label: s.name, pnl: s.netPnl, trades: s.trades, startHour: s.startHour, endHour: s.endHour })).sort((a, b) => b.pnl - a.pnl)
   }, [sessionsQ.data])
 
   // trade count + size trend (per month)
@@ -291,6 +292,23 @@ export function YearlyExplorePage() {
 
   const periodLabel = period.window.label
   const reportKind = tab === 'year' ? ('explore-year' as const) : ('explore-quarter' as const)
+
+  // CLICKSWEEP — the year/quarter window as a global-filter patch: every KPI
+  // tile and month row can drill to the Trades table scoped to exactly this
+  // window. NOTE: window from/to are precise full timestamps (local-midnight
+  // anchored, e.g. 2026-01-01T04:00:00.000Z) — use them VERBATIM (the same
+  // bounds this page queries), never re-suffix (E2E caught the double
+  // `T00:00:00.000Z` that produced).
+  const periodPatch = {
+    customStartDate: from!,
+    customEndDate: to!,
+  }
+  // CLICKSWEEP — R-distribution buckets → exact minR/maxR deep-link patches
+  // (same band semantics the r-multiple page's histogram drills use).
+  const R_BANDS: { min?: number; max?: number }[] = [
+    { max: -3 }, { min: -3, max: -2 }, { min: -2, max: -1 }, { min: -1, max: -0.0001 },
+    { min: 0, max: 1 }, { min: 1, max: 2 }, { min: 2, max: 3 }, { min: 3 },
+  ]
 
   return (
     <div className="space-y-4">
@@ -327,14 +345,14 @@ export function YearlyExplorePage() {
 
       {/* Part 1 — KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiTile label="Net P&L" value={money(analytics.netProfit)} tone={analytics.netProfit >= 0 ? 'pos' : 'neg'} sub={`${analytics.closedTrades} closed`} />
-        <KpiTile label="Win rate" value={`${analytics.winRate.toFixed(0)}%`} sub={`${analytics.wins}W / ${analytics.losses}L`} />
+        <KpiTile label="Net P&L" value={money(analytics.netProfit)} tone={analytics.netProfit >= 0 ? 'pos' : 'neg'} sub={`${analytics.closedTrades} closed`} title="Open these trades in the Trades table" onClick={() => drillToTrades(periodPatch)} />
+        <KpiTile label="Win rate" value={`${analytics.winRate.toFixed(0)}%`} sub={`${analytics.wins}W / ${analytics.losses}L`} title="Drill to the winning trades" onClick={() => drillToTrades({ ...periodPatch, outcome: 'win' })} />
         <KpiTile label="Profit factor" value={isFinite(analytics.profitFactor) ? analytics.profitFactor.toFixed(2) : '∞'} />
         <KpiTile label="Expectancy" value={money(analytics.expectancy)} tone={analytics.expectancy >= 0 ? 'pos' : 'neg'} />
         <KpiTile label="Avg R" value={analytics.averageRMultiple ? `${analytics.averageRMultiple.toFixed(2)}R` : '—'} />
         <KpiTile label="Max drawdown" value={money(analytics.maxDrawdown)} tone="neg" sub={`${analytics.maxDrawdownPercent.toFixed(1)}%`} />
         <KpiTile label="Streaks" value={`${analytics.maxWinStreak}W / ${analytics.maxLossStreak}L`} />
-        <KpiTile label="Trades" value={String(analytics.totalTrades)} />
+        <KpiTile label="Trades" value={String(analytics.totalTrades)} onClick={() => drillToTrades(periodPatch)} title="Open these trades in the Trades table" />
       </div>
 
       {/* equity + monthly P&L */}
@@ -349,7 +367,7 @@ export function YearlyExplorePage() {
               <p className="text-sm text-muted-foreground h-full flex items-center justify-center">No closed trades in this period.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+                <AreaChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }}>
                   <defs>
                     <linearGradient id="yearEq" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
@@ -360,7 +378,7 @@ export function YearlyExplorePage() {
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => v.slice(2, 7)} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" domain={['auto', 'auto']} />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'Equity']} />
-                  <Area type="monotone" dataKey="equity" stroke="#10b981" fill="url(#yearEq)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="equity" stroke="#10b981" fill="url(#yearEq)" strokeWidth={2} cursor="pointer" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -381,7 +399,7 @@ export function YearlyExplorePage() {
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => MONTH_LABELS[Number(v.slice(5)) - 1]} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'P&L']} />
-                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(data: any) => { const m = data?.payload?.month; if (m) drillToTrades(monthPatch(String(m))) }}>
                     {monthly.map((m, i) => (
                       <Cell key={i} fill={m.pnl >= 0 ? '#10b981' : '#ef4444'} />
                     ))}
@@ -415,7 +433,7 @@ export function YearlyExplorePage() {
               </thead>
               <tbody>
                 {monthly.map((m) => (
-                  <tr key={m.month} className="border-b border-border/40">
+                  <tr key={m.month} className="border-b border-border/40 cursor-pointer hover:bg-muted/40" title="Open this month's trades" onClick={() => drillToTrades(monthPatch(m.month))}>
                     <td className="py-1.5">{MONTH_LABELS[Number(m.month.slice(5)) - 1]} {m.month.slice(0, 4)}</td>
                     <td className="py-1.5 text-right tnum">{m.trades}</td>
                     <td className="py-1.5 text-right tnum">{m.trades ? Math.round((m.wins / m.trades) * 100) : 0}%</td>
@@ -428,12 +446,12 @@ export function YearlyExplorePage() {
           )}
           {bestMonth && worstMonth && (
             <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+              <div className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40" title="Open the best month's trades" onClick={() => drillToTrades(monthPatch(bestMonth.month))}>
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3" /> Best month</p>
                 <p className="text-sm font-semibold">{MONTH_LABELS[Number(bestMonth.month.slice(5)) - 1]} {bestMonth.month.slice(0, 4)}</p>
                 <p className="text-emerald-400 tnum text-sm font-semibold">{money(bestMonth.pnl)}</p>
               </div>
-              <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20">
+              <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 cursor-pointer hover:border-red-500/40" title="Open the worst month's trades" onClick={() => drillToTrades(monthPatch(worstMonth.month))}>
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><TrendingDown className="h-3 w-3" /> Worst month</p>
                 <p className="text-sm font-semibold">{MONTH_LABELS[Number(worstMonth.month.slice(5)) - 1]} {worstMonth.month.slice(0, 4)}</p>
                 <p className="text-red-400 tnum text-sm font-semibold">{money(worstMonth.pnl)}</p>
@@ -451,12 +469,12 @@ export function YearlyExplorePage() {
               <p className="text-sm text-muted-foreground h-full flex items-center justify-center">No closed trades.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+                <LineChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => v.slice(2, 7)} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" domain={['auto', 'auto']} />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'Equity']} />
-                  <Line type="monotone" dataKey="equity" stroke="#ef4444" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="equity" stroke="#ef4444" strokeWidth={1.5} dot={false} cursor="pointer" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -469,11 +487,14 @@ export function YearlyExplorePage() {
 
       {/* by system/setup/symbol/session/weekday + R distribution + trend */}
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
+        {/* CLICKSWEEP — "By system" rows stay non-drillable: systems are
+            groupings of setups and no filter param expresses that union yet
+            (honesty over a dead link). Every other list drills for real. */}
         <MiniList title="By system" rows={bySystem} />
-        <MiniList title="By setup" rows={bySetup} />
-        <MiniList title="By symbol" rows={bySymbol.slice(0, 10)} />
-        <MiniList title="By session" rows={bySession} />
-        <MiniList title="By weekday" rows={byWeekday} />
+        <MiniList title="By setup" rows={bySetup} drillOf={(r) => (r.id ? { setupId: r.id } : null)} />
+        <MiniList title="By symbol" rows={bySymbol.slice(0, 10)} drillOf={(r) => ({ symbol: r.label })} />
+        <MiniList title="By session" rows={bySession} drillOf={(r) => (r.startHour != null && r.endHour != null && r.startHour >= 0 ? { hourFrom: r.startHour, hourTo: r.endHour } : null)} />
+        <MiniList title="By weekday" rows={byWeekday} drillOf={(r) => { const d = dayOfWeekIndex(r.label); return d === undefined ? null : { dayOfWeek: d } }} />
       </div>
       <div className="grid lg:grid-cols-2 gap-3">
         <Card className="p-4">
@@ -488,7 +509,7 @@ export function YearlyExplorePage() {
                 <XAxis dataKey="bucket" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                 <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="#64748b" />
+                <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="#64748b" cursor="pointer" name="trades" onClick={(data: any) => { const i = rDistribution.findIndex((r) => r.bucket === (data?.payload?.bucket ?? data?.bucket)); if (i >= 0) drillToTrades({ ...periodPatch, ...R_BANDS[i] }) }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -510,7 +531,7 @@ export function YearlyExplorePage() {
                   <YAxis yAxisId="l" allowDecimals={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                   <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                  <Bar yAxisId="l" dataKey="trades" fill="#0ea5e9" radius={[3, 3, 0, 0]} name="trades" />
+                  <Bar yAxisId="l" dataKey="trades" fill="#0ea5e9" radius={[3, 3, 0, 0]} name="trades" cursor="pointer" onClick={(data: any) => { const m = data?.payload?.month; if (m) drillToTrades(monthPatch(String(m))) }} />
                   <Bar yAxisId="r" dataKey="avgQty" fill="#f59e0b" radius={[3, 3, 0, 0]} name="avg size" />
                 </BarChart>
               </ResponsiveContainer>
@@ -574,7 +595,13 @@ export function YearlyExplorePage() {
   )
 }
 
-function MiniList(props: { title: string; rows: { label: string; pnl: number; trades: number }[] }) {
+function MiniList(props: {
+  title: string
+  rows: { label: string; pnl: number; trades: number; id?: string; startHour?: number | null; endHour?: number | null }[]
+  /** CLICKSWEEP — optional per-row drill: returns the global-filter patch the
+   * row drills to, or null when this row has no expressible cohort. */
+  drillOf?: (row: { label: string; pnl: number; trades: number; id?: string; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
+}) {
   return (
     <Card className="p-4">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{props.title}</p>
@@ -582,14 +609,22 @@ function MiniList(props: { title: string; rows: { label: string; pnl: number; tr
         <p className="text-xs text-muted-foreground">No trades.</p>
       ) : (
         <ul className="space-y-1 max-h-44 overflow-y-auto">
-          {props.rows.map((r) => (
-            <li key={r.label} className="flex items-center justify-between gap-2 text-xs">
-              <span className="truncate" title={r.label}>{r.label}</span>
-              <span className="shrink-0 text-muted-foreground">
-                {r.trades}× <span style={{ color: pnlColor(r.pnl) }}>{money(r.pnl)}</span>
-              </span>
-            </li>
-          ))}
+          {props.rows.map((r) => {
+            const patch = props.drillOf ? props.drillOf(r) : null
+            return (
+              <li
+                key={r.label}
+                className={cn('flex items-center justify-between gap-2 text-xs rounded px-1 -mx-1', patch && 'cursor-pointer hover:bg-muted/50')}
+                title={patch ? "Open these trades" : undefined}
+                onClick={patch ? () => drillToTrades(patch as Parameters<typeof drillToTrades>[0]) : undefined}
+              >
+                <span className="truncate" title={r.label}>{r.label}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {r.trades}× <span style={{ color: pnlColor(r.pnl) }}>{money(r.pnl)}</span>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </Card>

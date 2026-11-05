@@ -20,7 +20,6 @@ import type { Prisma } from '@prisma/client'
 type PrismaTransaction = Prisma.TransactionClient
 
 export type PlanLevel = 'plan' | 'system' | 'setup'
-export const ENGINE_VERSION = 'tp-engine-1'
 
 // ---------- content helpers ----------
 

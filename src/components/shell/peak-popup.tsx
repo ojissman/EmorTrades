@@ -12,7 +12,6 @@ import * as Popover from '@radix-ui/react-popover'
 
 export const PeakPopup = Popover.Root
 export const PeakPopupTrigger = Popover.Trigger
-export const PeakPopupAnchor = Popover.Anchor
 
 export function PeakPopupContent({
   children,

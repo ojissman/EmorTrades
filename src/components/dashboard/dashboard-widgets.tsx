@@ -19,6 +19,8 @@ import type { ReactNode } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { usePeekStore } from '@/store/peek-store'
 import { useFilterStore } from '@/store/filter-store'
+// CLICKSWEEP — the desk period cards + charts join the app-wide drill family.
+import { drillToDay, drillToTrades, weekPatch, monthPatch } from '@/lib/drill'
 import { StatCard } from '@/components/stat-card'
 import { AiWidgetDash } from '@/components/ai/ai-widget-card'
 import { Card } from '@/components/ui/card'
@@ -296,15 +298,36 @@ function SummaryCard({
   sub,
   positive,
   negative,
+  onClick,
+  onClickTitle,
 }: {
   label: string
   value: string
   sub: string
   positive?: boolean
   negative?: boolean
+  /** CLICKSWEEP — period cards drill to Day Explore / the Trades table. */
+  onClick?: () => void
+  onClickTitle?: string
 }) {
   return (
-    <Card className="p-4 overflow-hidden">
+    <Card
+      className={cn('p-4 overflow-hidden transition-colors', onClick && 'cursor-pointer hover:border-emerald-500/40')}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={onClick ? (onClickTitle ?? 'Open these trades') : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+    >
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
       <FitValue
         className={cn(
@@ -334,6 +357,11 @@ export function DeskPeriodSummary() {
   }
   const a = data.analytics
   const s = data.summary
+  // CLICKSWEEP — the exact periods the cards summarize, as drills: today →
+  // Day Explore; week/month → the Trades table scoped to the window (the
+  // same windows /api/dashboard summarizes). Streak stays non-drillable
+  // (a run is an exit-order concept no filter param expresses exactly).
+  const todayKey = new Date().toISOString().slice(0, 10)
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4" data-testid="desk-period-summary">
       <SummaryCard
@@ -342,6 +370,8 @@ export function DeskPeriodSummary() {
         sub={`${s.todayTrades} trades`}
         positive={s.todayPnL > 0}
         negative={s.todayPnL < 0}
+        onClick={() => drillToDay(todayKey)}
+        onClickTitle="Open today in Day Explore"
       />
       <SummaryCard
         label="This Week"
@@ -349,6 +379,8 @@ export function DeskPeriodSummary() {
         sub={`${s.weekTrades} trades`}
         positive={s.weekPnL > 0}
         negative={s.weekPnL < 0}
+        onClick={() => drillToTrades(weekPatch(todayKey))}
+        onClickTitle="Open this week's trades"
       />
       <SummaryCard
         label="This Month"
@@ -356,6 +388,8 @@ export function DeskPeriodSummary() {
         sub={`${s.monthTrades} trades`}
         positive={s.monthPnL > 0}
         negative={s.monthPnL < 0}
+        onClick={() => drillToTrades(monthPatch(todayKey.slice(0, 7)))}
+        onClickTitle="Open this month's trades"
       />
       <SummaryCard
         label="Current Streak"
@@ -482,6 +516,11 @@ export function DeskEquityCurve({
               stroke="var(--chart-1)"
               strokeWidth={2}
               fill="url(#equityGradDesk)"
+              cursor="pointer"
+              onClick={(state: any) => {
+                const p = state?.activePayload?.[0]?.payload
+                if (p?.date) drillToDay(String(p.date).slice(0, 10))
+              }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -547,7 +586,10 @@ export function DeskDailyPnl({ size = 'standard', days = 30, heightPx }: { size?
                 )
               }}
             />
-            <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="pnl" radius={[3, 3, 0, 0]} className="cursor-pointer" onClick={(entry: any) => {
+              const d = entry?.payload?.date ?? entry?.date
+              if (d) drillToDay(String(d).slice(0, 10))
+            }}>
               {daily.map((d: any, i: number) => (
                 <Cell key={i} fill={d.pnl > 0 ? '#10b981' : d.pnl < 0 ? '#ef4444' : '#64748b'} />
               ))}

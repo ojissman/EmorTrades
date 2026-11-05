@@ -423,44 +423,67 @@ export function PsychologyPage() {
       <Card className="p-5 md:p-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-md bg-red-500/10">
-                <AlertTriangle className="h-4 w-4 text-red-400" />
+          <button
+            type="button"
+            className="text-left cursor-pointer rounded-lg p-1 -m-1 transition-colors hover:bg-muted/30"
+            title="Open the trades behind the emotional cost"
+            onClick={() => {
+              // CLICKSWEEP — OR-drill via tagIds (tagsMatch defaults to any).
+              const ids = psychStats.filter((s) => s.pnl < 0 && s.tagId).map((s) => s.tagId as string)
+              if (ids.length) drillToTrades({ tagIds: ids })
+            }}
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 rounded-md bg-red-500/10">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold tracking-tight">Cost of Emotion</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Total P&L impact from emotional trades
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold tracking-tight">Cost of Emotion</h3>
-                <p className="text-xs text-muted-foreground">
-                  Total P&L impact from emotional trades
-                </p>
-              </div>
+              <FitValue className="text-3xl font-bold tnum text-red-400">
+                -{formatCurrencyIn('table', totalPsychCost)}
+              </FitValue>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across {psychStats.filter((s) => s.pnl < 0).reduce((sum, s) => sum + s.count, 0)} trades tagged with negative emotions
+              </p>
             </div>
-            <FitValue className="text-3xl font-bold tnum text-red-400">
-              -{formatCurrencyIn('table', totalPsychCost)}
-            </FitValue>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {psychStats.filter((s) => s.pnl < 0).reduce((sum, s) => sum + s.count, 0)} trades tagged with negative emotions
-            </p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-md bg-white/5">
-                <Heart className="h-4 w-4 text-[var(--text-secondary)]" />
+          </button>
+          <button
+            type="button"
+            className="text-left cursor-pointer rounded-lg p-1 -m-1 transition-colors hover:bg-muted/30"
+            title="Open the disciplined trades behind this benefit"
+            onClick={() => {
+              const ids = psychStats
+                .filter((s) => s.pnl > 0 && ['patient', 'disciplined', 'confident'].includes(s.name.toLowerCase()) && s.tagId)
+                .map((s) => s.tagId as string)
+              if (ids.length) drillToTrades({ tagIds: ids })
+            }}
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 rounded-md bg-white/5">
+                  <Heart className="h-4 w-4 text-[var(--text-secondary)]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold tracking-tight">Value of Discipline</h3>
+                  <p className="text-xs text-muted-foreground">
+                    P&L from patient/disciplined trades
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold tracking-tight">Value of Discipline</h3>
-                <p className="text-xs text-muted-foreground">
-                  P&L from patient/disciplined trades
-                </p>
-              </div>
+              <FitValue className="text-3xl font-bold tnum text-emerald-400">
+                +{formatCurrencyIn('table', totalDisciplineBenefit)}
+              </FitValue>
+              <p className="text-xs text-muted-foreground mt-1">
+                Across {psychStats.filter((s) => s.pnl > 0 && ['patient', 'disciplined', 'confident'].includes(s.name.toLowerCase())).reduce((sum, s) => sum + s.count, 0)} disciplined trades
+              </p>
             </div>
-            <FitValue className="text-3xl font-bold tnum text-emerald-400">
-              +{formatCurrencyIn('table', totalDisciplineBenefit)}
-            </FitValue>
-            <p className="text-xs text-muted-foreground mt-1">
-              Across {psychStats.filter((s) => s.pnl > 0 && ['patient', 'disciplined', 'confident'].includes(s.name.toLowerCase())).reduce((sum, s) => sum + s.count, 0)} disciplined trades
-            </p>
-          </div>
+          </button>
         </div>
       </Card>
 

@@ -220,12 +220,6 @@ export const useThemePrefs = create<ThemePrefsStore>()(
   )
 )
 
-/** Compute the override value for one dark surface at a given lift. */
-export function surfaceOverride(key: DarkSurfaceKey, lift: number): string {
-  const s = DARK_SURFACE_BASE[key]
-  return `oklch(${(s.l + lift).toFixed(3)} ${s.c} ${s.h})`
-}
-
 export { DARK_SURFACE_VAR }
 
 /** Advance to the next theme in registry order (wraps) — top-bar click-cycle. */

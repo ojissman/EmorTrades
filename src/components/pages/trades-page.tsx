@@ -907,7 +907,8 @@ export function TradesPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this trade?')) return
     try {
-      await fetch(`/api/trades/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/trades/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Trade deleted' })
       queryClient.invalidateQueries({ queryKey: ['trades'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })

@@ -40,8 +40,8 @@ export function ProfitFactorPage() {
           tone={s.profitFactor === null ? 'good' : s.profitFactor >= 1.5 ? 'good' : s.profitFactor >= 1 ? 'warn' : 'bad'}
           big
         />
-        <MetricStat label="Gross profit" value={formatCurrencyIn('kpi', s.grossWin, 'USD')} sub={`${s.wins} winning trades`} tone="good" />
-        <MetricStat label="Gross loss" value={formatCurrencyIn('kpi', -s.grossLoss, 'USD')} sub={`${s.losses} losing trades`} tone="bad" />
+        <MetricStat label="Gross profit" value={formatCurrencyIn('kpi', s.grossWin, 'USD')} sub={`${s.wins} winning trades`} tone="good" onClick={() => drillToTrades({ outcome: 'win' })} />
+        <MetricStat label="Gross loss" value={formatCurrencyIn('kpi', -s.grossLoss, 'USD')} sub={`${s.losses} losing trades`} tone="bad" onClick={() => drillToTrades({ outcome: 'loss' })} />
         <MetricStat label="Net result" value={formatCurrencyIn('kpi', s.net, 'USD')} sub={`after ${formatCurrencyIn('kpi', s.totalCost, 'USD')} costs`} tone={s.net >= 0 ? 'good' : 'bad'} />
       </div>
 

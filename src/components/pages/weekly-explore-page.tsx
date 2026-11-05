@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore, PAGE_TO_ROUTE } from '@/store/app-store'
 // Task 15-W6 — the weekly ritual is a hub now: every day/trade links out.
-import { drillToDay, peekTrade } from '@/lib/drill'
+import { drillToDay, peekTrade, drillToTrades, weekPatch } from '@/lib/drill'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -162,8 +162,8 @@ export function WeeklyExplorePage() {
           <h3 className="font-semibold tracking-tight">Week at a Glance</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <MetricMini label="Trades" value={String(tw.trades)} delta={deltas.trades} />
-          <MetricMini label="Win Rate" value={`${tw.winRate.toFixed(0)}%`} delta={deltas.winRate} suffix="%" />
+          <MetricMini label="Trades" value={String(tw.trades)} delta={deltas.trades} onClick={() => drillToTrades(weekPatch(String(data.weekRange.start).slice(0, 10)))} title="Open this week's trades" />
+          <MetricMini label="Win Rate" value={`${tw.winRate.toFixed(0)}%`} delta={deltas.winRate} suffix="%" onClick={() => drillToTrades({ ...weekPatch(String(data.weekRange.start).slice(0, 10)), outcome: 'win' })} title="Open this week's winning trades" />
           <MetricMini label="Profit Factor" value={isFinite(tw.profitFactor) ? tw.profitFactor.toFixed(2) : '∞'} delta={deltas.profitFactor} />
           <MetricMini label="Expectancy" value={formatCurrencyIn('ai', tw.expectancy)} />
           <MetricMini label="Avg Win" value={formatCurrencyIn('ai', tw.avgWin)} />
@@ -247,7 +247,7 @@ export function WeeklyExplorePage() {
                       )
                     }}
                   />
-                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]} className="cursor-pointer" onClick={(data: any) => { const d = data?.payload?.date ?? data?.date; if (d) drillToDay(String(d).slice(0, 10)) }}>
                     {(data.days ?? []).map((d: any, i: number) => (
                       <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} />
                     ))}
@@ -335,7 +335,7 @@ export function WeeklyExplorePage() {
                   key={i}
                   onClick={() => w.id && peekTrade({ id: w.id, symbol: w.symbol, side: w.side, entryTime: w.entryTime, pnl: w.pnl })}
                   title="Open the trade peek"
-                  className="flex items-center gap-3 p-2 rounded-md bg-white/[0.03] border border-[var(--border-strong)] transition-colors hover:bg-white/[0.06]"
+                  className="flex items-center gap-3 p-2 rounded-md bg-white/[0.03] border border-[var(--border-strong)] transition-colors hover:bg-white/[0.06] cursor-pointer"
                 >
                   <span className="text-xs text-muted-foreground tnum w-4">{i + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -370,7 +370,7 @@ export function WeeklyExplorePage() {
                   key={i}
                   onClick={() => l.id && peekTrade({ id: l.id, symbol: l.symbol, side: l.side, entryTime: l.entryTime, pnl: l.pnl })}
                   title="Open the trade peek"
-                  className="flex items-center gap-3 p-2 rounded-md bg-red-500/5 border border-red-500/20 transition-colors hover:bg-red-500/10"
+                  className="flex items-center gap-3 p-2 rounded-md bg-red-500/5 border border-red-500/20 transition-colors hover:bg-red-500/10 cursor-pointer"
                 >
                   <span className="text-xs text-muted-foreground tnum w-4">{i + 1}</span>
                   <div className="flex-1 min-w-0">
@@ -487,8 +487,8 @@ export function WeeklyExplorePage() {
               <h3 className="font-semibold tracking-tight">3 Observations That Matter</h3>
             </div>
             <div className="space-y-2">
-              <ObservationRow label="Best setup" value={data.bestSetup ? `${data.bestSetup.name} (+${formatCurrencyIn('ai', data.bestSetup.pnl)})` : 'N/A'} />
-              <ObservationRow label="Worst setup" value={data.worstSetup ? `${data.worstSetup.name} (${formatCurrencyIn('ai', data.worstSetup.pnl)})` : 'N/A'} />
+              <ObservationRow label="Best setup" value={data.bestSetup ? `${data.bestSetup.name} (+${formatCurrencyIn('ai', data.bestSetup.pnl)})` : 'N/A'} onClick={data.bestSetup?.id ? () => drillToTrades({ setupId: data.bestSetup.id }) : undefined} />
+              <ObservationRow label="Worst setup" value={data.worstSetup ? `${data.worstSetup.name} (${formatCurrencyIn('ai', data.worstSetup.pnl)})` : 'N/A'} onClick={data.worstSetup?.id ? () => drillToTrades({ setupId: data.worstSetup.id }) : undefined} />
               <ObservationRow label="Avg R-multiple" value={`${tw.avgRMultiple.toFixed(2)}R`} />
               <ObservationRow label="Win streak" value={`${tw.winStreak} wins`} />
               <ObservationRow label="Loss streak" value={`${tw.lossStreak} losses`} />
@@ -537,7 +537,7 @@ export function WeeklyExplorePage() {
                   )
                 }}
               />
-              <Bar dataKey="pnl" radius={[0, 3, 3, 0]}>
+              <Bar dataKey="pnl" radius={[0, 3, 3, 0]} className="cursor-pointer" onClick={(data: any) => { const s = tw.setups.find((k: any) => k.name === (data?.payload?.name ?? data?.name)); if (s?.id) drillToTrades({ setupId: s.id }) }}>
                 {tw.setups.map((s: any, i: number) => (
                   <Cell key={i} fill={s.color || (s.pnl > 0 ? '#10b981' : '#ef4444')} />
                 ))}
@@ -723,9 +723,16 @@ function writeChecks(key: string, checks: Record<string, boolean>): void {
   }
 }
 
-function MetricMini({ label, value, delta, suffix }: { label: string, value: string, delta?: number, suffix?: string }) {
+function MetricMini({ label, value, delta, suffix, onClick, title }: { label: string, value: string, delta?: number, suffix?: string, onClick?: () => void, title?: string }) {
   return (
-    <div className="p-3 rounded-md bg-muted/40 border border-border">
+    <div
+      className={cn('p-3 rounded-md bg-muted/40 border border-border', onClick && 'cursor-pointer hover:border-emerald-500/40 transition-colors')}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={title}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+    >
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
       <p className="text-sm font-bold tnum mt-1">{value}</p>
       {delta !== undefined && delta !== 0 && (
@@ -751,9 +758,16 @@ function CompareRow({ label, thisVal, lastVal, delta, deltaStr }: { label: strin
   )
 }
 
-function ObservationRow({ label, value }: { label: string, value: string }) {
+function ObservationRow({ label, value, onClick }: { label: string, value: string, onClick?: () => void }) {
   return (
-    <div className="flex items-center justify-between p-2 rounded-md bg-muted/40 text-xs">
+    <div
+      className={cn('flex items-center justify-between p-2 rounded-md bg-muted/40 text-xs', onClick && 'cursor-pointer hover:bg-muted/70')}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={onClick ? 'Open these trades' : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+    >
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium">{value}</span>
     </div>

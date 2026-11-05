@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils'
 import { formatCurrencyIn, pnlColor } from '@/lib/format'
 import type { MonthlyPoint, PeriodStats } from '@/lib/calendar-intel'
 import { pctDelta } from '@/lib/calendar-intel'
+import { drillToTrades } from '@/lib/drill'
+
+/** CLICKSWEEP — the global-filter patch shape drillToTrades accepts. */
+type DrillPatch = Parameters<typeof drillToTrades>[0]
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -28,6 +32,9 @@ interface Props {
   prev: PeriodStats | null
   prevLabel: string // e.g. 'vs September'
   series: MonthlyPoint[] // daily P&L of the period, for the Net P&L sparkline
+  /** CLICKSWEEP — the period window as a global-filter patch; when present,
+   * the cards drill to the Trades table scoped to exactly this period. */
+  drillPatch?: DrillPatch
 }
 
 function DeltaChip({
@@ -64,6 +71,8 @@ function CardShell({
   testid,
   delta,
   className,
+  onClick,
+  onClickTitle,
   children,
 }: {
   icon: LucideIcon
@@ -71,12 +80,19 @@ function CardShell({
   testid: string
   delta?: React.ReactNode
   className?: string
+  onClick?: () => void
+  onClickTitle?: string
   children: React.ReactNode
 }) {
   return (
     <Card
       data-testid={testid}
-      className={cn('relative overflow-hidden p-4 transition-colors hover:border-[var(--border-strong)]', className)}
+      className={cn('relative overflow-hidden p-4 transition-colors hover:border-[var(--border-strong)]', onClick && 'cursor-pointer hover:border-emerald-500/40', className)}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={onClick ? (onClickTitle ?? 'Open these trades') : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -90,8 +106,9 @@ function CardShell({
   )
 }
 
-export function CalendarMetricsRow({ stats, prev, prevLabel, series }: Props) {
+export function CalendarMetricsRow({ stats, prev, prevLabel, series, drillPatch }: Props) {
   const hasPrev = !!prev && prev.trades > 0
+  const drill = drillPatch ? () => drillToTrades(drillPatch) : undefined
 
   // --- deltas ---------------------------------------------------------------
   const netDelta = hasPrev ? stats.netPnl - prev.netPnl : null
@@ -111,6 +128,8 @@ export function CalendarMetricsRow({ stats, prev, prevLabel, series }: Props) {
         label="Net P&L"
         testid="metric-net-pnl"
         className="col-span-2 xl:col-span-1"
+        onClick={drill}
+        onClickTitle="Open this period's trades"
         delta={
           netDelta !== null ? (
             <DeltaChip
@@ -156,6 +175,8 @@ export function CalendarMetricsRow({ stats, prev, prevLabel, series }: Props) {
         icon={Target}
         label="Win Rate"
         testid="metric-win-rate"
+        onClick={drill ? () => drillToTrades({ ...drillPatch, outcome: 'win' }) : undefined}
+        onClickTitle="Open this period's winning trades"
         delta={
           wrDelta !== null ? (
             <DeltaChip
@@ -190,6 +211,8 @@ export function CalendarMetricsRow({ stats, prev, prevLabel, series }: Props) {
         icon={CandlestickChart}
         label="Total Trades"
         testid="metric-total-trades"
+        onClick={drill}
+        onClickTitle="Open this period's trades"
         delta={
           tradesDelta !== null ? (
             <DeltaChip

@@ -150,7 +150,8 @@ export function MiscNotesPage() {
   async function del(id: string) {
     if (!confirm('Delete this note?')) return
     try {
-      await fetch(`/api/misc-notes?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/misc-notes?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Note deleted' })
       queryClient.invalidateQueries({ queryKey: ['misc-notes'] })
     } catch {

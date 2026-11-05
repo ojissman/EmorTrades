@@ -76,7 +76,7 @@ import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { signTone } from '@/lib/screener'
 // Task 12 — records the drill origin so Trade Explore offers the breadcrumb.
-import { markDrillOrigin, drillToTrades } from '@/lib/drill'
+import { markDrillOrigin, drillToTrades, peekTrade } from '@/lib/drill'
 // Task 22-b — Hide Chart Points (Settings ▸ Display).
 import { useSettingsPrefsStore } from '@/store/settings-prefs-store'
 import { formatCurrencyIn, type CurrencyArea } from '@/lib/format'
@@ -374,6 +374,8 @@ export function DayExplorePage() {
           pnl: Math.round((t.pnl ?? 0) * 100) / 100,
           cum: Math.round(cum * 100) / 100,
           time: timeOf(t.entryTime),
+          id: t.id,
+          side: t.side,
         }
       })
   }, [day])
@@ -692,6 +694,7 @@ export function DayExplorePage() {
           value={`${money(best.pnl ?? 0, 'kpi')} / ${money(worst.pnl ?? 0, 'kpi')}`}
           sub={`${best.symbol} · ${worst.symbol}`}
           tone={context?.isBest ? 'good' : context?.isWorst ? 'bad' : 'neutral'}
+          onClick={() => peekTrade({ id: best.id, symbol: best.symbol, side: best.side, entryTime: best.entryTime, pnl: best.pnl ?? 0 })}
         />
       </div>
 
@@ -716,7 +719,7 @@ export function DayExplorePage() {
                 }}
               />
               <ReferenceLine y={0} stroke="var(--border-strong)" />
-              <Bar dataKey="pnl" radius={[2, 2, 0, 0]} maxBarSize={26}>
+              <Bar dataKey="pnl" radius={[2, 2, 0, 0]} maxBarSize={26} className="cursor-pointer" onClick={(data: any) => { const c = curve.find((k) => k.i === (data?.payload?.i ?? data?.i)); if (c?.id) peekTrade({ id: c.id, symbol: c.sym, pnl: c.pnl }) }}>
                 {curve.map((c, i) => (
                   <Cell key={i} fill={c.pnl >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'} fillOpacity={0.55} />
                 ))}

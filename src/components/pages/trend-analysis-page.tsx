@@ -314,6 +314,7 @@ export function TrendAnalysisPage() {
           value={`${Math.round(recent.winRate)}%`}
           sub={`prior ${Math.round(prior.winRate)}% · ${dWr >= 0 ? '+' : '−'}${Math.abs(Math.round(dWr))}pp`}
           tone={dWr >= 0 ? 'good' : 'bad'}
+          onClick={() => drillToTrades({ lastTrades: model.windowN })}
         />
         <MetricStat
           label={`Avg R — last ${model.windowN}`}
@@ -326,6 +327,7 @@ export function TrendAnalysisPage() {
           value={money(recent.net)}
           sub={`prior ${money(prior.net)}`}
           tone={recent.net >= prior.net ? 'good' : 'bad'}
+          onClick={() => drillToTrades({ lastTrades: model.windowN })}
         />
         <MetricStat
           label="Plan discipline"

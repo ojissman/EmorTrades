@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 import { calculateAnalytics, type TradeInput } from '@/lib/analytics'
 import { loadServerCurrencyDisplay, serverFmtSignedUsd, serverFmtUsd } from '@/lib/server-money'
+import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
 
@@ -21,7 +22,7 @@ interface Briefing {
 // current streak, open exposure and overall risk stats.
 export async function POST() {
   try {
-    const auth = await requireUser()
+    const auth = await requireUser({ include: { accounts: true } })
     if (!auth.ok) return auth.response
     const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
@@ -62,7 +63,11 @@ export async function POST() {
       holdingPeriod: t.holdingPeriod,
     })
 
-    const analytics = calculateAnalytics(closed.map(toInput), user.startingCapital)
+    // CLICKSWEEP (audit §6.2) — the shared equity baseline: Σ account
+    // startingBalance with the profile capital as fallback, identical to
+    // /api/dashboard, so briefing numbers match the charts.
+    const baseline = equityBaselineFor(user)
+    const analytics = calculateAnalytics(closed.map(toInput), baseline)
 
     // Last session = calendar day of the most recent exit
     const lastSessionDate = closed[0]?.exitTime
@@ -128,7 +133,7 @@ export async function POST() {
         totalReturnPct: Number(analytics.totalReturnPercent.toFixed(1)),
       },
       riskPerTradePct: user.riskPerTrade,
-      startingCapital: user.startingCapital,
+      startingCapital: baseline,
     }
 
     const systemPrompt = `You are the AI coaching desk of EmorTrades, a professional trading journal. Write the trader's DAILY BRIEFING for their next session. You are given the last session's trades, the current streak, open positions and lifetime risk stats.
@@ -231,7 +236,7 @@ Rules:
           streakType === 'loss' && streak >= 2
             ? `Current ${streak}-loss streak — cut size by 50% until a win clears the tilt.`
             : open.length > 0
-              ? `${open.length} open position${open.length > 1 ? 's' : ''} (~${Math.round((openExposure / Math.max(user.startingCapital, 1)) * 100)}% of capital exposed) — manage exits before adding new risk.`
+              ? `${open.length} open position${open.length > 1 ? 's' : ''} (~${Math.round((openExposure / Math.max(baseline, 1)) * 100)}% of capital exposed) — manage exits before adding new risk.`
               : null,
       }
     }

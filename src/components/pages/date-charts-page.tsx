@@ -269,8 +269,8 @@ export function DateChartsPage({ mode }: { mode: 'day' | 'calendar' }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricStat label="Net across days" value={fmtMoney(model.netAll, 'kpi')} sub={`${model.days.length} trading days`} tone={model.netAll >= 0 ? 'good' : 'bad'} big />
           <MetricStat label="Green-day share" value={`${Math.round((model.greenDays / model.days.length) * 100)}%`} sub={`${model.greenDays} of ${model.days.length} days in profit`} tone="good" />
-          <MetricStat label="Best day" value={fmtMoney(model.bestDay.pnl, 'kpi')} sub={`${fmtDayLabel(model.bestDay.date)} · ${model.bestDay.trades} trades`} tone="good" />
-          <MetricStat label="Worst day" value={fmtMoney(model.worstDay.pnl, 'kpi')} sub={`${fmtDayLabel(model.worstDay.date)} · ${model.worstDay.trades} trades`} tone="bad" />
+          <MetricStat label="Best day" value={fmtMoney(model.bestDay.pnl, 'kpi')} sub={`${fmtDayLabel(model.bestDay.date)} · ${model.bestDay.trades} trades`} tone="good" onClick={() => drillToDay(model.bestDay.date)} />
+          <MetricStat label="Worst day" value={fmtMoney(model.worstDay.pnl, 'kpi')} sub={`${fmtDayLabel(model.worstDay.date)} · ${model.worstDay.trades} trades`} tone="bad" onClick={() => drillToDay(model.worstDay.date)} />
           <MetricStat label="Avg / trading day" value={fmtMoney(model.avgDay, 'kpi')} sub="net ÷ days with fills" tone={model.avgDay >= 0 ? 'good' : 'bad'} />
         </div>
 
@@ -308,10 +308,10 @@ export function DateChartsPage({ mode }: { mode: 'day' | 'calendar' }) {
             </div>
           </Panel>
 
-          <Panel title="Cumulative daily equity" hint="running sum of daily nets — the shape of your edge">
+          <Panel title="Cumulative daily equity" hint="running sum of daily nets — the shape of your edge · click a point to open that day">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={model.cumDays} margin={{ top: 4, right: 4, bottom: 0, left: -6 }}>
+                <AreaChart data={model.cumDays} margin={{ top: 4, right: 4, bottom: 0, left: -6 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(p.date) }} style={{ cursor: 'pointer' }}>
                   <defs>
                     <linearGradient id="dc-cum" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
@@ -328,7 +328,7 @@ export function DateChartsPage({ mode }: { mode: 'day' | 'calendar' }) {
                     cursor={{ stroke: 'var(--border-strong)' }}
                   />
                   <ReferenceLine y={0} stroke="var(--border-strong)" />
-                  <Area type="monotone" dataKey="cum" stroke="#10b981" strokeWidth={2} fill="url(#dc-cum)" name="cumulative" />
+                  <Area type="monotone" dataKey="cum" stroke="#10b981" strokeWidth={2} fill="url(#dc-cum)" name="cumulative" cursor="pointer" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

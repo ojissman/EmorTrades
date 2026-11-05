@@ -198,9 +198,3 @@ export async function sendPasswordResetEmail(toEmail: string, link: string): Pro
 }
 
 /* ── Generic send (notifications, admin test sends) ──────────────────────── */
-
-export async function sendNotificationEmail(toEmail: string, subject: string, html: string): Promise<DeliveryResult> {
-  // No dev link to surface for notifications — they simply don't send in
-  // dev-delivery mode (nothing security-critical depends on them).
-  return deliverEmail(toEmail, subject, html, '')
-}

@@ -384,16 +384,6 @@ export function pnlBg(value: number | null | undefined): string {
   return value > 0 ? 'bg-profit' : 'bg-loss'
 }
 
-export function getDayName(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', { weekday: 'short' })
-}
-
-export function getMonthName(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('en-US', { month: 'short' })
-}
-
 // Task 95 — compact signed PnL for dense dropdown columns: "+$1.2K",
 // "-$340", "$0". The sign is explicit for every non-zero value so the
 // column reads at a glance; sub-dollar noise collapses to plain "$0".

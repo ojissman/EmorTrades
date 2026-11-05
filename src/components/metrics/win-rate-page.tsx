@@ -31,8 +31,8 @@ export function WinRatePage() {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricStat label="Hit ratio" value={formatPercent(s.winRate, 1)} sub={`${s.wins}W · ${s.losses}L · ${s.breakeven}BE of ${s.total}`} tone={s.winRate >= 50 ? 'good' : s.winRate >= 40 ? 'warn' : 'bad'} big />
-        <MetricStat label="Best month" value={bestMonth ? formatPercent(bestMonth.winRate, 0) : '—'} sub={bestMonth ? `${bestMonth.month} · ${bestMonth.trades} trades` : undefined} tone="good" />
-        <MetricStat label="Weakest month" value={worstMonth ? formatPercent(worstMonth.winRate, 0) : '—'} sub={worstMonth ? `${worstMonth.month} · ${worstMonth.trades} trades` : undefined} tone={worstMonth && worstMonth.winRate < 40 ? 'bad' : 'warn'} />
+        <MetricStat label="Best month" value={bestMonth ? formatPercent(bestMonth.winRate, 0) : '—'} sub={bestMonth ? `${bestMonth.month} · ${bestMonth.trades} trades` : undefined} tone="good" onClick={bestMonth ? () => drillToTrades(monthPatch(bestMonth.month)) : undefined} />
+        <MetricStat label="Weakest month" value={worstMonth ? formatPercent(worstMonth.winRate, 0) : '—'} sub={worstMonth ? `${worstMonth.month} · ${worstMonth.trades} trades` : undefined} tone={worstMonth && worstMonth.winRate < 40 ? 'bad' : 'warn'} onClick={worstMonth ? () => drillToTrades(monthPatch(worstMonth.month)) : undefined} />
         <MetricStat label="Streaks" value={`${s.maxWinStreak}W · ${s.maxLossStreak}L`} sub="longest consecutive runs" />
       </div>
 

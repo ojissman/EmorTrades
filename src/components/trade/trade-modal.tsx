@@ -870,7 +870,8 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
       return
     setLoading(true)
     try {
-      await fetch(`/api/trades/${editingTradeId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/trades/${editingTradeId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Trade deleted' })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['trades'] })

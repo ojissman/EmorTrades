@@ -99,13 +99,6 @@ export function effectivePermissions(user: Pick<User, 'role' | 'adminRole' | 'ad
   return [...new Set([...ROLE_DEFAULTS[role], ...parseGrants(user.adminPermissions)])]
 }
 
-export function hasPermission(
-  user: Pick<User, 'role' | 'adminRole' | 'adminPermissions'>,
-  permission: AdminPermission,
-): boolean {
-  return effectivePermissions(user).includes(permission)
-}
-
 /* ── Route-handler guard (same discriminated-union contract as requireAdmin) ── */
 
 export type PermissionResult =

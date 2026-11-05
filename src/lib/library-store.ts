@@ -68,10 +68,6 @@ export async function ensureUploadsDir(): Promise<void> {
   await fs.mkdir(UPLOADS_DIR, { recursive: true })
 }
 
-export function extFromMime(mime: string): string | null {
-  return ALLOWED_MIME[mime] ?? null
-}
-
 export function contentTypeForFilename(name: string): string | null {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   return CONTENT_TYPES[ext] ?? null

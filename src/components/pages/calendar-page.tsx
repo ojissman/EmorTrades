@@ -80,7 +80,7 @@ import {
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 // the app-wide day deep link (breadcrumb-aware) — every "open this day" on
 // this page routes through it so Day Explore always offers the way back.
-import { drillToDay } from '@/lib/drill'
+import { drillToDay, drillToTrades, monthPatch, weekPatch } from '@/lib/drill'
 
 // ---------- Calendar view system (full upgrade) ----------
 // The calendar now has four first-class views — Day, Week, Month, Year —
@@ -1356,6 +1356,7 @@ export function CalendarPage() {
           prev={prevMonthPeriodStats}
           prevLabel={`vs ${prevMonthLong}`}
           series={monthSeriesData}
+          drillPatch={monthPatch(monthKeyStr)}
         />
       )}
       {view === 'day' && (
@@ -1364,6 +1365,7 @@ export function CalendarPage() {
           prev={prevTradedDayStats}
           prevLabel={`vs ${prevTradedDayLabel}`}
           series={daySeriesData}
+          drillPatch={{ customStartDate: `${dayKey}T00:00:00.000Z`, customEndDate: `${dayKey}T23:59:59.999Z` }}
         />
       )}
       {view === 'week' && (
@@ -1372,6 +1374,7 @@ export function CalendarPage() {
           prev={prevWeekPeriodStats}
           prevLabel="vs prev week"
           series={weekSeriesData}
+          drillPatch={weekPatch(dayKey)}
         />
       )}
       {view === 'year' && (
@@ -1380,6 +1383,7 @@ export function CalendarPage() {
           prev={prevYearPeriodStats}
           prevLabel={`vs ${year - 1}`}
           series={yearSeriesData}
+          drillPatch={{ customStartDate: `${year}-01-01T00:00:00.000Z`, customEndDate: `${year}-12-31T23:59:59.999Z` }}
         />
       )}
 

@@ -35,6 +35,9 @@ import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 import { limitToAmount, limitLabel } from '@/lib/plan-limits'
 import { useAppStore } from '@/store/app-store'
+// CLICKSWEEP — the guardrail cards join the app-wide drill family (day
+// deep link, tail-streak trades deep link, open positions page).
+import { drillToDay, drillToTrades } from '@/lib/drill'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 import { ToolsAiPanel } from '@/components/tools/tools-ai-panel'
@@ -380,9 +383,11 @@ export function RiskPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           {/* 1. Daily loss limit */}
           <Card className={cn(
-            'p-4 overflow-hidden',
+            'p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors',
             guardrails.dllColor === 'rose' ? 'border-red-500/30' : guardrails.dllColor === 'amber' ? 'border-amber-500/30' : ''
-          )}>
+          )}
+            title="Open today in Day Explore"
+            onClick={() => drillToDay(new Date().toISOString().slice(0, 10))}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                 <CalendarClock className="h-3 w-3" /> Daily loss limit
@@ -433,7 +438,19 @@ export function RiskPage() {
                   ? 'No consecutive losers at the latest exit.'
                   : 'Consecutive closed losers counted from the latest exit.'
             return (
-              <Card className={cn('p-4 overflow-hidden', tone === 'rose' ? 'border-red-500/30' : tone === 'amber' ? 'border-amber-500/30' : '')}>
+              <Card className={cn('p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors', tone === 'rose' ? 'border-red-500/30' : tone === 'amber' ? 'border-amber-500/30' : '')}
+                title="Open the trades in the current streak"
+                onClick={() => {
+                  // CLICKSWEEP — an exit-ordered streak of length N is exactly
+                  // the last N trades filtered to its outcome; streak 0 = no
+                  // run, nothing to drill (honest no-op).
+                  if (guardrails.streak > 0) {
+                    drillToTrades({
+                      lastTrades: guardrails.streak,
+                      outcome: guardrails.streakType === 'win' ? 'win' : 'loss',
+                    })
+                  }
+                }}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                     <Repeat className="h-3 w-3" /> Loss streak guard
@@ -490,7 +507,9 @@ export function RiskPage() {
           </Card>
 
           {/* 4. Open exposure */}
-          <Card className={cn('p-4 overflow-hidden', guardrails.openPct > 50 ? 'border-amber-500/30' : '')}>
+          <Card className={cn('p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors', guardrails.openPct > 50 ? 'border-amber-500/30' : '')}
+            title="Open the live positions page"
+            onClick={() => useAppStore.getState().navigate('/tables/open-positions')}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                 <Layers className="h-3 w-3" /> Open exposure

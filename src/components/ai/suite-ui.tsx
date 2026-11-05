@@ -333,22 +333,6 @@ export function GradeRing({ grade, tone }: { grade: string; tone: SuiteTone }) {
 
 // ---- loading shimmer -------------------------------------------------------------
 
-export function SuiteLoading({ label }: { label: string }) {
-  return (
-    <div className="rounded-xl p-6 flex flex-col items-center justify-center gap-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--shell-border)' }} aria-busy="true">
-      <div className="relative w-9 h-9">
-        <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: 'var(--shell-accent)', borderRightColor: 'var(--shell-accent)' }} />
-        <div className="absolute inset-0 grid place-items-center">
-          <Sparkles size={14} style={{ color: 'var(--shell-accent)' }} />
-        </div>
-      </div>
-      <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-        {label}
-      </p>
-    </div>
-  )
-}
-
 // ---- localStorage helpers ---------------------------------------------------------
 
 export function loadJson<T>(key: string, validate: (v: unknown) => T | null): T | null {

@@ -375,3 +375,23 @@ same APIs the UI calls (day tags, group, TEST trade all deleted and
 DB-verified). Remaining owner-side items: none blocking (gmail test send
 requires a connected Gmail account — honest 409 otherwise; missed-trade
 prefill E2E still dormant pending a live missedTrade row with a setup).
+
+---
+
+## Audit addendum — CLICKSWEEP (2026-11-05, FULL-SWEEP: wiring + clickability)
+
+Owner directive: sweep the whole app for Tags-like defects (surfaces that look wired but aren't) and cards/KPIs/modals that deserve drill/peek but are static.
+
+**How:** 4 parallel inventory agents (metrics-zone, explore/overview-zone, wiring-defect classes A-F, fetch-path↔route AST diff + dead-code delta); findings verified in code before fixing.
+
+**Issues found and fixed:**
+1. CRITICAL — the admin "Send test email" button called POST /api/admin/gmail/test which NEVER existed in any commit (two commit messages claimed it; git forensics: the file was uncommitted working-tree residue). The button 404'd silently since it shipped. Route implemented for real (guards + audit + honest 409). Process lesson recorded: verify routes in the tree, not in commit messages.
+2. HIGH — 7 mutating DELETE handlers ignored the fetch response and toasted success on failure (journal, day-notes, misc-notes, mistakes, trades row, trade modal, missed-trades). All fixed (res.ok checks).
+3. The clickability inventory found ~60 ready-now gaps (static elements whose cohort IS expressible with existing filter params — every one had an interactive sibling proving intent) + 31 blocked ones (needing new deep-link params/payload ids — left as documented honest no-ops). All 60 wired across: overview (all 4 presets + all registry KPI widgets), yearly/monthly/weekly/day explore, calendar metrics row, metrics family tiles, date-charts, treemap, score, psychology, profiler, trend, executions, risk guardrails, chart-explore, missed-trades. KpiTile/kpiRenderer/BestWorstCards/BestWorstRows/EquityChart gained the onClick affordances; weekly-review API now carries setup ids.
+4. E2E caught two defects in the first wiring pass (double-suffixed period timestamps; year-less maxDD date keys) — both fixed and re-verified (metrics running now emits full YYYY-MM-DD + dateKey).
+5. Audit §6 leftovers closed: equityBaselineFor() unifies all 5 AI narrative routes on Σ-account baseline (+5 tests; ai/tools no longer fabricates 10000); hourFrom/hourTo → UTC; open-position stop-risk scales by the futures multiplier.
+6. Dead code: 3 orphan routes (import/map-columns, market/candles, seed — zero-caller proofs), 49 dead exports, .gitignore download/ root-anchored (rg was silently skipping a live route).
+
+**Remaining (owner-visible, none blocking):** the 31 blocked cohort drills (capture-rate, rvol regime, dayOfMonth, EOD-delta, time-to-peak, system-union, quarter windows — need batched filter-param/payload-id work); demo seeding of psych tags + a missed-trade row so those surfaces can be E2E'd on data; Dashboard model + User.displayMode still deferred owner decisions from the Nov-2 audit.
+
+**Tests:** 213/213 (18 files, +5 equity-baseline). Gates: lint 0, tsc 0. E2E 12/12 (10 pass + 2 honest-empty), mobile 390 zero overflow ×3, console 0, KPI hand-check exact (40000 = Σ demo accounts).

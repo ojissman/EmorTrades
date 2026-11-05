@@ -84,18 +84,43 @@ export function PeriodScopeBar(props: {
   )
 }
 
-/** One KPI tile of the strips the Explore pages use (Part 1). */
+/** One KPI tile of the strips the Explore pages use (Part 1).
+ * CLICKSWEEP: optional onClick — the tile renders as an interactive affordance
+ * (cursor + hover ring) and is keyboard-focusable; used for period/symbol
+ * drill-downs on the Explore KPI bands. */
 export function KpiTile(props: {
   label: string
   value: React.ReactNode
   sub?: React.ReactNode
   tone?: 'pos' | 'neg' | 'neutral'
   title?: string
+  onClick?: () => void
 }) {
   const toneCls =
     props.tone === 'pos' ? 'text-emerald-400' : props.tone === 'neg' ? 'text-red-400' : 'text-foreground'
+  const interactive = typeof props.onClick === 'function'
   return (
-    <div className="rounded-lg border bg-card/60 px-3 py-2.5 min-w-0" title={props.title}>
+    <div
+      className={cn(
+        'rounded-lg border bg-card/60 px-3 py-2.5 min-w-0',
+        interactive &&
+          'cursor-pointer hover:border-emerald-500/40 hover:bg-card focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/50 transition-colors'
+      )}
+      title={props.title}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={props.onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                props.onClick?.()
+              }
+            }
+          : undefined
+      }
+    >
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{props.label}</p>
       <FitValue className={cn('text-lg font-bold tnum leading-tight', toneCls)}>{props.value}</FitValue>
       {props.sub ? <p className="text-[11px] text-muted-foreground truncate">{props.sub}</p> : null}

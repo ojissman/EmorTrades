@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import { loadServerCurrencyDisplay, serverFmtSignedUsd, serverFmtUsd } from '@/lib/server-money'
 import {
   calculateAnalytics,
@@ -185,7 +186,7 @@ async function generateReview(tradeId: string, userId: string) {
   })
   if (!trade) return { status: 404 as const, body: { error: 'Trade not found' } }
 
-  const user = await db.user.findUnique({ where: { id: userId } })
+  const user = await db.user.findUnique({ where: { id: userId }, include: { accounts: true } })
   if (!user) return { status: 404 as const, body: { error: 'No user' } }
   // Currency Display pref — review text money honors Settings ▸ Display (AI).
   await loadServerCurrencyDisplay(user.id)
@@ -218,7 +219,9 @@ async function generateReview(tradeId: string, userId: string) {
     accountId: t.accountId,
     holdingPeriod: t.holdingPeriod,
   }))
-  const analytics = calculateAnalytics(tradeInputs, user.startingCapital)
+  // CLICKSWEEP (audit §6.2) — shared equity baseline, matching /api/dashboard.
+  const equityBaseline = equityBaselineFor(user)
+  const analytics = calculateAnalytics(tradeInputs, equityBaseline)
   const symbolStats = calculateSymbolStats(tradeInputs)
 
   // 10 closed trades immediately before this trade's entry (context window)
@@ -320,7 +323,7 @@ async function generateReview(tradeId: string, userId: string) {
     maxDrawdownPercent: Number(analytics.maxDrawdownPercent.toFixed(1)),
     totalPnL: Number(analytics.totalPnL.toFixed(2)),
     totalReturnPercent: Number(analytics.totalReturnPercent.toFixed(1)),
-    startingCapital: user.startingCapital,
+    startingCapital: equityBaseline,
     riskPerTradePct: user.riskPerTrade,
     topSymbols: symbolStats.slice(0, 3).map((s) => ({ symbol: s.symbol, winRate: Number(s.winRate.toFixed(0)), pnl: Number(s.pnl.toFixed(2)) })),
     worstSymbols: symbolStats.slice(-3).map((s) => ({ symbol: s.symbol, winRate: Number(s.winRate.toFixed(0)), pnl: Number(s.pnl.toFixed(2)) })),

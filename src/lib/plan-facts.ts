@@ -366,9 +366,3 @@ export function factsForPrompt(facts: TradeFacts): string {
     line('Stand-down recorded for the day', facts.standDown),
   ].join('\n')
 }
-
-/** The local week start label ("week starting Mon 2026-10-19") — for review blocks. */
-export function weekStartLabel(d: Date, tz: string, weekStartsOn: number): string {
-  const ws = localWeekStart(d, tz, weekStartsOn)
-  return ws.toISOString().slice(0, 10)
-}

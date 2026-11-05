@@ -53,12 +53,14 @@ export function TradeExpectancyPage() {
           value={bestSymbol ? formatCurrencyIn('kpi', bestSymbol.expectancy, 'USD') : '—'}
           sub={bestSymbol ? `${bestSymbol.key} · ${bestSymbol.trades} trades` : undefined}
           tone={bestSymbol && bestSymbol.expectancy >= 0 ? 'good' : 'bad'}
+          onClick={bestSymbol ? () => drillToTrades({ symbol: bestSymbol.key }) : undefined}
         />
         <MetricStat
           label="Weakest symbol"
           value={worstSymbol ? formatCurrencyIn('kpi', worstSymbol.expectancy, 'USD') : '—'}
           sub={worstSymbol ? `${worstSymbol.key} · ${worstSymbol.trades} trades` : undefined}
           tone={worstSymbol && worstSymbol.expectancy >= 0 ? 'warn' : 'bad'}
+          onClick={worstSymbol ? () => drillToTrades({ symbol: worstSymbol.key }) : undefined}
         />
       </div>
 

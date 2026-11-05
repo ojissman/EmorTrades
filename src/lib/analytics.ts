@@ -557,32 +557,6 @@ export interface PnLDistribution {
   pnl: number
 }
 
-export function calculatePnLDistribution(
-  trades: TradeInput[]
-): PnLDistribution[] {
-  const closed = trades.filter((t) => t.status === 'closed')
-  if (closed.length === 0) return []
-  const pnls = closed.map((t) => t.pnl)
-  const min = Math.min(...pnls)
-  const max = Math.max(...pnls)
-  const range = Math.max((max - min) / 10, 1)
-  const buckets: PnLDistribution[] = []
-  for (let i = 0; i < 10; i++) {
-    const start = min + i * range
-    const end = start + range
-    const inRange = closed.filter((t) => {
-      if (i === 9) return t.pnl >= start && t.pnl <= end
-      return t.pnl >= start && t.pnl < end
-    })
-    buckets.push({
-      range: `${formatCurrencyShort(start)} - ${formatCurrencyShort(end)}`,
-      count: inRange.length,
-      pnl: inRange.reduce((sum, t) => sum + t.pnl, 0),
-    })
-  }
-  return buckets
-}
-
 function formatCurrencyShort(value: number): string {
   const sign = value < 0 ? '-' : ''
   const abs = Math.abs(value)
@@ -606,79 +580,4 @@ export interface MonteCarloResult {
   riskOfRuin: number
 }
 
-export function monteCarloSimulation(
-  trades: TradeInput[],
-  iterations = 1000,
-  tradesPerRun = 100,
-  startingCapital = 10000
-): MonteCarloResult {
-  const closed = trades.filter((t) => t.status === 'closed')
-  if (closed.length < 5) {
-    return {
-      finalEquities: [],
-      percentiles: { p5: 0, p25: 0, p50: 0, p75: 0, p95: 0 },
-      maxDrawdowns: [],
-      riskOfRuin: 0,
-    }
-  }
-  const pnls = closed.map((t) => t.pnl)
-  const finalEquities: number[] = []
-  const maxDrawdowns: number[] = []
-  let ruinCount = 0
-
-  for (let i = 0; i < iterations; i++) {
-    let equity = startingCapital
-    let peak = equity
-    let maxDD = 0
-    let ruined = false
-    for (let j = 0; j < tradesPerRun; j++) {
-      const randomPnl = pnls[Math.floor(Math.random() * pnls.length)]
-      equity += randomPnl
-      if (equity < 0) {
-        ruined = true
-        break
-      }
-      if (equity > peak) peak = equity
-      const dd = peak - equity
-      if (dd > maxDD) maxDD = dd
-    }
-    if (!ruined) {
-      finalEquities.push(equity)
-      maxDrawdowns.push(maxDD)
-    } else {
-      ruinCount += 1
-    }
-  }
-
-  const sorted = [...finalEquities].sort((a, b) => a - b)
-  const pct = (p: number) =>
-    sorted.length > 0 ? sorted[Math.floor(sorted.length * p)] : 0
-
-  return {
-    finalEquities: sorted,
-    percentiles: {
-      p5: pct(0.05),
-      p25: pct(0.25),
-      p50: pct(0.5),
-      p75: pct(0.75),
-      p95: pct(0.95),
-    },
-    maxDrawdowns: maxDrawdowns.sort((a, b) => a - b),
-    riskOfRuin: (ruinCount / iterations) * 100,
-  }
-}
-
 // Calculate R-Multiple for a trade
-export function calculateRMultiple(
-  entryPrice: number,
-  stopLoss: number | null,
-  exitPrice: number | null,
-  side: 'long' | 'short'
-): number | null {
-  if (!stopLoss || !exitPrice) return null
-  const risk = side === 'long' ? entryPrice - stopLoss : stopLoss - entryPrice
-  if (risk === 0) return null
-  const reward =
-    side === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice
-  return reward / risk
-}

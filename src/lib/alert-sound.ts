@@ -83,8 +83,3 @@ export function vibrateAlert(): void {
     /* unsupported — ignore */
   }
 }
-
-/** Diagnostics for QA/debugging: context presence + last successful play. */
-export function alertAudioDiagnostics(): { primed: boolean; state: string | null; lastPlayAt: number } {
-  return { primed: ctx !== null, state: ctx ? ctx.state : null, lastPlayAt }
-}

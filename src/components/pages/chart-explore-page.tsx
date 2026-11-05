@@ -373,7 +373,24 @@ export function ChartExplorePage() {
               { label: 'Best Win Rate', g: spotlight.bestWr, icon: Trophy, tone: 'text-emerald-400', v: `${spotlight.bestWr.winRate}%` },
               { label: 'Most Traded', g: spotlight.most, icon: BarChart3, tone: '', v: `${spotlight.most.trades} trades` },
             ].map(({ label, g, icon: Icon, tone, v }) => (
-              <div key={label} className="rounded-lg p-3" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
+              <button
+                key={label}
+                type="button"
+                className={cn('rounded-lg p-3 text-left cursor-pointer transition-colors hover:border-emerald-500/40', classification !== 'symbol' && 'cursor-default hover:border-transparent')}
+                style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
+                title={classification === 'symbol' ? 'Open the symbol snapshot' : undefined}
+                onClick={
+                  classification === 'symbol'
+                    ? () =>
+                        openPeek({
+                          type: 'symbol',
+                          title: `${g.name} — symbol snapshot`,
+                          subtitle: 'from the chart explore spotlight',
+                          data: { symbol: g.name },
+                        })
+                    : undefined
+                }
+              >
                 <div className="flex items-center gap-1.5 mb-1">
                   <Icon className={cn('h-3.5 w-3.5', tone)} />
                   <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
@@ -387,7 +404,7 @@ export function ChartExplorePage() {
                 <div className="text-[10px] tnum" style={{ color: 'var(--text-secondary)' }}>
                   {g.trades} trades · {g.winRate}% WR
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -509,6 +526,18 @@ export function ChartExplorePage() {
                     outerRadius="78%"
                     stroke="var(--border-strong)"
                     isAnimationActive={false}
+                    className="cursor-pointer"
+                    onClick={(data: any) => {
+                      const n = data?.payload?.name ?? data?.name
+                      if (n && classification === 'symbol') {
+                        openPeek({
+                          type: 'symbol',
+                          title: `${n} — symbol snapshot`,
+                          subtitle: 'from the allocation chart',
+                          data: { symbol: n },
+                        })
+                      }
+                    }}
                   >
                     {allocation.map((a) => (
                       <Cell

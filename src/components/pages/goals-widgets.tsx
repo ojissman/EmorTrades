@@ -432,13 +432,3 @@ export function PerformanceMatrix({ rows, onOpen }: { rows: MatrixRow[]; onOpen:
 }
 
 // ── small helpers reused by the page header/section headers ─────────────────
-
-export function StatPill({ icon, children, tone = 'muted' }: { icon?: LucideIcon; children: ReactNode; tone?: Tone }) {
-  const Icon = icon ?? Zap
-  return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/20 px-2 py-0.5 text-[10px] font-medium', TONE_TEXT[tone])}>
-      <Icon className="h-3 w-3" aria-hidden />
-      {children}
-    </span>
-  )
-}

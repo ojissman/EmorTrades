@@ -44,7 +44,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react'
 import { formatCurrencyIn, formatDateTime, formatNumber, pnlColor } from '@/lib/format'
-import { peekTrade } from '@/lib/drill'
+import { peekTrade, drillToTrades } from '@/lib/drill'
 import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 import { ToolsAiPanel } from '@/components/tools/tools-ai-panel'
@@ -531,7 +531,7 @@ export function ExecutionsPage() {
                     </TableRow>
                   )}
                   {bySymbol.map((s) => (
-                    <TableRow key={s.symbol} className="hover:bg-muted/40">
+                    <TableRow key={s.symbol} className="hover:bg-muted/40 cursor-pointer" title="Open this symbol's trades" onClick={() => drillToTrades({ symbol: s.symbol })}>
                       <TableCell className="font-medium">{s.symbol}</TableCell>
                       <TableCell className="text-right tnum text-sm">{s.fills}</TableCell>
                       <TableCell className="text-right text-xs">

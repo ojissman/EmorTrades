@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import { calculateAnalytics, calculateSymbolStats, type TradeInput } from '@/lib/analytics'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -110,7 +111,8 @@ async function buildDigest() {
     accountId: t.accountId,
     holdingPeriod: t.holdingPeriod,
   }))
-  const analytics = calculateAnalytics(tradeInputs, user.startingCapital)
+  // CLICKSWEEP (audit §6.2) — shared equity baseline, matching /api/dashboard.
+  const analytics = calculateAnalytics(tradeInputs, equityBaselineFor(user))
   const symbolStats = calculateSymbolStats(tradeInputs)
   return {
     tradeCount: analytics.totalTrades,

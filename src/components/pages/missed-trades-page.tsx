@@ -271,7 +271,8 @@ export function MissedTradesPage() {
   async function deleteMissedTrade(id: string) {
     if (!confirm('Delete this missed trade record?')) return
     try {
-      await fetch(`/api/missed-trades?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/missed-trades?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Missed trade deleted' })
       queryClient.invalidateQueries({ queryKey: ['missed-trades'] })
     } catch {
@@ -436,14 +437,17 @@ export function MissedTradesPage() {
                   <tr
                     key={m.id}
                     data-testid="missed-trade-row"
-                    className="border-b border-border/40 hover:bg-muted/40"
+                    className="border-b border-border/40 hover:bg-muted/40 cursor-pointer"
+                    title="Open this missed-trade record"
+                    onClick={() => openEdit(m)}
                   >
                     <td className="p-3 font-medium">
                       {/* Deep-link to the symbol-analysis page (same idiom as
                           the alerts center) — PAGE_TO_ROUTE.symbols exists. */}
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           // Task 16-c — breadcrumb parity for the symbol deep-link.
                           markDrillOrigin(PAGE_TO_ROUTE.symbols)
                           navigate(`${PAGE_TO_ROUTE.symbols}?symbol=${encodeURIComponent(m.symbol)}`)
@@ -541,7 +545,8 @@ export function MissedTradesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-emerald-400/80 hover:text-emerald-400 hover:bg-emerald-500/10"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation()
                           openTradeModalWithPrefill({
                             symbol: m.symbol,
                             side: m.side,
@@ -552,19 +557,26 @@ export function MissedTradesPage() {
                               ? `Missed opportunity — ${m.reason}`
                               : 'Missed opportunity',
                           })
-                        }
+                        }}
                         aria-label={`Take this ${m.symbol} trade`}
                         title="Take this trade — prefill the trade form"
                       >
                         <TrendingUp className="h-3.5 w-3.5" />
                       </Button>
-                      {/* Task 11-b — send this symbol to a watchlist */}
-                      <AddToWatchlistButton symbol={m.symbol} testId="missed-add-watchlist" />
+                      {/* Task 11-b — send this symbol to a watchlist (the
+                          wrapper stops the row-click so the watchlist menu
+                          doesn't also open the edit modal) */}
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <AddToWatchlistButton symbol={m.symbol} testId="missed-add-watchlist" />
+                      </span>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => openEdit(m)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEdit(m)
+                        }}
                         aria-label={`Edit ${m.symbol} missed trade`}
                         title="Edit"
                       >
@@ -574,7 +586,10 @@ export function MissedTradesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-red-400"
-                        onClick={() => deleteMissedTrade(m.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteMissedTrade(m.id)
+                        }}
                         aria-label={`Delete ${m.symbol} missed trade`}
                         title="Delete"
                       >

@@ -63,7 +63,10 @@ export interface MetricsBundle {
   summary: MetricsSummary
   monthly: { month: string; trades: number; net: number; grossWin: number; grossLoss: number; profitFactor: number | null; winRate: number; expectancy: number; cost: number; commission: number; fees: number }[]
   rollingPf: { i: number; label: string; pf: number | null }[]
-  running: { series: { i: number; date: string; cum: number; peak: number; dd: number; symbol: string; pnl: number }[]; maxDD: number; maxDDStart: string | null; maxDDBottom: string | null; currentDD: number }
+  // CLICKSWEEP-DATEFIX — series `date` is the MM-DD chart label; `dateKey` and
+  // maxDDStart/maxDDBottom are full 'YYYY-MM-DD' UTC day keys (day-explore
+  // deep-link format).
+  running: { series: { i: number; id: string; date: string; dateKey: string; cum: number; peak: number; dd: number; symbol: string; pnl: number }[]; maxDD: number; maxDDStart: string | null; maxDDBottom: string | null; currentDD: number }
   distribution: { buckets: { from: number; to: number; label: string; count: number; wins: number; net: number }[]; binSize: number; min: number; max: number }
   bySymbol: GroupRow[]
   byWeekday: GroupRow[]

@@ -162,9 +162,13 @@ export async function GET(req: NextRequest) {
         // Task 13 — session-window deep link (sessions-analytics rows/bars):
         // same clock + wrap semantics as the bucketing there, so the drill
         // lands on exactly the trades the aggregate counted.
+        // CLICKSWEEP (audit §6.4) — getUTCHours: the hourOfDay/dayOfWeek
+        // filters two lines up already bucket by UTC, and /api/sessions-analytics
+        // buckets by UTC; the server-local getHours() here was the last
+        // holdout (identical only while the server clock runs UTC).
         if (scope.hourFrom !== null || scope.hourTo !== null) {
           if (!t.entryTime) return false
-          const h = new Date(t.entryTime).getHours()
+          const h = new Date(t.entryTime).getUTCHours()
           const from = scope.hourFrom ?? 0
           const to = scope.hourTo ?? 24
           if (!hourInSessionWindow(h, from, to)) return false

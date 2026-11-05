@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { QueryErrorCard } from '@/components/metrics/metrics-kit'
 // Task 15-W5 — period rows drill to the trades behind the drawdown (the
 // row previously looked clickable but only toggled a local highlight).
-import { drillToTrades } from '@/lib/drill'
+import { drillToTrades, drillToDay } from '@/lib/drill'
 import { useAppStore } from '@/store/app-store'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -264,7 +264,7 @@ export function DrawdownPage() {
         <h3 className="font-semibold tracking-tight mb-1">Equity & Drawdown</h3>
         <p className="text-xs text-muted-foreground mb-3">Equity curve with peak overlay and drawdown area</p>
         <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
@@ -310,7 +310,7 @@ export function DrawdownPage() {
         <h3 className="font-semibold tracking-tight mb-1">Drawdown % Over Time</h3>
         <p className="text-xs text-muted-foreground mb-3">Percentage drawdown from peak equity</p>
         <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={drawdownData.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
             <defs>
               <linearGradient id="ddPctGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.5} />

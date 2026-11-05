@@ -372,10 +372,10 @@ function ProfileCard({
       onClick: drillProfileTrades,
       title: 'Show the trades this profile was computed from',
     },
-    { label: 'Net P&L', value: formatCurrencyIn('kpi', perf.netPnl), accent: pnlColor(perf.netPnl) },
-    { label: 'Win rate', value: `${perf.winRate.toFixed(1)}%` },
+    { label: 'Net P&L', value: formatCurrencyIn('kpi', perf.netPnl), accent: pnlColor(perf.netPnl), onClick: drillProfileTrades, title: 'Show the trades this profile was computed from' },
+    { label: 'Win rate', value: `${perf.winRate.toFixed(1)}%`, onClick: () => drillToTrades({ ...((scopePatch ?? {}) as { accountId?: string; setupId?: string }), outcome: 'win' }), title: 'Show the winning trades in this profile' },
     { label: 'Profit factor', value: perf.profitFactor == null ? '∞' : perf.profitFactor.toFixed(2) },
-    { label: 'Expectancy', value: formatCurrencyIn('kpi', perf.expectancy), accent: pnlColor(perf.expectancy) },
+    { label: 'Expectancy', value: formatCurrencyIn('kpi', perf.expectancy), accent: pnlColor(perf.expectancy), onClick: drillProfileTrades, title: 'Show the trades this profile was computed from' },
     { label: 'Median hold', value: fmtHold(profile.signals.medianHoldMin) },
   ]
 

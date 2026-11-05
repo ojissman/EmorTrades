@@ -60,8 +60,6 @@ export const GOAL_METRICS: { value: string; label: string; unit: string }[] = [
   { value: 'rule_breaks_max', label: 'Rule breaks (max)', unit: '' },
 ]
 export const GOAL_KINDS = ['outcome', 'performance', 'process', 'development'] as const
-export const LADDER_PERIODS = ['daily', 'weekly', 'monthly', 'quarterly', 'annual'] as const
-
 // ---------- shared bits ----------
 
 const inputCls =
@@ -451,25 +449,4 @@ export function LadderField({
 function normalize<T>(value: unknown, fallback: T): T {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value as T
   return fallback
-}
-
-/** Parse a stored 5.3.2/5.3.4/4.8.2 answer into the display shape (legacy text tolerated). */
-export function parseLimitsLike(value: unknown): { daily?: number; weekly?: number; monthly?: number } {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as { daily?: number; weekly?: number; monthly?: number }
-  }
-  // legacy: "daily 500 | weekly 1500" or "500" text
-  if (typeof value === 'string') {
-    const out: Record<string, number> = {}
-    for (const m of value.matchAll(/(daily|weekly|monthly)\D{0,4}([\d.]+)/gi)) out[m[1].toLowerCase()] = Number(m[2])
-    const bare = value.match(/^[\d.]+$/)
-    if (bare && Object.keys(out).length === 0) out.daily = Number(bare[0])
-    return out as never
-  }
-  return {}
-}
-
-/** Is a stored value the legacy TEXT (not the new typed shape)? Used for the note. */
-export function isLegacyText(value: unknown): boolean {
-  return typeof value === 'string' && value.trim() !== ''
 }

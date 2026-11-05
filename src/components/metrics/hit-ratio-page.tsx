@@ -132,9 +132,15 @@ export function HitRatioPage() {
       <Panel title="Win / loss anatomy" hint="the shape behind the percentage">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--shell-success)' }}>
+            <button
+              type="button"
+              onClick={() => drillToTrades({ outcome: 'win' })}
+              title="Open the winning trades"
+              className="text-[10px] uppercase tracking-wider mb-2 cursor-pointer hover:opacity-80"
+              style={{ color: 'var(--shell-success)' }}
+            >
               Wins — {s.wins}
-            </p>
+            </button>
             <div className="grid gap-1.5 text-xs">
               <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Average</span><span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrencyIn('kpi', s.avgWin, 'USD')}</span></div>
               <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Best</span><span className="tabular-nums" style={{ color: 'var(--shell-success)' }}>{formatCurrencyIn('kpi', s.best, 'USD')}</span></div>
@@ -142,9 +148,15 @@ export function HitRatioPage() {
             </div>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'var(--shell-danger)' }}>
+            <button
+              type="button"
+              onClick={() => drillToTrades({ outcome: 'loss' })}
+              title="Open the losing trades"
+              className="text-[10px] uppercase tracking-wider mb-2 cursor-pointer hover:opacity-80"
+              style={{ color: 'var(--shell-danger)' }}
+            >
               Losses — {s.losses}
-            </p>
+            </button>
             <div className="grid gap-1.5 text-xs">
               <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Average</span><span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrencyIn('kpi', -s.avgLoss, 'USD')}</span></div>
               <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Worst</span><span className="tabular-nums" style={{ color: 'var(--shell-danger)' }}>{formatCurrencyIn('kpi', s.worst, 'USD')}</span></div>

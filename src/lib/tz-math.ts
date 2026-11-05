@@ -148,12 +148,6 @@ export function weekdayName(d: Date, tz: string): string {
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][zonedParts(d, tz).weekday]
 }
 
-/** "09:31" — the zone's wall-clock time of the instant. */
-export function hhmm(d: Date, tz: string): string {
-  const p = zonedParts(d, tz)
-  return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`
-}
-
 /** minutes since local midnight in the zone (for window comparisons). */
 export function minutesOfDay(d: Date, tz: string): number {
   const p = zonedParts(d, tz)

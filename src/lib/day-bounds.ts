@@ -99,49 +99,6 @@ function utcShort(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', UTC_SHORT_FMT)
 }
 
-/** "Pattern scan window · Feb 16 – May 27, 2026 — from Behavior Radar" */
-export function radarWindowChipLabel(
-  fromIso: string | null | undefined,
-  toIso: string | null | undefined
-): string {
-  if (!fromIso || !toIso) return 'Pattern scan window — from Behavior Radar'
-  // Same UTC day collapses to a single date (single-trade scan windows).
-  const sameDay = fromIso.slice(0, 10) === toIso.slice(0, 10)
-  const range = sameDay
-    ? utcShort(fromIso)
-    : `${utcShort(fromIso)} – ${utcShort(toIso)}`
-  return `Pattern scan window · ${range} — from Behavior Radar`
-}
-
-/** "Trades closed Fri, Mar 13 (UTC) — from a Daily P&L bar" */
-export function dayBarChipLabel(boundStartIso: string | null | undefined): string {
-  if (!boundStartIso) return "Day's closed trades — from a Daily P&L bar"
-  return `Trades closed ${utcDay(boundStartIso)} (UTC) — from a Daily P&L bar`
-}
-
-/**
- * Task 162 — "Trades closed Tue, May 26, 2026 — from the Calendar".
- *
- * Frame note (deliberately NOT UTC): the calendar day cell groups trades by
- * the BROWSER-LOCAL exit day (`new Date(exitTime)` getters) and its drill
- * bounds are that local day's midnight instants — so local formatting
- * reproduces the cell's date exactly, and the drill lands on exactly the
- * trades the cell promised. Rendering UTC here (like the day-bar label)
- * would name the wrong day for any viewer whose TZ ≠ UTC. The peek's own
- * hint already says "trades closed this day (local)" — this label matches
- * that frame. Pure string builder, unit-pinned in qa-162.
- */
-export function calendarDayChipLabel(boundStartIso: string | null | undefined): string {
-  if (!boundStartIso) return "Day's closed trades — from the Calendar"
-  const day = new Date(boundStartIso).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-  return `Trades closed ${day} — from the Calendar`
-}
-
 /**
  * Task 164 — "Exits Wednesday (Asia/Shanghai) — from the Analytics widgets".
  *
@@ -158,29 +115,6 @@ export function calendarDayChipLabel(boundStartIso: string | null | undefined): 
  * Pure string builder, unit-pinned in qa-164/qa-165.
  */
 const CHIP_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-export function slotDrillChipLabel(
-  slots: { dow?: number | null; hod?: number | null; dom?: number | null },
-  timeZone: string | null | undefined,
-  source: string
-): string {
-  const parts: string[] = []
-  // Index guard: an out-of-range dow must never print "undefined" — the
-  // part is dropped instead (honest degradation, same spirit as the other
-  // chip builders' null fallbacks).
-  const dowName =
-    slots.dow !== null && slots.dow !== undefined ? CHIP_DAY_NAMES[slots.dow] : undefined
-  if (dowName) parts.push(dowName)
-  if (slots.hod !== null && slots.hod !== undefined) {
-    parts.push(
-      `${String(slots.hod).padStart(2, '0')}:00–${String(slots.hod).padStart(2, '0')}:59`
-    )
-  }
-  if (slots.dom !== null && slots.dom !== undefined) parts.push(`day ${slots.dom} of the month`)
-  const frame = timeZone ? `(${timeZone})` : '(local)'
-  const what = parts.length > 0 ? parts.join(' · ') : 'that slot'
-  return `Exits ${what} ${frame} — from ${source}`
-}
 
 /**
  * Task 163 — DST-safe slot-part extractor for a named IANA zone.
@@ -208,59 +142,3 @@ const SLOT_WEEKDAY_INDEX: Record<string, number> = {
  * callers skip the timeZone param and the server keeps its frame).
  */
 let browserZoneCache: string | null | undefined
-
-export function browserTimeZone(): string | null {
-  if (browserZoneCache !== undefined) return browserZoneCache
-  try {
-    browserZoneCache =
-      typeof Intl !== 'undefined'
-        ? Intl.DateTimeFormat().resolvedOptions().timeZone || null
-        : null
-  } catch {
-    browserZoneCache = null
-  }
-  return browserZoneCache
-}
-
-export function slotPartsFormatter(
-  timeZone: string | null | undefined
-): ((d: Date) => { dow: number; hod: number; dom: number }) | null {
-  if (!timeZone || timeZone.length > 64) return null
-  try {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      weekday: 'short',
-      hour: 'numeric',
-      day: 'numeric',
-      hourCycle: 'h23',
-    })
-    return (d: Date) => {
-      const parts: Record<string, string> = {}
-      for (const p of fmt.formatToParts(d)) parts[p.type] = p.value
-      return {
-        dow: SLOT_WEEKDAY_INDEX[parts.weekday] ?? -1,
-        hod: parseInt(parts.hour),
-        dom: parseInt(parts.day),
-      }
-    }
-  } catch {
-    return null
-  }
-}
-
-/**
- * Task 167 — "Behavior pattern evidence · 4 trades — from the Behavior
- * Radar". The count-exact evidence-set drill (revenge follow-ups,
- * escalating loss runs, high-count losing days, hold-discipline cohorts)
- * lands on the EXACT trades the pattern was computed over — the chip names
- * the set size so the user can verify the count against the evidence line
- * at a glance (the old outcome-only drill landed on every loss in the scan
- * window and the counts diverged silently). Count is rendered into the
- * label at build time (not parsed from a sentence) so a future wording
- * change can't desync the number. Pure string builder, unit-pinned in
- * qa-167.
- */
-export function patternTradeSetChipLabel(count: number | null | undefined): string {
-  if (!count || count <= 0) return 'Behavior pattern evidence — from the Behavior Radar'
-  return `Behavior pattern evidence · ${count} ${count === 1 ? 'trade' : 'trades'} — from the Behavior Radar`
-}

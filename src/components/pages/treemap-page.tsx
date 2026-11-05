@@ -256,10 +256,10 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
             <TrendingUp className="h-3 w-3 text-emerald-400" />
           </div>
           {best && best.pnl > 0 ? (
-            <>
+            <button type="button" onClick={() => go(best.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
               <p className="text-sm font-bold truncate" title={best.name}>{best.name}</p>
               <p className="text-[11px] text-emerald-400 tnum truncate" title={`+${formatCurrencyIn('table', best.pnl)}`}>+{formatCurrencyIn('table', best.pnl)}</p>
-            </>
+            </button>
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
           )}
@@ -270,10 +270,10 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
             <TrendingDown className="h-3 w-3 text-red-400" />
           </div>
           {worst && worst.pnl < 0 ? (
-            <>
+            <button type="button" onClick={() => go(worst.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
               <p className="text-sm font-bold truncate" title={worst.name}>{worst.name}</p>
               <p className="text-[11px] text-red-400 tnum truncate" title={`−${formatCurrencyIn('table', Math.abs(worst.pnl))}`}>−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
-            </>
+            </button>
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
           )}

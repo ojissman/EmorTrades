@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import {
   calculateAnalytics,
   calculateSymbolStats,
@@ -37,6 +38,9 @@ async function buildCoachContext(): Promise<CoachContext | null> {
   })
   if (!auth.ok) return null
   const user = auth.user
+  // CLICKSWEEP (audit §6.2) — the shared equity baseline (Σ account
+  // startingBalance, profile capital as fallback), matching /api/dashboard.
+  const equityBaseline = equityBaselineFor(user)
 
   const trades = await db.trade.findMany({
     where: { userId: user.id, status: 'closed' },
@@ -75,7 +79,7 @@ async function buildCoachContext(): Promise<CoachContext | null> {
     holdingPeriod: t.holdingPeriod,
   }))
 
-  const analytics = calculateAnalytics(tradeInputs, user.startingCapital)
+  const analytics = calculateAnalytics(tradeInputs, equityBaseline)
   const symbolStats = calculateSymbolStats(tradeInputs)
   const setupStats = calculateSetupStats(
     tradeInputs,
@@ -90,7 +94,7 @@ async function buildCoachContext(): Promise<CoachContext | null> {
 
   const digest = {
     todayDate: todayStr,
-    startingCapital: user.startingCapital,
+    startingCapital: equityBaseline,
     equity: Number(analytics.finalEquity.toFixed(2)),
     totalReturnPercent: Number(analytics.totalReturnPercent.toFixed(2)),
     totalPnL: Number(analytics.totalPnL.toFixed(2)),

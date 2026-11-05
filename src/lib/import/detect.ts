@@ -205,19 +205,6 @@ export function detectFileFormat(bytes: Uint8Array, filename: string): DetectedF
   return { format: 'delimited', text, encoding, delimiter }
 }
 
-export const EXTENSION_HINT: Record<string, FileFormat> = {
-  csv: 'delimited',
-  tsv: 'delimited',
-  txt: 'delimited',
-  xlsx: 'xlsx',
-  xlsm: 'xlsx',
-  xls: 'xls',
-  html: 'html',
-  htm: 'html',
-  json: 'json',
-  xml: 'xml',
-}
-
 /** Human-facing labels per physical format. */
 export const FORMAT_LABEL: Record<FileFormat, string> = {
   xlsx: 'Excel workbook (.xlsx)',

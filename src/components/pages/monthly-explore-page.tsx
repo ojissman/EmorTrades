@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { peekTrade, drillToDay } from '@/lib/drill'
+import { peekTrade, drillToDay, drillToTrades, monthPatch, weekPatch, dayOfWeekIndex } from '@/lib/drill'
 import { useAppStore } from '@/store/app-store'
 import { useCurrentUser } from '@/hooks/use-current-user'
 import { formatCurrencyIn, formatDate, pnlColor } from '@/lib/format'
@@ -147,7 +147,7 @@ export function MonthlyExplorePage() {
       })
       const res = await fetch(`/api/sessions-analytics?${params}`)
       if (!res.ok) throw new Error('Failed')
-      return (await res.json()) as { sessions: { name: string; window: string; trades: number; netPnl: number; winRate: number | null }[] }
+      return (await res.json()) as { sessions: { name: string; window: string; trades: number; netPnl: number; winRate: number | null; startHour: number | null; endHour: number | null }[] }
     },
     enabled: !!from && !!to,
   })
@@ -256,11 +256,12 @@ export function MonthlyExplorePage() {
     return [...m.entries()].map(([symbol, v]) => ({ label: symbol, ...v })).sort((a, b) => b.pnl - a.pnl)
   }, [trades])
   const bySetup = useMemo(() => {
-    const m = new Map<string, { pnl: number; trades: number; wins: number }>()
+    const m = new Map<string, { pnl: number; trades: number; wins: number; setupId?: string }>()
     for (const t of trades) {
       const key = t.setup?.name ?? 'No setup'
-      const cur = m.get(key) ?? { pnl: 0, trades: 0, wins: 0 }
+      const cur = m.get(key) ?? { pnl: 0, trades: 0, wins: 0, setupId: t.setupId ?? undefined }
       cur.pnl += t.pnl; cur.trades++; if (t.pnl > 0) cur.wins++
+      if (cur.setupId === undefined && t.setupId) cur.setupId = t.setupId
       m.set(key, cur)
     }
     return [...m.entries()].map(([label, v]) => ({ label, ...v })).sort((a, b) => b.pnl - a.pnl)
@@ -296,6 +297,8 @@ export function MonthlyExplorePage() {
       label: s.name,
       pnl: s.netPnl,
       trades: s.trades,
+      startHour: s.startHour,
+      endHour: s.endHour,
       extra: `${s.winRate == null ? '—' : `${Math.round(s.winRate)}% win`}${s.window ? ` · ${s.window}` : ''}`,
     })).sort((a, b) => b.pnl - a.pnl)
   }, [sessionsQ.data])
@@ -326,6 +329,19 @@ export function MonthlyExplorePage() {
     )
   }
 
+  // CLICKSWEEP — the month window as a global-filter patch (KPI tiles + R
+  // bands drill to the Trades table scoped to exactly this month). window
+  // from/to are precise full timestamps — use them VERBATIM (the same bounds
+  // this page queries), never re-suffix.
+  const periodPatch = {
+    customStartDate: from!,
+    customEndDate: to!,
+  }
+  const R_BANDS: { min?: number; max?: number }[] = [
+    { max: -3 }, { min: -3, max: -2 }, { min: -2, max: -1 }, { min: -1, max: -0.0001 },
+    { min: 0, max: 1 }, { min: 1, max: 2 }, { min: 2, max: 3 }, { min: 3 },
+  ]
+
   const monthLabel = period.window.label
 
   return (
@@ -354,8 +370,8 @@ export function MonthlyExplorePage() {
 
       {/* Part 1 — KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        <KpiTile label="Net P&L" value={money(analytics.netProfit)} tone={analytics.netProfit >= 0 ? 'pos' : 'neg'} sub={`${analytics.closedTrades} closed`} />
-        <KpiTile label="Win rate" value={`${analytics.winRate.toFixed(0)}%`} sub={`${analytics.wins}W / ${analytics.losses}L`} />
+        <KpiTile label="Net P&L" value={money(analytics.netProfit)} tone={analytics.netProfit >= 0 ? 'pos' : 'neg'} sub={`${analytics.closedTrades} closed`} title="Open these trades in the Trades table" onClick={() => drillToTrades(periodPatch)} />
+        <KpiTile label="Win rate" value={`${analytics.winRate.toFixed(0)}%`} sub={`${analytics.wins}W / ${analytics.losses}L`} title="Drill to the winning trades" onClick={() => drillToTrades({ ...periodPatch, outcome: 'win' })} />
         <KpiTile label="Profit factor" value={isFinite(analytics.profitFactor) ? analytics.profitFactor.toFixed(2) : '∞'} />
         <KpiTile label="Expectancy" value={money(analytics.expectancy)} tone={analytics.expectancy >= 0 ? 'pos' : 'neg'} />
         <KpiTile label="Avg R" value={analytics.averageRMultiple ? `${analytics.averageRMultiple.toFixed(2)}R` : '—'} />
@@ -365,6 +381,8 @@ export function MonthlyExplorePage() {
           label="Trades"
           value={String(analytics.totalTrades)}
           sub={`vs last month ${prevAnalytics.totalTrades}`}
+          title="Open these trades in the Trades table"
+          onClick={() => drillToTrades(periodPatch)}
         />
       </div>
 
@@ -408,7 +426,7 @@ export function MonthlyExplorePage() {
               <p className="text-sm text-muted-foreground h-full flex items-center justify-center">No closed trades this month.</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+                <AreaChart data={equity} margin={{ top: 4, right: 8, bottom: 0, left: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }}>
                   <defs>
                     <linearGradient id="monthEq" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
@@ -419,7 +437,7 @@ export function MonthlyExplorePage() {
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" domain={['auto', 'auto']} />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'Equity']} />
-                  <Area type="monotone" dataKey="equity" stroke="#10b981" fill="url(#monthEq)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="equity" stroke="#10b981" fill="url(#monthEq)" strokeWidth={2} cursor="pointer" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -440,7 +458,7 @@ export function MonthlyExplorePage() {
                   <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => v.slice(8)} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'P&L']} />
-                  <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
+                  <Bar dataKey="pnl" radius={[2, 2, 0, 0]} cursor="pointer" onClick={(data: any) => { const d = data?.payload?.date; if (d) drillToDay(String(d).slice(0, 10)) }}>
                     {daily.map((d, i) => (
                       <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} />
                     ))}
@@ -514,7 +532,7 @@ export function MonthlyExplorePage() {
                   <XAxis dataKey="week" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} stroke="var(--border)" tickFormatter={(v: string) => v.slice(5)} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                   <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [money(v), 'P&L']} />
-                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
+                  <Bar dataKey="pnl" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(data: any) => { const w = data?.payload?.week; if (w) drillToTrades(weekPatch(String(w))) }}>
                     {weekly.map((w, i) => (
                       <Cell key={i} fill={w.pnl >= 0 ? '#10b981' : '#ef4444'} />
                     ))}
@@ -528,11 +546,14 @@ export function MonthlyExplorePage() {
 
       {/* groupings */}
       <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3">
-        <GroupTable title="By symbol" rows={bySymbol} />
-        <GroupTable title="By setup" rows={bySetup} />
+        {/* CLICKSWEEP — every group row drills to its cohort in the Trades
+            table ("By system" stays honest: no filter param expresses a
+            system's setup union yet). */}
+        <GroupTable title="By symbol" rows={bySymbol} drillOf={(r) => ({ symbol: r.label })} />
+        <GroupTable title="By setup" rows={bySetup} drillOf={(r) => (r.setupId ? { setupId: r.setupId } : null)} />
         <GroupTable title="By system" rows={bySystem.map((s) => ({ label: s.label, pnl: s.pnl, trades: s.trades, extra: `${s.respected} kept · ${s.broke} broke` }))} />
-        <GroupTable title="By session" rows={bySession} />
-        <GroupTable title="By weekday" rows={byWeekday} />
+        <GroupTable title="By session" rows={bySession} drillOf={(r) => (r.startHour != null && r.endHour != null && r.startHour >= 0 ? { hourFrom: r.startHour, hourTo: r.endHour } : null)} />
+        <GroupTable title="By weekday" rows={byWeekday} drillOf={(r) => { const d = dayOfWeekIndex(r.label); return d === undefined ? null : { dayOfWeek: d } }} />
       </div>
 
       {/* R distribution + best/worst */}
@@ -549,7 +570,7 @@ export function MonthlyExplorePage() {
                 <XAxis dataKey="bucket" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} stroke="var(--border)" />
                 <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="#64748b" />
+                <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="#64748b" cursor="pointer" name="trades" onClick={(data: any) => { const i = rDistribution.findIndex((r) => r.bucket === (data?.payload?.bucket ?? data?.bucket)); if (i >= 0) drillToTrades({ ...periodPatch, ...R_BANDS[i] }) }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -661,7 +682,12 @@ export function MonthlyExplorePage() {
   )
 }
 
-function GroupTable(props: { title: string; rows: { label: string; pnl: number; trades: number; extra?: string }[] }) {
+function GroupTable(props: {
+  title: string
+  rows: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; startHour?: number | null; endHour?: number | null }[]
+  /** CLICKSWEEP — optional per-row drill (global-filter patch or null). */
+  drillOf?: (row: { label: string; pnl: number; trades: number; extra?: string; setupId?: string; startHour?: number | null; endHour?: number | null }) => Record<string, unknown> | null
+}) {
   return (
     <Card className="p-4">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{props.title}</p>
@@ -669,15 +695,23 @@ function GroupTable(props: { title: string; rows: { label: string; pnl: number; 
         <p className="text-xs text-muted-foreground">No trades.</p>
       ) : (
         <ul className="space-y-1 max-h-52 overflow-y-auto">
-          {props.rows.slice(0, 10).map((r) => (
-            <li key={r.label} className="flex items-center justify-between gap-2 text-xs">
-              <span className="truncate" title={r.label}>{r.label}</span>
-              <span className="shrink-0 text-muted-foreground">
-                {r.extra ? <span className="mr-1.5">{r.extra}</span> : `${r.trades}× `}
-                <span style={{ color: pnlColor(r.pnl) }}>{money(r.pnl)}</span>
-              </span>
-            </li>
-          ))}
+          {props.rows.slice(0, 10).map((r) => {
+            const patch = props.drillOf ? props.drillOf(r) : null
+            return (
+              <li
+                key={r.label}
+                className={cn('flex items-center justify-between gap-2 text-xs rounded px-1 -mx-1', patch && 'cursor-pointer hover:bg-muted/50')}
+                title={patch ? 'Open these trades' : undefined}
+                onClick={patch ? () => drillToTrades(patch as Parameters<typeof drillToTrades>[0]) : undefined}
+              >
+                <span className="truncate" title={r.label}>{r.label}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {r.extra ? <span className="mr-1.5">{r.extra}</span> : `${r.trades}× `}
+                  <span style={{ color: pnlColor(r.pnl) }}>{money(r.pnl)}</span>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </Card>

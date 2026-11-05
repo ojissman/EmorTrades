@@ -164,7 +164,8 @@ export function MistakesPage() {
   async function deleteMistake(id: string) {
     if (!confirm('Delete this mistake category? It will be removed from all tagged trades.')) return
     try {
-      await fetch(`/api/mistakes?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/mistakes?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Mistake deleted' })
       queryClient.invalidateQueries({ queryKey: ['mistakes'] })
     } catch {

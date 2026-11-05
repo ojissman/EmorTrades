@@ -101,7 +101,7 @@ db/custom.db-wal
 .verify/
 agent-ctx/
 db/backups/
-download/
+/download/
 examples/
 mini-services/
 scripts/auth-codemod.ts

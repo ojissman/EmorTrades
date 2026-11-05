@@ -178,7 +178,7 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
     return chrono.map((t, i) => {
       a += t.pnl
       e += t.eodExitPnl
-      return { i: i + 1, label: `${t.symbol} #${i + 1}`, actual: Math.round(a), eod: Math.round(e) }
+      return { i: i + 1, label: `${t.symbol} #${i + 1}`, actual: Math.round(a), eod: Math.round(e), id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }
     })
   }, [data])
 
@@ -574,7 +574,7 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                   <ReTooltip contentStyle={TOOLTIP_STYLE} labelFormatter={(l) => `Trade #${l}`} formatter={(v: number, n) => [money(v), String(n)]} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <ReferenceLine y={0} stroke="var(--border-strong)" />
-                  <Line type="monotone" dataKey="actual" name="Your exits" stroke="var(--accent, #10b981)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="actual" name="Your exits" stroke="var(--accent, #10b981)" strokeWidth={2} dot={false} cursor="pointer" onClick={(data: any) => { const p = data?.payload; if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl }) }} />
                   <Line type="monotone" dataKey="eod" name="EOD exits" stroke="#a855f7" strokeWidth={2} strokeDasharray="5 3" dot={false} />
                 </LineChart>
               </ResponsiveContainer>

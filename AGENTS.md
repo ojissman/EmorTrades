@@ -1179,6 +1179,12 @@ standard. What changed (full entry in worklog.md):
   destructive change; E2E artifacts cleaned via the same APIs the UI
   calls.
 
+### CLICKSWEEP additions (2026-11-05)
+- Drill family (src/lib/drill.ts) is the ONE way surfaces send users from aggregates to evidence: drillToTrades (filter patch), peekTrade (global trade peek), drillToDay, monthPatch/weekPatch/dayOfWeekIndex. Every KPI/card/chart-bar that names a cohort should drill via these OR carry an honest no-op (title explaining what's missing) — the 31 blocked cohorts (capture-rate, rvol regime, dayOfMonth, EOD-delta, system unions…) are documented in-code awaiting batched filter-param work.
+- src/lib/server/equity-baseline.ts — equityBaselineFor(): the ONE equity baseline (Σ account startingBalance → profile fallback). Every AI narrative route uses it; new surfaces must too (audit §6.2 closed).
+- Process lesson (the gmail/test incident): a COMMIT MESSAGE is not proof a file exists. When a task claims "route X implemented", verify with `git log --all -- <path>` + the working tree before relying on it; when committing, `git status` must show the new route file staged.
+- Environment (4GB sandbox): the platform REAPS all spawned processes at each tool-call boundary — a detached dev server only lives inside the call that started it. Server + browser together sit at the OOM edge (4 kernel kills of next-server at ~2.4-2.7GB RSS during this task): warm the server via curl BEFORE opening the browser, one tab only, never tsc+browser together.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

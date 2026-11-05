@@ -172,7 +172,8 @@ export function JournalPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this journal entry?')) return
     try {
-      await fetch(`/api/journal?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/journal?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Entry deleted' })
       queryClient.invalidateQueries({ queryKey: ['journals'] })
     } catch {

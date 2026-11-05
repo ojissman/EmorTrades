@@ -176,7 +176,8 @@ export function DayNotesPage() {
   async function del(id: string) {
     if (!confirm('Delete this day note?')) return
     try {
-      await fetch(`/api/day-notes?id=${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/day-notes?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       toast({ title: 'Note deleted' })
       queryClient.invalidateQueries({ queryKey: ['day-notes'] })
     } catch {

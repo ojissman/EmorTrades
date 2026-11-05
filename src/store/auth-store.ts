@@ -47,7 +47,4 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 export const useIsAdmin = () => useAuthStore((s) => Boolean(s.user?.isAdmin) || s.user?.role === 'ADMIN')
 
-/** The staff role for the admin platform (null = no admin platform access). */
-export const useAdminRole = () => useAuthStore((s) => s.user?.adminRole ?? null)
-
 export const useAdminPermissions = () => useAuthStore((s) => s.user?.adminPermissions ?? EMPTY_PERMISSIONS)

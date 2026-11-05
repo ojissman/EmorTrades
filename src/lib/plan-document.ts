@@ -401,19 +401,3 @@ function renderGaps(blocks: DocBlock[], gaps: { key: string; question: string }[
     blocks.push({ kind: 'list', items: gaps.map((g) => `${g.key} — ${g.question}`) })
   }
 }
-
-/** Newest published version id of a tree level (read mode default). */
-export function currentPublishedOf(versions: DocVersionRow[]): DocVersionRow | null {
-  return versions.filter((v) => v.status === 'published').sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0] ?? null
-}
-
-/** All plan questions unanswered in a content JSON (the read-mode gaps count). */
-export function gapsOf(contentJson: string): { key: string; question: string }[] {
-  let content: Record<string, { value?: unknown }> = {}
-  try {
-    content = JSON.parse(contentJson || '{}')
-  } catch {
-    /* empty */
-  }
-  return PLAN_QUESTIONS.filter((q) => !isAnswered(content[q.key]?.value)).map((q) => ({ key: q.key, question: q.label }))
-}

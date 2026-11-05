@@ -40,6 +40,10 @@ export function ProfitLossPage() {
           value={s.total ? formatCurrencyIn('table', Math.max(...data.monthly.map((m) => m.net), 0), 'USD') : '—'}
           sub={s.total ? 'peak calendar month' : undefined}
           tone="good"
+          onClick={s.total ? () => {
+            const best = data.monthly.reduce((a, b) => (a.net >= b.net ? a : b), data.monthly[0])
+            if (best?.month) drillToTrades(monthPatch(best.month))
+          } : undefined}
         />
       </div>
 

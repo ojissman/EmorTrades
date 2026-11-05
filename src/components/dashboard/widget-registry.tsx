@@ -17,7 +17,7 @@ import { usePeekStore } from '@/store/peek-store'
 import { useAppStore } from '@/store/app-store'
 // Task 15-W2 — day-bar drills leave the breadcrumb like every other drill.
 // Task 15-W5 — SetupBars rows and the Win/Loss donut sectors drill too.
-import { drillToDay, drillToTrades } from '@/lib/drill'
+import { drillToDay, drillToTrades, peekTrade } from '@/lib/drill'
 import {
   AreaChart, Area, BarChart, Bar, Cell, ResponsiveContainer, Tooltip as ReTooltip,
   XAxis, YAxis, CartesianGrid, ReferenceLine, PieChart, Pie,
@@ -266,7 +266,7 @@ export function EquityChart({
                 )
               }}
             />
-            <Area type="monotone" dataKey="equity" stroke={EQUITY_STROKE} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+            <Area type="monotone" dataKey="equity" stroke={EQUITY_STROKE} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} cursor="pointer" onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} />
             {!showAxes && last && <ReferenceLine x={last.date} stroke={EQUITY_STROKE} strokeDasharray="2 3" strokeOpacity={0.5} />}
           </AreaChart>
         </ResponsiveContainer>
@@ -611,10 +611,19 @@ export function WinRateMeter({ stats, target = 0 }: { stats: OverviewStats; targ
   )
 }
 
-/** Best / Worst trade as two accent cards (All-in-one). */
+/** Best / Worst trade as two accent cards (All-in-one). CLICKSWEEP —
+ *  both cards open the trade peek (the SimpleView KPIs already do). */
 export function BestWorstCards({ stats }: { stats: OverviewStats }) {
   const card = (label: string, t: OverviewTradeRow | null, color: string, Icon: IconType) => (
-    <div className="rounded-xl p-3.5 min-w-0 overflow-hidden" style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}>
+    <div
+      className={cn('rounded-xl p-3.5 min-w-0 overflow-hidden transition-colors', t && 'cursor-pointer hover:border-emerald-500/40')}
+      style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
+      role={t ? 'button' : undefined}
+      tabIndex={t ? 0 : undefined}
+      title={t ? 'Open this trade' : undefined}
+      onClick={t ? () => peekTrade({ id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }) : undefined}
+      onKeyDown={t ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); peekTrade({ id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }) } } : undefined}
+    >
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{label}</p>
         <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
@@ -635,10 +644,19 @@ export function BestWorstCards({ stats }: { stats: OverviewStats }) {
   )
 }
 
-/** Best / Worst as professional rows (Multi column layout). */
+/** Best / Worst as professional rows (Multi column layout). CLICKSWEEP —
+ *  both rows open the trade peek. */
 export function BestWorstRows({ stats }: { stats: OverviewStats }) {
   const row = (t: OverviewTradeRow | null, color: string, Icon: IconType, label: string) => (
-    <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5" style={{ background: 'var(--bg-hover)' }}>
+    <div
+      className={cn('flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors', t && 'cursor-pointer hover:bg-muted/60')}
+      style={{ background: 'var(--bg-hover)' }}
+      role={t ? 'button' : undefined}
+      tabIndex={t ? 0 : undefined}
+      title={t ? 'Open this trade' : undefined}
+      onClick={t ? () => peekTrade({ id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }) : undefined}
+      onKeyDown={t ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); peekTrade({ id: t.id, symbol: t.symbol, side: t.side, entryTime: t.entryTime, pnl: t.pnl }) } } : undefined}
+    >
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: 'var(--bg-card)' }} aria-hidden>
         <Icon className="h-3 w-3" style={{ color }} />
       </span>
@@ -929,8 +947,6 @@ export type WidgetSizeId = 'compact' | 'standard' | 'tall'
 
 /** Chart heights per size — non-chart widgets map size to padding/min-height. */
 export const SIZE_CHART_HEIGHT: Record<WidgetSizeId, number> = { compact: 120, standard: 208, tall: 320 }
-export const SIZE_MIN_HEIGHT: Record<WidgetSizeId, number> = { compact: 0, standard: 0, tall: 0 }
-
 export interface WidgetDef {
   id: string
   title: string
@@ -962,11 +978,13 @@ function kpiRenderer(
   label: string,
   icon: IconType,
   pick: (s: OverviewStats) => { value: string; sub?: string; color?: string; anim?: { value: number; format: (n: number) => string } },
+  onClick?: (s: OverviewStats) => void,
 ): WidgetDef['render'] {
   // SCOPE-LABELS-REMOVED (owner decision, 2026-11-04): KPI labels no longer
   // state their window — the action-bar date-range chip is the single scope
   // surface ("Full Range" / "Last 30 days" / custom span).
-  return ({ stats }, size) => <Kpi label={label} icon={icon} {...pick(stats)} compact={size === 'compact'} />
+  // CLICKSWEEP — optional drill-through (cohort deep link / trade peek).
+  return ({ stats }, size) => <Kpi label={label} icon={icon} {...pick(stats)} compact={size === 'compact'} onClick={onClick ? () => onClick(stats) : undefined} />
 }
 
 export const WIDGET_DEFS: WidgetDef[] = [
@@ -977,12 +995,12 @@ export const WIDGET_DEFS: WidgetDef[] = [
     render: kpiRenderer('Net P&L', DollarSign, (s) => ({
       value: formatCurrencyIn('kpi', s.net), sub: `${s.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(s.net)}` : ''}`, color: pnlColor(s.net),
       anim: { value: s.net, format: (n) => formatCurrencyIn('kpi', n) },
-    })),
+    }), () => drillToTrades({})),
   },
   {
     id: 'kpi-winrate', title: 'Win Rate', description: 'Percentage of closed trades that were winners', category: 'KPIs',
     defaultSpan: 1, defaultSize: 'standard',
-    render: kpiRenderer('Win rate', Target, (s) => ({ value: `${s.winRate.toFixed(1)}%`, sub: `${s.wins}W / ${s.losses}L` })),
+    render: kpiRenderer('Win rate', Target, (s) => ({ value: `${s.winRate.toFixed(1)}%`, sub: `${s.wins}W / ${s.losses}L` }), () => drillToTrades({ outcome: 'win' })),
   },
   {
     id: 'kpi-pf', title: 'Profit Factor', description: 'Gross profit ÷ gross loss', category: 'KPIs',
@@ -1003,7 +1021,7 @@ export const WIDGET_DEFS: WidgetDef[] = [
     render: kpiRenderer('Avg win', TrendingUp, (s) => ({
       value: formatCurrencyIn('kpi', s.avgWin), color: 'var(--shell-success)',
       anim: { value: s.avgWin, format: (n) => formatCurrencyIn('kpi', n) },
-    })),
+    }), () => drillToTrades({ outcome: 'win' })),
   },
   {
     id: 'kpi-avg-loss', title: 'Avg Loss', description: 'Average losing trade size', category: 'KPIs',
@@ -1011,21 +1029,21 @@ export const WIDGET_DEFS: WidgetDef[] = [
     render: kpiRenderer('Avg loss', TrendingDown, (s) => ({
       value: formatCurrencyIn('kpi', s.avgLoss), color: 'var(--shell-danger)',
       anim: { value: s.avgLoss, format: (n) => formatCurrencyIn('kpi', n) },
-    })),
+    }), () => drillToTrades({ outcome: 'loss' })),
   },
   {
     id: 'kpi-best', title: 'Best Trade', description: 'The single biggest winner in range', category: 'KPIs',
     defaultSpan: 1, defaultSize: 'standard',
     render: kpiRenderer('Best trade', ArrowUpRight, (s) => s.best
       ? { value: formatCurrencyIn('kpi', s.best.pnl), sub: `${s.best.symbol} · ${s.best.side}`, color: 'var(--shell-success)' }
-      : { value: '—', sub: 'no closed trades' }),
+      : { value: '—', sub: 'no closed trades' }, (s) => { if (s.best) peekTrade({ id: s.best.id, symbol: s.best.symbol, side: s.best.side, entryTime: s.best.entryTime, pnl: s.best.pnl }) }),
   },
   {
     id: 'kpi-worst', title: 'Worst Trade', description: 'The single biggest loser in range', category: 'KPIs',
     defaultSpan: 1, defaultSize: 'standard',
     render: kpiRenderer('Worst trade', ArrowDownRight, (s) => s.worst
       ? { value: formatCurrencyIn('kpi', s.worst.pnl), sub: `${s.worst.symbol} · ${s.worst.side}`, color: 'var(--shell-danger)' }
-      : { value: '—', sub: 'no closed trades' }),
+      : { value: '—', sub: 'no closed trades' }, (s) => { if (s.worst) peekTrade({ id: s.worst.id, symbol: s.worst.symbol, side: s.worst.side, entryTime: s.worst.entryTime, pnl: s.worst.pnl }) }),
   },
   {
     id: 'kpi-streak', title: 'Current Streak', description: 'Consecutive wins (+) or losses (−) at the tail', category: 'KPIs',
@@ -1041,11 +1059,11 @@ export const WIDGET_DEFS: WidgetDef[] = [
     defaultSpan: 3, defaultSize: 'standard', prefersWide: true,
     render: ({ stats }) => (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} />
-        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} />
+        <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({})} />
+        <Kpi label="Win rate" icon={Target} value={`${stats.winRate.toFixed(1)}%`} sub={`${stats.wins}W / ${stats.losses}L`} onClick={() => drillToTrades({ outcome: 'win' })} />
         <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" />
-        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} color="var(--shell-success)" anim={{ value: stats.avgWin, format: (n) => formatCurrencyIn('kpi', n) }} />
-        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} color="var(--shell-danger)" anim={{ value: stats.avgLoss, format: (n) => formatCurrencyIn('kpi', n) }} />
+        <Kpi label="Avg win" icon={TrendingUp} value={formatCurrencyIn('kpi', stats.avgWin)} color="var(--shell-success)" anim={{ value: stats.avgWin, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({ outcome: 'win' })} />
+        <Kpi label="Avg loss" icon={TrendingDown} value={formatCurrencyIn('kpi', stats.avgLoss)} color="var(--shell-danger)" anim={{ value: stats.avgLoss, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({ outcome: 'loss' })} />
         <Kpi
           label="Streak"
           icon={Flame}

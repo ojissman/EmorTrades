@@ -283,10 +283,6 @@ export function Pagination({
 
 /* ── Misc helpers ────────────────────────────────────────────────────────── */
 
-export function AdminTag({ children }: { children: React.ReactNode }) {
-  return <span className="a-badge a-badge-neutral">{children}</span>
-}
-
 export function formatAdminDate(d: string | Date | null | undefined, withTime = false): string {
   if (!d) return '—'
   const date = typeof d === 'string' ? new Date(d) : d

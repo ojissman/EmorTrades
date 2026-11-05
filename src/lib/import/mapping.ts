@@ -5,7 +5,9 @@
  *                               (templates.ts — disk-backed, called by the route)
  *   (b) Broker profiles      — fingerprints below, fixed field→header maps
  *   (c) Fuzzy alias matching  — HEADER_ALIASES from header-detect
- *   (d) LLM fallback          — /api/import/map-columns (headers + 5 rows ONLY)
+ *   (d) LLM fallback          — suggestMappingWithLLM, called in-process by
+ *                              POST /api/import/parse (headers + 5 rows ONLY;
+ *                              the old HTTP route was an orphan and removed)
  *
  * Any mapping from the LLM or low-confidence fuzzy matching is flagged
  * needsConfirmation and the UI gates the import on explicit confirmation.

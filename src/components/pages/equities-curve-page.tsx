@@ -48,7 +48,7 @@ import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
 import { axisMoney, formatCurrencyIn, formatDate } from '@/lib/format'
-import { drillToTrades } from '@/lib/drill'
+import { drillToTrades, drillToDay } from '@/lib/drill'
 import {
   ResponsiveContainer,
   LineChart,
@@ -609,7 +609,12 @@ export function EquitiesCurvePage() {
             <Trophy className="h-3 w-3 text-emerald-400" />
           </div>
           {best ? (
-            <>
+            <button
+              type="button"
+              className="block w-full text-left cursor-pointer"
+              title="Open this performer's trades"
+              onClick={() => (mode === 'accounts' ? drillToTrades({ accountId: best.key }) : drillToTrades({ setupId: best.key }))}
+            >
               <p className="text-sm font-bold truncate" title={best.label}>{best.label}</p>
               <p
                 className="text-[11px] text-emerald-400 tnum truncate"
@@ -618,7 +623,7 @@ export function EquitiesCurvePage() {
                 +{formatCurrencyIn('table', best.ret)}
                 {best.retPct !== null && ` (+${best.retPct.toFixed(1)}%)`}
               </p>
-            </>
+            </button>
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
           )}
@@ -716,7 +721,7 @@ export function EquitiesCurvePage() {
             </div>
 
             <ResponsiveContainer width="100%" height={340}>
-              <LineChart data={model.rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <LineChart data={model.rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.day) drillToDay(String(p.day).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
                   dataKey="day"

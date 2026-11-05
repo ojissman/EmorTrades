@@ -72,7 +72,7 @@ export interface ParseFileOptions {
   timezoneMinutes?: number
   /** Explicit mapping from the UI "Apply & Re-parse" step. */
   applyMapping?: FieldMapping
-  /** Mapping produced by the LLM fallback (/api/import/map-columns). */
+  /** Mapping produced by the LLM fallback (suggestMappingWithLLM, in-process). */
   llmMapping?: FieldMapping
   llmConfidence?: number
   llmRationale?: string

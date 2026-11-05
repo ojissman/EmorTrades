@@ -411,15 +411,3 @@ export const QUESTIONS_BY_LEVEL: Record<PlanLevel, PlanQuestion[]> = {
 export const QUESTIONS_BY_KEY: Record<string, PlanQuestion> = Object.fromEntries(
   PLAN_QUESTIONS.map((q) => [q.key, q]),
 )
-
-/** All hard/process rule metrics the registry declares (for engine wiring). */
-export const RULE_METRICS: { metric: string; type: 'hard' | 'judgment' | 'process'; sourceKeys: string[] }[] = (() => {
-  const map = new Map<string, { metric: string; type: 'hard' | 'judgment' | 'process'; sourceKeys: string[] }>()
-  for (const q of PLAN_QUESTIONS) {
-    if (!q.rule) continue
-    const cur = map.get(q.rule.metric)
-    if (cur) cur.sourceKeys.push(q.key)
-    else map.set(q.rule.metric, { metric: q.rule.metric, type: q.rule.type, sourceKeys: [q.key] })
-  }
-  return Array.from(map.values())
-})()

@@ -714,7 +714,7 @@ export function PropFirmCompliancePage() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={eval_.equityRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={eval_.equityRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
               <defs>
                 <linearGradient id="propEq" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
@@ -812,7 +812,7 @@ export function PropFirmCompliancePage() {
               {eval_.dailyLimit > 0 && (
                 <ReferenceLine y={-eval_.dailyLimit} stroke="#ef4444" strokeDasharray="5 5" strokeOpacity={0.8} />
               )}
-              <Bar dataKey="pnl" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+              <Bar dataKey="pnl" isAnimationActive={false} radius={[2, 2, 0, 0]} className="cursor-pointer" onClick={(data: any) => { const d = data?.payload?.day ?? data?.day; if (d) drillToDay(String(d).slice(0, 10)) }}>
                 {eval_.dailyRows.map((r, i) => {
                   const breach = eval_.dailyLimit > 0 && r.pnl <= -eval_.dailyLimit
                   return <Cell key={i} fill={breach ? '#ef4444' : r.pnl >= 0 ? '#10b981' : '#f87171'} fillOpacity={breach ? 1 : 0.85} />

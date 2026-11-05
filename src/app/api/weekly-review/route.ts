@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
       // Per-day breakdown
       const dayMap = new Map<string, { pnl: number, count: number }>()
       const symbols = new Set<string>()
-      const setupMap = new Map<string, { pnl: number, count: number, color: string }>()
+      const setupMap = new Map<string, { pnl: number, count: number, color: string, id: string | null }>()
 
       for (const t of trades) {
         if (!t.exitTime) continue
@@ -176,9 +176,10 @@ export async function GET(req: NextRequest) {
         symbols.add(t.symbol)
         const setupName = t.setup?.name || 'Uncategorized'
         const setupColor = t.setup?.color || '#64748b'
-        const s = setupMap.get(setupName) || { pnl: 0, count: 0, color: setupColor }
+        const s = setupMap.get(setupName) || { pnl: 0, count: 0, color: setupColor, id: t.setupId ?? null }
         s.pnl += t.pnl
         s.count += 1
+        if (s.id === null && t.setupId) s.id = t.setupId
         setupMap.set(setupName, s)
       }
 

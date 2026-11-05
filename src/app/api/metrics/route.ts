@@ -254,18 +254,24 @@ function runningPnl(closed: MetricsTrade[]) {
   let ddStart: string | null = null
   const series = chrono.map((t, i) => {
     cum += t.pnl
-    const date = (t.exitTime ?? t.entryTime)?.toISOString().slice(5, 10) ?? ''
+    const iso = (t.exitTime ?? t.entryTime)?.toISOString() ?? ''
+    // CLICKSWEEP-DATEFIX — `date` stays the compact MM-DD chart-XAxis label,
+    // but every drill surface needs the FULL 'YYYY-MM-DD' UTC day key
+    // (day-explore rejects year-less keys and falls back to the latest day),
+    // so rows carry `dateKey` and maxDDStart/maxDDBottom are full day keys.
+    const date = iso.slice(5, 10)
+    const dateKey = iso.slice(0, 10)
     if (cum >= peak) {
       peak = cum
-      ddStart = date
+      ddStart = dateKey
     }
     const dd = cum - peak
     if (dd < maxDD) {
       maxDD = dd
       maxDDStart = ddStart
-      maxDDBottom = date
+      maxDDBottom = dateKey
     }
-    return { i: i + 1, id: t.id, date, cum: round(cum), peak: round(peak), dd: round(dd), symbol: t.symbol, pnl: round(t.pnl) }
+    return { i: i + 1, id: t.id, date, dateKey, cum: round(cum), peak: round(peak), dd: round(dd), symbol: t.symbol, pnl: round(t.pnl) }
   })
   return {
     series,

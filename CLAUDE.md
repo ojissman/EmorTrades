@@ -373,6 +373,8 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   mounted — pass the computed label as SelectValue children; a value
   with no matching item renders a BLANK trigger otherwise.
 
+- CLICKSWEEP (2026-11-05): every cohort-naming card/KPI/bar drills through src/lib/drill.ts (drillToTrades/peekTrade/drillToDay) or carries an honest no-op title — never a silent static tile; mutating fetch handlers MUST check res.ok before toasting success; equity baselines go through equityBaselineFor() (never user.startingCapital directly, never a hardcoded 10000/25000); verify claimed routes exist in the tree (`git log --all -- <path>`), not in commit messages; on this sandbox the dev server only lives within the tool-call that spawned it — warm via curl before browser use, one browser tab, never tsc+browser together.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

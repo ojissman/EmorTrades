@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
+import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import { calculateAnalytics, type TradeInput } from '@/lib/analytics'
 import { zaiChatWithRetry, isRateLimitError } from '@/lib/ai/zai-retry'
 import { AI_VOICE_RULE } from '@/lib/ai/voice'
@@ -574,8 +575,14 @@ async function runChallenges(userId: string): Promise<NextResponse> {
     side: t.side as 'long' | 'short',
     status: 'closed' as const,
   }))
-  const startingCapital =
-    accounts.reduce((s, a) => s + a.startingBalance, 0) || userRow?.startingCapital || 10000
+  // CLICKSWEEP (audit §6.2) — the shared equity baseline helper (identical
+  // rule; the old inline copy also defaulted to 10000 when the profile had
+  // no capital, which silently fabricated a baseline — now it degrades to 0
+  // like every other surface and the analytics math is 0-safe).
+  const startingCapital = equityBaselineFor({
+    startingCapital: userRow?.startingCapital ?? 0,
+    accounts,
+  })
   const ctx: ChallengeContext = {
     closed: closedInputs,
     journaledTradeIds: new Set(
