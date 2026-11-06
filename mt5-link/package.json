@@ -1,0 +1,15 @@
+{
+  "name": "mt5-link",
+  "version": "1.0.0",
+  "description": "Self-hosted read-only MetaTrader 5 connector for EmorTrades — drives one mt5-gateway terminal container per journal connection and reports deals over an authenticated HTTPS API.",
+  "type": "module",
+  "private": true,
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "node src/main.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

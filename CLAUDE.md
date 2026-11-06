@@ -400,6 +400,35 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   implicit lib-level auth gives 500-not-401 — gate at the route.
 
 
+## Task MT5LINK — open-source MT5 integration (2026-11-06)
+
+- **Z.ai Space cannot run MT5 terminals** (probe-verified: no Docker, no
+  Wine, no sudo, 4GB shared). MT5 integration = journal-side control plane
+  + the self-hosted mt5-link service on the owner's Docker host. Never
+  design terminal execution into the journal app.
+- **MT5 credentials**: AES-256-GCM at rest (MT5_CREDENTIAL_KEY), decrypted
+  only in the token-gated /api/mt5/connector/pending, never logged, never
+  in session responses. New keys (MT5_CREDENTIAL_KEY,
+  MT5_CONNECTOR_TOKEN) are REQUIRED_KEYS in BOTH day-start.ts and
+  secrets-backup.ts — keep them mirrored — and ride the encrypted backup
+  (13 keys).
+- **No order endpoints exist for MT5 — ever.** Read-only by construction
+  (connector calls only gateway read routes + engages the kill-switch).
+- **Ingest is idempotent by key, not by care**: deal ticket uniqueness
+  (Trade @@unique([mt5ConnectionId, externalTicket]), Execution
+  @@unique([userId, externalTicket])) makes re-reports free; the connector
+  sends COMPLETE deal sets per touched position and the journal recomputes
+  truth. Full-close retirement MOVES the user's notes/screenshots/tags to
+  the last segment before deleting the placeholder open row.
+- **Date discipline (recurring)**: MT5 deal times are epoch SECONDS —
+  Date() takes milliseconds (a test caught this pre-ship; keep golden-
+  number tests on any ingestion math).
+- **E2E for connector-style features**: real curl reports through the
+  token-gated API, then purge and PROVE the DB returned to baseline. Live
+  broker login is the owner's acceptance test on their host — never claim
+  MT5 connectivity from this sandbox.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

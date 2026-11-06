@@ -57,6 +57,8 @@ const REQUIRED_KEYS = [
   'GOOGLE_INTEGRATION_CLIENT_ID',
   'GOOGLE_INTEGRATION_CLIENT_SECRET',
   'DB_EXPORT_TOKEN',
+  'MT5_CREDENTIAL_KEY',
+  'MT5_CONNECTOR_TOKEN',
 ]
 
 /* ENFORCE-3 — minimal mirrors of scripts/secrets-backup.ts manifest helpers
@@ -311,7 +313,7 @@ if (missing.length) {
   if (missing.length) die(`.env still incomplete after restore (missing: ${missing.join(', ')}).`)
   log('.env restored from encrypted backup (keys verified).')
 } else {
-  log('.env complete (9/9 required keys).')
+  log(`.env complete (${REQUIRED_KEYS.length}/${REQUIRED_KEYS.length} required keys).`)
 }
 
 /* ── 5b · ENFORCE-3 protection lock — live .env must equal the protected state.
@@ -402,7 +404,7 @@ console.log('──────────────────────�
 console.log(`DAY START STATE — ${new Date().toISOString()}`)
 console.log(`  GitHub:      ${tip[0]} ${(tip[1] || '').slice(0, 60)}${pulledCommits ? `  (pulled ${pulledCommits} new)` : '  (was current)'}`)
 console.log(`  Production:  synced ${state.get('lastPullIso') || '?'} — users=${state.get('users') || '?'}, trades=${state.get('trades') || '?'}`)
-console.log(`  Secrets:     .env complete (9/9 required) · ${protection}`)
+console.log(`  Secrets:     .env complete (${REQUIRED_KEYS.length}/${REQUIRED_KEYS.length} required) · ${protection}`)
 console.log(`  Enforcement: pre-push hook ${hookArmed ? 'ARMED' : 'MISSING'} · .sync-state fresh · env-manifest lock live · ritual-guard live (ENFORCE-4)`)
 console.log('────────────────────────────────────────────────────────────────')
 console.log('✅ CLEARED TO WORK — next: the 7-step ritual (AGENTS.md) for today’s task,')

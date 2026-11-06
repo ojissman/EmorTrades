@@ -144,6 +144,9 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'Risk Tools', path: '/tools/risk-tools' },
       { label: 'Execution', path: '/tools/execution' },
       { label: 'Challenges', path: '/tools/challenges' },
+      // MT5-LINK (Task MT5LINK) — live MetaTrader 5 sync (read-only, encrypted
+      // credentials, self-hosted connector — see mt5-link/README.md).
+      { label: 'MetaTrader 5', path: '/tools/metatrader-5' },
     ],
   },
 

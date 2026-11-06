@@ -68,6 +68,11 @@ const OverviewPage = dynamic(
   () => import('@/components/pages/overview-page').then((m) => ({ default: m.OverviewPage })),
   { ssr: false, loading: () => <PageLoaderFallback /> },
 )
+// MT5-LINK (Task MT5LINK) — live MetaTrader 5 sync page.
+const Mt5Page = dynamic(
+  () => import('@/components/pages/mt5-page').then((m) => ({ default: m.Mt5Page })),
+  { ssr: false, loading: () => <PageLoaderFallback /> },
+)
 const TradingProfilePage = dynamic(
   () => import('@/components/pages/trading-profile-page').then((m) => ({ default: m.TradingProfilePage })),
   { ssr: false, loading: () => <PageLoaderFallback /> },
@@ -358,6 +363,7 @@ export const PAGE_REGISTRY: Record<string, PageEntry> = {
   '/tools/risk-tools': lg('risk', 'Risk Tools', 'Risk guardrails and risk analytics', () => <RiskPage />),
   '/tools/execution': lg('executions', 'Execution', 'Individual order fills linked to trades', () => <ExecutionsPage />),
   '/tools/challenges': lg('challenges', 'Challenges', 'Gamified discipline streaks scored from your journal', () => <ChallengesPage />),
+  '/tools/metatrader-5': { kind: 'custom', title: 'MetaTrader 5', subtitle: 'Live, read-only sync of your MT5 accounts — history imports automatically and new trades stay in sync', render: () => <Mt5Page /> },
 
   // ---- Summaries ----------------------------------------------------------------
   '/summaries/equities-curve': { kind: 'custom', title: 'Equities Curve', subtitle: 'Your equity curve over time, per account and strategy', render: () => <EquitiesCurvePage /> },

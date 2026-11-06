@@ -479,3 +479,35 @@ Owner directive (CONTINUE of CLICKSWEEP): close the documented blocked cohort dr
 - 51 + 141 over-exported symbols/types (deletion = churn; owner appetite).
 - Dashboard + User.displayMode orphan models (Nov-2 deferral, unchanged).
 - Certification: PRODUCTION-READY (full certificate in worklog.md SWEEP3 entry).
+
+---
+
+## Task MT5LINK — open-source MT5 integration audit addendum   [2026-11-06]
+
+**Scope addition:** live MetaTrader 5 sync (owner directive: investigate → evaluate → architecture → implement, no paid APIs, no user installs, read-only, encrypted credentials, Z.ai hosting respected).
+
+### Hosting investigation (verified by probe, not assumed)
+- Z.ai Space sandbox/production: **Docker ABSENT · Docker Compose ABSENT · Wine ABSENT · no sudo · 2 vCPU / 4GB shared / k8s container (tini init)** → MT5 terminals cannot run on the journal host. The owner's fallback design (separate self-hosted connector) is the only viable architecture and was adopted.
+
+### Connector evaluation (all three repos fetched and read this session)
+| Project | License | Verdict |
+|---|---|---|
+| elitekaycy/mt5-gateway | MIT | **SELECTED** — actively maintained (pushed 2026-11-05), published Docker image, headless auto-login by env, clean Flask JSON read endpoints (/account, /get_positions, /history_deals_get?from_date&to_date&position, /health/ready), kill-switch, audit log, reconnect backoff. One account per container = per-connection terminal isolation by construction. |
+| dhlITCM/mt5-bridge | MIT | Rejected: less active, VNC one-time-login flow, heavier multi-protocol surface (REST+WS+gRPC) we do not need. |
+| Danijel-Enoch/mt5_service | **NO LICENSE** | Disqualified: legally unusable (all rights reserved). |
+
+### Architecture implemented
+Browser (session) ⇄ journal on Z.ai (control plane: AES-256-GCM-encrypted creds at rest, token-gated connector API) ⇐ HTTPS polls/reports ⇒ mt5-link (new MIT service, repo folder `mt5-link/`, runs on owner's VPS with Docker) ⇒ one mt5-gateway container per connection ⇒ broker. **No order endpoints exist anywhere on the journal side; the connector only calls read endpoints and engages the gateway kill-switch.**
+
+### Wiring inventory (all verified end-to-end this session)
+- **API (5 routes, every handler guarded):** GET/POST `/api/mt5/connections` (session; POST validates + encrypts, honest 503 when the key is unconfigured) · GET/DELETE `/api/mt5/connections/[id]` (ownership-scoped 404s; DELETE supports keep-trades vs purge) · POST `/api/mt5/connections/[id]/sync` (409 on non-connected) · GET `/api/mt5/connector/pending` (timing-safe token + rate limit + 30/min bucket; the ONLY credential decryption point; heartbeat to SystemSetting) · POST `/api/mt5/connector/report` (token + rate limit; strict validation incl. int-enum tolerance, 5000-deal cap, login-mismatch 409; account auto-creation; idempotent ingest).
+- **Ingest engine (src/lib/mt5/):** normalize (partial-close segments, weighted multi-fill entries, balance-deal filtering, OUT-only degraded honesty) + ingest (segment rows dedup by deal ticket via `@@unique([mt5ConnectionId, externalTicket])`; open row "pos:" upsert; full-close retirement moves notes/screenshots/tags to the last segment — manual journaling preserved; executions = one atomic row per deal deduped by `(userId, externalTicket)`).
+- **UI:** Tools → MetaTrader 5 (nav + registry wired, single-source navigation): connector online/offline banner with expandable real setup guide, connection cards (status, balance/equity/leverage/broker, counts, last sync), Connect dialog (validation/loading/error), Disconnect dialog (keep vs purge radio), Sync history dialog (table), honest empty state, 30s live refetch, mobile 390px zero overflow.
+- **Tests (18 new, suite 239/239):** crypto roundtrip/tamper/key-gate, token timing-safety + rate limiter, partial-close GOLDEN math (37.7/56.5 hand-computed), DB idempotency (re-report = 0 writes), open→partial→full-close with note move, manual-trade non-interference.
+- **E2E on live pull (curl + browser):** full connector flow — create → pending with password roundtrip → connected → sync (4 deals → 3 trades, golden PnLs exact) → re-sync (0 new, 2 dups, 1 self-heal) → trades visible in existing /api/trades + /api/executions with source='mt5' → Sync now + toast → history dialog → disconnect+purge via UI → **DB restored to baseline exactly (users=4, trades=386, 0 MT5 residue)**. Console + page errors 0. Ritual-lock banner (bot ride-along commit) is expected mid-task state, clears on push.
+
+### Honest limitations (documented, not hidden)
+- **Live broker connectivity untested from this sandbox** (Z.ai cannot run Wine — that is the architecture's premise). The journal side is fully exercised via the real API; the mt5-link service code is shipped but its terminal orchestration needs the owner's VPS + a DEMO MT5 account for the owner's acceptance test (steps in mt5-link/README.md).
+- Netting-account reversal deals (entry=inout) are treated as closes of the pre-reversal position (hedging-mode accounts — the retail default — are exact).
+- Import depth is bounded by what the broker/terminal serves; OUT-only history degrades to approximated entry price with exact broker P&L and an explanatory note.
+- Import sizing documented honestly in mt5-link/README.md (~0.8-1.2GB RAM per terminal; real VPS costs ~€4-24/mo — the only unavoidable cost; zero paid APIs).

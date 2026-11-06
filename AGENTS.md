@@ -1239,6 +1239,57 @@ this task added to the permanent record:
   141 over-exported types stay (churn without gain; listed for the owner).
 
 
+## Task MT5LINK — open-source MT5 integration: control-plane journal + self-hosted connector (2026-11-06)
+
+Owner directive: integrate MT5 with no paid APIs, no user installs, read-only,
+encrypted credentials, Z.ai hosting respected. Full entry + certificate in
+worklog.md; audit addendum in AUDIT_REPORT.md. What this task added to the
+permanent record:
+
+- HOSTING LAW (probe-verified 2026-11-06, do not re-litigate without a new
+  probe): Z.ai Space cannot run MT5 terminals (no Docker, no Wine, no sudo,
+  4GB shared). MT5 integration architecture is CONTROL-PLANE ONLY on the
+  journal side; terminals run on the owner's Docker host via the self-hosted
+  mt5-link service (repo folder mt5-link/, MIT, zero-dep Node >= 20).
+- CONNECTOR EVALUATION (read this before touching MT5 tooling): use
+  elitekaycy/mt5-gateway (MIT, active, docker image, headless env auto-login,
+  read endpoints /account /get_positions /history_deals_get /health/ready,
+  kill-switch). Danijel-Enoch/mt5_service has NO LICENSE (never use);
+  dhlITCM/mt5-bridge (MIT) was rejected for the VNC-login flow + staleness.
+- ENFORCEMENT-STYLE RULES for the MT5 surface (all live):
+  1. MT5 passwords are AES-256-GCM encrypted at rest (MT5_CREDENTIAL_KEY,
+     lib/mt5/crypto.ts v1 envelopes). They are decrypted ONLY in
+     /api/mt5/connector/pending, ONLY for a timing-safe-tokened connector
+     poll, and are NEVER logged, never returned by session routes. New env
+     keys MT5_CREDENTIAL_KEY + MT5_CONNECTOR_TOKEN are REQUIRED_KEYS in BOTH
+     day-start.ts and secrets-backup.ts (they must stay mirrored) and ride
+     the encrypted backup (13 keys since this task).
+  2. The journal has NO order endpoints — trade execution through the
+     integration is impossible by construction. Never add one.
+  3. Ingest contract (lib/mt5/ingest.ts): the connector reports COMPLETE
+     deal sets per touched position; the journal recomputes truth
+     idempotently (segment rows keyed by deal ticket via
+     @@unique([mt5ConnectionId, externalTicket]); open row "pos:<ticket>";
+     full-close retirement MOVES notes/screenshots/tags to the last
+     segment; executions are one atomic row per deal keyed by
+     (userId, externalTicket)). Manual trades (null externalTicket) are
+     untouchable by ingest.
+  4. Connector routes are token-gated (x-connector-token, timing-safe) +
+     rate-limited (30/min in-memory). Session routes are ownership-scoped
+     404s. The login-mismatch guard (report connected) 409s when the
+     gateway logged into a different account than the connection stores.
+- LESSON (test-first catches real bugs): the +18 vitest cases caught TWO
+  pre-ship bugs in one run — epoch-seconds passed to Date() as milliseconds
+  (dates landed in 1970) and IN-executions never created for
+  closed-at-first-sight positions. Golden-number tests on date/PnL math pay
+  for themselves immediately; write them for any new ingestion math.
+- E2E discipline for connector-style features: exercise the token-gated API
+  with REAL curl reports (create → pending roundtrip → connected → sync →
+  dedup → purge), then PURGE the test data and prove the DB returned to the
+  exact baseline counts. Live broker login remains the owner's acceptance
+  test on their Docker host (mt5-link/README.md) — never claim it from the
+  sandbox.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

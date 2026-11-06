@@ -1,0 +1,36 @@
+# mt5-link — self-hosted read-only MT5 connector for EmorTrades
+# ============================================================================
+# MIT licensed (see LICENSE). Task MT5LINK, 2026-11-06.
+#
+# Runs the connector natively on the host (recommended: it needs to create the
+# kill-switch file and manage gateway containers through the host's Docker).
+#
+#   docker compose up -d        (or: node src/main.mjs with env vars set)
+#
+# REQUIRED env (see .env section below): JOURNAL_URL, JOURNAL_TOKEN.
+
+services:
+  mt5-link:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Your EmorTrades journal URL (production origin).
+      JOURNAL_URL: ${JOURNAL_URL:?set JOURNAL_URL in .env}
+      # The MT5_CONNECTOR_TOKEN from the journal server's environment —
+      # the shared secret that gates /api/mt5/connector/*.
+      JOURNAL_TOKEN: ${JOURNAL_TOKEN:?set JOURNAL_TOKEN in .env}
+      POLL_SECONDS: "60"
+      SYNC_SECONDS: "300"
+      MT5_GATEWAY_IMAGE: elitekaycy/mt5-gateway-api:latest
+      # Kill-switch: this container's view + the DOCKER DAEMON's view of the
+      # same file (host path). Create ./data on the host first.
+      KILL_SWITCH_FILE: /kill-switch/kill-switch
+      KILL_SWITCH_HOST_FILE: /opt/mt5-link/data/kill-switch
+    volumes:
+      # Sibling-container management: the host's Docker daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The kill-switch file this service creates; gateway containers mount
+      # it read-only at /config/kill-switch. HOST path must match
+      # KILL_SWITCH_HOST_FILE above.
+      - /opt/mt5-link/data:/kill-switch
+    # The connector holds the journal token — keep the host locked down.

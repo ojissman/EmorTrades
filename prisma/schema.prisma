@@ -88,6 +88,8 @@ model User {
   // ── SEO-UPGRADE: alert read-state is per-user; blog authorship ────────
   alertsRead       AlertRead[]
   blogPosts       BlogPost[]
+  // ── MT5-LINK: live MetaTrader 5 sync connections ──────────────────────
+  mt5Connections  Mt5Connection[]
 }
 
 model UserSettings {
@@ -126,6 +128,9 @@ model Account {
   // Protection: system/protected accounts cannot be deleted or renamed
   isProtected     Boolean  @default(false)
   isSystem        Boolean  @default(false)
+  // MT5-LINK: backrelation for the auto-created accounts of live-sync
+  // connections.
+  mt5Connections  Mt5Connection[]
   // Soft delete
   deletedAt       DateTime?
   createdAt       DateTime @default(now())
@@ -151,6 +156,9 @@ model Execution {
   fees        Float    @default(0)
   commission  Float    @default(0)
   notes       String?
+  // MT5-LINK: deal ticket when this fill mirrors an MT5 deal (dedup key for
+  // re-reported history; null for manual/imported executions).
+  externalTicket String?
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -159,6 +167,9 @@ model Execution {
   // with their trade, matching the delete-modal copy. Without this the FK
   // defaulted to SetNull and deleted trades leaked executions forever.
   trade       Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, externalTicket])
+  @@unique([userId, externalTicket])
 }
 
 model Trade {
@@ -248,10 +259,24 @@ model Trade {
   planMarks       PlanMark[]
   warningLogs     TradeWarningLog[]
 
+  // ── MT5-LINK provenance (Task MT5LINK) ─────────────────────────────────
+  // Live-synced trades carry their owning connection + dedup keys:
+  //   externalTicket = the MT5 deal ticket for close-segment rows, or
+  //   "pos:<ticket>" for the live open-position row of a partially-closed
+  //   position. Manual/imported trades keep both null (SQLite treats NULLs
+  //   as distinct in the composite unique below, so they are unaffected).
+  //   positionTicket groups a position's partial-close segments together.
+  mt5ConnectionId String?
+  externalTicket  String?
+  positionTicket  String?
+  mt5Connection   Mt5Connection? @relation("Mt5ConnectionTrades", fields: [mt5ConnectionId], references: [id], onDelete: SetNull)
+
   @@index([userId, tradingPlanId])
   @@index([userId, systemId])
   @@index([userId, setupId])
   @@index([userId, adherenceStatus])
+  @@index([userId, mt5ConnectionId])
+  @@unique([mt5ConnectionId, externalTicket])
 }
 
 // Task 179 — options/multi-leg support. A Trade keeps its denormalized
@@ -1093,6 +1118,80 @@ model SystemSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MT5-LINK — live MetaTrader 5 sync (Task MT5LINK, 2026-11-06)
+//
+// ARCHITECTURE (owner-directed): Z.ai Space cannot run MT5 terminals (probe
+// 2026-11-06: no Docker, no Wine, no sudo, 4GB shared). The journal stays on
+// Z.ai and acts as the control plane: it stores ENCRYPTED MT5 credentials
+// (AES-256-GCM under MT5_CREDENTIAL_KEY — the plaintext password NEVER goes
+// to the browser and is never logged) and exposes a token-gated connector
+// API. The self-hosted mt5-link service (repo folder mt5-link/, MIT) runs on
+// the owner's VPS, polls /api/mt5/connector/pending, drives one
+// elitekaycy/mt5-gateway Docker container per connection (read-only endpoints
+// only + kill-switch engaged), and reports deals back to
+// /api/mt5/connector/report. There are NO order endpoints anywhere on the
+// journal side — trade execution is impossible by construction.
+//
+// Partial-close model: one closed Trade per OUT deal ("segment", dedup key =
+// deal ticket) + one live open row per position ("pos:<ticket>", quantity =
+// remaining volume). On full close the open row's notes/screenshots/tags
+// move to the last segment and the placeholder row is deleted — manual
+// journaling is preserved, nothing is double-counted.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Mt5Connection {
+  id                String    @id @default(cuid())
+  userId            String
+  label             String
+  login             Int
+  brokerServer      String
+  // AES-256-GCM envelope "v1.<iv>.<tag>.<ct>" (base64url) — decryptable only
+  // by the token-gated connector pending route, server-side.
+  encryptedPassword String
+  status            String    @default("pending") // pending|connecting|connected|error|disconnected
+  desired           String    @default("connect") // connect|sync|disconnect
+  lastError         String?
+  // Broker-reported account snapshot JSON at last report:
+  // { login, currency, leverage, balance, equity, server, company, name }
+  accountInfo       String?
+  // Auto-created journal Account that receives the imported trades.
+  accountId         String?
+  syncRequestedAt   DateTime?
+  lastSyncAt        DateTime?
+  // Incremental cursor: newest deal time (UTC) already ingested.
+  lastDealTime      DateTime?
+  lastConnectorAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account           Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  trades            Trade[]   @relation("Mt5ConnectionTrades")
+  syncLogs          Mt5SyncLog[]
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+/** Per-connection synchronization history (also connection lifecycle events). */
+model Mt5SyncLog {
+  id               String       @id @default(cuid())
+  connectionId     String
+  kind             String       @default("sync") // connect|sync|error|disconnect
+  status           String       @default("ok") // ok|error
+  dealsScanned     Int          @default(0)
+  tradesCreated    Int          @default(0)
+  tradesUpdated    Int          @default(0)
+  duplicatesSkipped Int         @default(0)
+  error            String?
+  detail           String? // compact JSON (account snapshot, etc.)
+  startedAt        DateTime     @default(now())
+  finishedAt       DateTime     @default(now())
+  connection       Mt5Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, startedAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
