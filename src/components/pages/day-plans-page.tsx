@@ -60,6 +60,8 @@ import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/store/app-store'
 import { axisMoney, formatCurrencyIn, formatDate, formatDateTime, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
+// SWEEP3-WIRE2 — the two correlation scatters drill their dot's day cohort.
+import { drillToDay } from '@/lib/drill'
 // Task 22-c — daily trading rules (Settings ▸ Notes, Plans & Rules) become
 // the default checklist of NEW day plans.
 import { readRules } from '@/lib/note-templates'
@@ -1045,7 +1047,7 @@ export function DayPlansPage() {
             <Moon className="h-4 w-4 text-blue-400" />
             <div>
               <h3 className="font-semibold tracking-tight text-sm">Sleep vs P&L</h3>
-              <p className="text-xs text-muted-foreground">Hours slept the night before vs daily P&L</p>
+              <p className="text-xs text-muted-foreground">Hours slept the night before vs daily P&L · click a dot to open that day</p>
             </div>
           </div>
           {correlationData.length === 0 ? (
@@ -1054,7 +1056,9 @@ export function DayPlansPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
-              <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              {/* SWEEP3 E2E-FIX — RECHARTS LAW extension: Scatter-level onClick
+                  never fires in 2.15.x (E2E-proven); chart-level activePayload. */}
+              <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
                   type="number"
@@ -1090,6 +1094,8 @@ export function DayPlansPage() {
                     )
                   }}
                 />
+                {/* SWEEP3-WIRE2 — each bubble is a DAY cohort (the tooltip
+                    already carries p.date); click opens that day's explore. */}
                 <Scatter data={correlationData}>
                   {correlationData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.pnl > 0 ? '#10b981' : '#ef4444'} fillOpacity={0.7} />
@@ -1105,7 +1111,7 @@ export function DayPlansPage() {
             <Zap className="h-4 w-4 text-yellow-400" />
             <div>
               <h3 className="font-semibold tracking-tight text-sm">Stress vs P&L</h3>
-              <p className="text-xs text-muted-foreground">Self-reported stress level vs daily P&L</p>
+              <p className="text-xs text-muted-foreground">Self-reported stress level vs daily P&L · click a dot to open that day</p>
             </div>
           </div>
           {correlationData.length === 0 ? (
@@ -1114,7 +1120,8 @@ export function DayPlansPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
-              <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              {/* SWEEP3 E2E-FIX — RECHARTS LAW extension (see the Sleep scatter). */}
+              <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.date) drillToDay(String(p.date).slice(0, 10)) }} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
                   type="number"
@@ -1149,6 +1156,8 @@ export function DayPlansPage() {
                     )
                   }}
                 />
+                {/* SWEEP3-WIRE2 — same as the Sleep scatter: each bubble is a
+                    DAY cohort; click opens that day's explore. */}
                 <Scatter data={correlationData}>
                   {correlationData.map((d: any, i: number) => (
                     <Cell key={i} fill={d.pnl > 0 ? '#10b981' : '#ef4444'} fillOpacity={0.7} />

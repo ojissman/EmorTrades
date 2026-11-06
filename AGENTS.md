@@ -1192,6 +1192,53 @@ standard. What changed (full entry in worklog.md):
 - Aggregate payloads are id-bearing now (bestTrade/worstTrade, rDetail, captureHistogram[].tradeIds, exit buckets, regime buckets, topMistakes[].mistakeId): a drill must land on the EXACT cohort the surface counted — when ids exist, never approximate with a filter range. Stale-cache safety: clients read new payload fields with `?? []`/`?? null` guards.
 - Drills MERGE into the global filter store (setFilters patch semantics — progressive refinement; Q2-cohort ∩ No-system is intentional). The Context chips + Clear-all on the trades page are the escape hatch; when E2E-ing sequential drills, clear between flows or expect intersections.
 
+## Task SWEEP3 — security holes closed + third full wiring sweep + the blank scatter charts (2026-11-06)
+
+Owner directive (third pass of the same words): every dead surface found,
+wired or honestly titled; production-ready. Full entry in worklog.md. What
+this task added to the permanent record:
+
+- SECURITY CLASSES (audit-found, all fixed + E2E'd): (1) in-process AI cache
+  keys MUST carry the session userId — /api/ai/suite leaked user A's cached
+  review/insight/answer to user B sending identical params (P&L/win-rate
+  embedded); ai/page-insights and ai/watchlist symbol-analysis had the same
+  hole. (2) FK-injection class: a findUnique on a bare foreign id is an
+  ownership hole — /api/library accepted ANY tradeId (user B's screenshot on
+  user A's trade, served back by the unscoped screenshots include in
+  /api/trades/[id]). Rule: every id-in-body/path lookup filters userId, every
+  include of user-owned rows scopes userId. (3) Mutation validation: loose
+  `parseFloat(body.x) || 0` silently writes 0 — accounts POST/PUT now 400 on
+  non-numeric balances. (4) Implicit auth (lib-level getSessionUserId) gives
+  anon 500-not-401 and skips origin/suspension gates — technical-analysis +
+  relative-volume now gate at the route.
+- RECHARTS LAW — SCATTER EXTENSION (E2E-proven 5×, same law as Area/Radar):
+  Scatter-level onClick NEVER fires in 2.15.x. Chart drills go on the CHART
+  element reading `state?.activePayload?.[0]?.payload` — for scatters the
+  tooltip must be active (hover) at click time; clicking the visible in-plot
+  half of an edge-position dot works, the center of a dot centered ON a
+  domain boundary does not (documented caveat, not fixable in-recharts).
+- LOG-SCALE ZERO POISON (two charts were visually BLANK): one data point
+  with value 0 (holdingPeriod=0, rvol=0) makes domain ['dataMin'..'dataMax']
+  go log(0)=-Infinity and EVERY symbol silently renders as an empty <g>
+  group — the chart looks plotted but is blank. Filter zero values out with
+  an honest exclusion count in the caption. ALSO: a log-scale XAxis WITHOUT
+  type="number" falls back to category semantics → no ticks, no positions,
+  blank chart (the patience chart had both bugs).
+- E2E standard reinforced: 5 of my agent-wired surfaces shipped dead on the
+  Scatter idiom and 2 charts were blank — a sibling surface passing E2E
+  proves nothing about the chart. E2E THE CHART ITSELF, EVERY TIME.
+- fetch↔route now mechanically checkable: 390 literal fetch call sites vs
+  the 136-route tree cross-checked in-session (zero mismatches). The
+  gmail/test class of silent-404 button is closed for the current tree.
+- Goals reorder chevrons: the promised-but-never-rendered affordance
+  (broken-but-intended class) is live — PATCH /api/goals batch reorder,
+  dense global order, sections filter it client-side.
+- Dead code this pass: 11 definition-only exports + tailwind.config.ts +
+  tailwindcss-animate (Tailwind v4 is CSS-first here; no @config directive —
+  the v3 config file was dead). The 51 over-exported-but-used internals and
+  141 over-exported types stay (churn without gain; listed for the owner).
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

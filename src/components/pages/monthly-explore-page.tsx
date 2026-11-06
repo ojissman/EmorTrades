@@ -641,7 +641,21 @@ export function MonthlyExplorePage() {
               </thead>
               <tbody>
                 {trades.map((t) => (
-                  <tr key={t.id} className="border-b border-border/40 hover:bg-muted/30 cursor-pointer" onClick={() => peekTrade({ id: t.id, symbol: t.symbol, side: t.side, pnl: t.pnl })} title="Open the trade peek">
+                  <tr
+                    key={t.id}
+                    className="border-b border-border/40 hover:bg-muted/30 cursor-pointer"
+                    onClick={() => peekTrade({ id: t.id, symbol: t.symbol, side: t.side, pnl: t.pnl })}
+                    title="Open the trade peek"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open the trade peek for ${t.symbol}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        peekTrade({ id: t.id, symbol: t.symbol, side: t.side, pnl: t.pnl })
+                      }
+                    }}
+                  >
                     <td className="py-1.5 pr-2 tnum whitespace-nowrap">{formatDate(t.entryTime)}</td>
                     <td className="py-1.5 pr-2 font-medium">{t.symbol}</td>
                     <td className="py-1.5 pr-2 hidden sm:table-cell text-muted-foreground">{t.setup?.name ?? '—'}</td>
@@ -713,6 +727,19 @@ function GroupTable(props: {
                 className={cn('flex items-center justify-between gap-2 text-xs rounded px-1 -mx-1', patch && 'cursor-pointer hover:bg-muted/50')}
                 title={patch ? 'Open these trades' : undefined}
                 onClick={patch ? () => drillToTrades(patch as Parameters<typeof drillToTrades>[0]) : undefined}
+                role={patch ? 'button' : undefined}
+                tabIndex={patch ? 0 : undefined}
+                aria-label={patch ? `${r.label} — open these trades` : undefined}
+                onKeyDown={
+                  patch
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          drillToTrades(patch as Parameters<typeof drillToTrades>[0])
+                        }
+                      }
+                    : undefined
+                }
               >
                 <span className="truncate" title={r.label}>{r.label}</span>
                 <span className="shrink-0 text-muted-foreground">

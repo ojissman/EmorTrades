@@ -264,19 +264,28 @@ export function ExecutionsPage() {
     <div className="space-y-4">
       {/* KPI band */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Card className="p-4 overflow-hidden">
+        {/* SWEEP3-WIRE2 — honest-title tiles: no single trade cohort behind
+            an all-fills count/sum, so they stay non-clickable and the title
+            says exactly what each number is. */}
+        <Card className="p-4 overflow-hidden" title="All fills in scope — no single trade cohort">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
             <GitBranch className="h-3 w-3" /> Executions
           </p>
           <FitValue className="text-xl font-bold tnum mt-1">{total}</FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        {/* SWEEP3-WIRE2 — cheap real drill: the By Symbol tab is one
+            setTab('symbols') away (the Buys/Sells tiles' idiom). */}
+        <Card
+          className="p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors"
+          title="Open the symbols breakdown"
+          onClick={() => setTab('symbols')}
+        >
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
             <Layers className="h-3 w-3" /> Symbols
           </p>
           <FitValue className="text-xl font-bold tnum mt-1">{uniqueSymbols}</FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Sum of fill notional in scope">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
             <Coins className="h-3 w-3" /> Traded Value
           </p>
@@ -284,7 +293,7 @@ export function ExecutionsPage() {
             {formatCurrencyIn('table', totalNotional)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Exchange + broker fees across fills in scope">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
             <Receipt className="h-3 w-3" /> Total Fees
           </p>
@@ -294,8 +303,9 @@ export function ExecutionsPage() {
         </Card>
         {/* COHORTSWEEP — Buys/Sells tiles toggle the fills side-filter
             (clicking the active side clears it back to all; the tile also
-            jumps to the Fills tab so the effect is visible). The other KPIs
-            are honest non-drills. */}
+            jumps to the Fills tab so the effect is visible); Symbols jumps
+            to the By Symbol breakdown (SWEEP3-WIRE2). The other KPIs are
+            honest non-drills — title says what each counts. */}
         <Card
           className={cn(
             'p-4 overflow-hidden cursor-pointer transition-colors',

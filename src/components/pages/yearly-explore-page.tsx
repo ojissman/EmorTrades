@@ -443,7 +443,21 @@ export function YearlyExplorePage() {
               </thead>
               <tbody>
                 {monthly.map((m) => (
-                  <tr key={m.month} className="border-b border-border/40 cursor-pointer hover:bg-muted/40" title="Open this month's trades" onClick={() => drillToTrades(monthPatch(m.month))}>
+                  <tr
+                    key={m.month}
+                    className="border-b border-border/40 cursor-pointer hover:bg-muted/40"
+                    title="Open this month's trades"
+                    onClick={() => drillToTrades(monthPatch(m.month))}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${MONTH_LABELS[Number(m.month.slice(5)) - 1]} ${m.month.slice(0, 4)} — open this month's trades`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        drillToTrades(monthPatch(m.month))
+                      }
+                    }}
+                  >
                     <td className="py-1.5">{MONTH_LABELS[Number(m.month.slice(5)) - 1]} {m.month.slice(0, 4)}</td>
                     <td className="py-1.5 text-right tnum">{m.trades}</td>
                     <td className="py-1.5 text-right tnum">{m.trades ? Math.round((m.wins / m.trades) * 100) : 0}%</td>
@@ -456,12 +470,38 @@ export function YearlyExplorePage() {
           )}
           {bestMonth && worstMonth && (
             <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40" title="Open the best month's trades" onClick={() => drillToTrades(monthPatch(bestMonth.month))}>
+              <div
+                className="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 cursor-pointer hover:border-emerald-500/40"
+                title="Open the best month's trades"
+                onClick={() => drillToTrades(monthPatch(bestMonth.month))}
+                role="button"
+                tabIndex={0}
+                aria-label={`Best month ${MONTH_LABELS[Number(bestMonth.month.slice(5)) - 1]} ${bestMonth.month.slice(0, 4)} — open its trades`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    drillToTrades(monthPatch(bestMonth.month))
+                  }
+                }}
+              >
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><Trophy className="h-3 w-3" /> Best month</p>
                 <p className="text-sm font-semibold">{MONTH_LABELS[Number(bestMonth.month.slice(5)) - 1]} {bestMonth.month.slice(0, 4)}</p>
                 <p className="text-emerald-400 tnum text-sm font-semibold">{money(bestMonth.pnl)}</p>
               </div>
-              <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 cursor-pointer hover:border-red-500/40" title="Open the worst month's trades" onClick={() => drillToTrades(monthPatch(worstMonth.month))}>
+              <div
+                className="p-2.5 rounded-md bg-red-500/10 border border-red-500/20 cursor-pointer hover:border-red-500/40"
+                title="Open the worst month's trades"
+                onClick={() => drillToTrades(monthPatch(worstMonth.month))}
+                role="button"
+                tabIndex={0}
+                aria-label={`Worst month ${MONTH_LABELS[Number(worstMonth.month.slice(5)) - 1]} ${worstMonth.month.slice(0, 4)} — open its trades`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    drillToTrades(monthPatch(worstMonth.month))
+                  }
+                }}
+              >
                 <p className="text-xs text-muted-foreground flex items-center gap-1"><TrendingDown className="h-3 w-3" /> Worst month</p>
                 <p className="text-sm font-semibold">{MONTH_LABELS[Number(worstMonth.month.slice(5)) - 1]} {worstMonth.month.slice(0, 4)}</p>
                 <p className="text-red-400 tnum text-sm font-semibold">{money(worstMonth.pnl)}</p>
@@ -627,6 +667,19 @@ function MiniList(props: {
                 className={cn('flex items-center justify-between gap-2 text-xs rounded px-1 -mx-1', patch && 'cursor-pointer hover:bg-muted/50')}
                 title={patch ? "Open these trades" : undefined}
                 onClick={patch ? () => drillToTrades(patch as Parameters<typeof drillToTrades>[0]) : undefined}
+                role={patch ? 'button' : undefined}
+                tabIndex={patch ? 0 : undefined}
+                aria-label={patch ? `${r.label} — open these trades` : undefined}
+                onKeyDown={
+                  patch
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          drillToTrades(patch as Parameters<typeof drillToTrades>[0])
+                        }
+                      }
+                    : undefined
+                }
               >
                 <span className="truncate" title={r.label}>{r.label}</span>
                 <span className="shrink-0 text-muted-foreground">
@@ -642,6 +695,19 @@ function MiniList(props: {
 }
 
 /** Annual goals with month-by-month progress (from /api/goals). */
+
+/** SWEEP3-WIRE4 — annual-goals history segment label → 'YYYY-MM' when the
+ *  segment really is a month (historyBuckets' monthly branch labels are
+ *  'August 2026'-style). Daily ('Aug 24'), weekly ('Wk of Aug 18') and year
+ *  ('2026') bucket labels don't resolve — their segments stay inert. */
+function monthKeyFromLabel(label: string): string | null {
+  const year = label.match(/\b(\d{4})\b/)?.[1]
+  if (!year) return null
+  const monthIdx = MONTH_LABELS.findIndex((m) => label.toLowerCase().startsWith(m.toLowerCase()))
+  if (monthIdx === -1) return null
+  return `${year}-${String(monthIdx + 1).padStart(2, '0')}`
+}
+
 function AnnualGoalsCard(props: { year: number; planId: string; periodPnl: number }) {
   const { year, planId, periodPnl } = props
   const goalsQ = useQuery({
@@ -689,13 +755,21 @@ function AnnualGoalsCard(props: { year: number; planId: string; periodPnl: numbe
               </div>
               {g.progress?.history?.length ? (
                 <div className="flex gap-0.5 mt-1">
-                  {g.progress.history.map((h, i) => (
-                    <div
-                      key={i}
-                      title={`${h.label}: ${Math.round(h.value * 100) / 100}`}
-                      className={cn('h-3 flex-1 rounded-sm', h.hit ? 'bg-emerald-500' : h.value ? 'bg-amber-500/70' : 'bg-muted')}
-                    />
-                  ))}
+                  {g.progress.history.map((h, i) => {
+                    // SWEEP3-WIRE4 — a month segment drills that month's
+                    // trades (monthPatch, the same patch the monthly Bar at
+                    // the top of the page uses). Guarded: labels that don't
+                    // resolve to a YYYY-MM key keep the plain value tooltip.
+                    const segMonth = monthKeyFromLabel(h.label)
+                    return (
+                      <div
+                        key={i}
+                        title={segMonth ? `${h.label} — open trades` : `${h.label}: ${Math.round(h.value * 100) / 100}`}
+                        className={cn('h-3 flex-1 rounded-sm', segMonth && 'cursor-pointer', h.hit ? 'bg-emerald-500' : h.value ? 'bg-amber-500/70' : 'bg-muted')}
+                        onClick={segMonth ? () => drillToTrades(monthPatch(segMonth)) : undefined}
+                      />
+                    )
+                  })}
                 </div>
               ) : null}
               <p className="text-[11px] text-muted-foreground mt-0.5">

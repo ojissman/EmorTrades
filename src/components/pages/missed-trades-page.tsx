@@ -333,25 +333,28 @@ export function MissedTradesPage() {
 
   return (
     <div className="space-y-4" data-testid="missed-trades-root">
-      {/* Hero stats */}
+      {/* Hero stats — SWEEP3-WIRE3: all four are whole-list aggregates over
+          the missed-trade records (no single trade cohort behind any of them,
+          and the page has no sign filter to toggle), so they carry honest
+          titles and no onClick. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="All missed-trade records in scope — aggregate">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Missed Opportunities</p>
           <FitValue className="text-xl font-bold tnum mt-1">{missedTrades.length}</FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Sum of expected P&L across missed records">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Expected P&L</p>
           <FitValue className={cn('text-xl font-bold tnum mt-1', pnlColor(totalExpectedPnl))}>
             {formatCurrencyIn('kpi', totalExpectedPnl)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Count of missed records whose expected P&L was positive">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Opportunities Lost (+)</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
             +{formatCurrencyIn('kpi', totalPositivePnl)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Count of missed records whose expected P&L was negative">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Bullets Dodged (-)</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-red-400">
             {formatCurrencyIn('kpi', totalNegativePnl)}

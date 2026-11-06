@@ -558,6 +558,10 @@ async function runSymbolAnalysis(
 
   const cacheKey = JSON.stringify([
     'symbol',
+    // SWEEP3 (audit S4) — scope to the session user: the analysis embeds the
+    // caller's journal stats for the symbol; identical inputs from another
+    // user must not hit this cache entry.
+    userId,
     symbol,
     Math.round(market.price * 100),
     journal?.trades ?? 0,

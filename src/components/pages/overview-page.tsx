@@ -29,7 +29,7 @@
  * instance still owns its placement (no double render).
  */
 
-import { useEffect, useMemo, useState, type ComponentType, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type ComponentType, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useFilterStore } from '@/store/filter-store'
 import { useCurrentUser } from '@/hooks/use-current-user'
@@ -89,10 +89,46 @@ function ViewBanner({ type, dashboardName }: { type: string; dashboardName: stri
 
 // ---- shared bits for the preset layouts --------------------------------------
 
-/** Inline label:value stat used inside hero bands. */
-function HeroStat({ label, value, color, icon: Icon }: { label: string; value: string; color?: string; icon?: IconType }) {
+/** Inline label:value stat used inside hero bands.
+ *  SWEEP3-WIRE1 — optional onClick drill-through (hero Win rate → the trades
+ *  behind it), mirroring the Kpi affordance on the same page; a title prop
+ *  carries the honest no-op note on ratio stats that have no trade cohort.
+ *  Without onClick the stat renders exactly as before. */
+function HeroStat({
+  label,
+  value,
+  color,
+  icon: Icon,
+  onClick,
+  title,
+}: {
+  label: string
+  value: string
+  color?: string
+  icon?: IconType
+  onClick?: () => void
+  title?: string
+}) {
+  const interactive = typeof onClick === 'function'
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div
+      title={title}
+      className={`flex items-center gap-2 min-w-0 ${interactive ? 'cursor-pointer rounded-md px-1.5 -mx-1.5 transition-colors hover:bg-white/[0.06]' : ''}`}
+      {...(interactive
+        ? {
+            role: 'button',
+            tabIndex: 0,
+            'aria-label': `${label} — open trades`,
+            onClick,
+            onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            },
+          }
+        : {})}
+    >
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: color ?? 'var(--text-secondary)' }} />}
       <div className="leading-tight min-w-0">
         <p className="text-[9px] font-bold uppercase tracking-wider truncate" style={{ color: 'var(--text-secondary)' }}>{label}</p>
@@ -234,14 +270,32 @@ function SimpleView({ stats, banner, onboarding, equityCurve }: ViewProps) {
                 <AnimatedNumber value={stats.net} format={(n) => formatCurrencyIn('kpi', n)} />
               </FitValue>
               <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2.5">
-                <HeroStat label="Win rate" value={`${stats.winRate.toFixed(1)}%`} icon={Target} />
-                <HeroStat label="Profit factor" value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} icon={Scale} />
-                <HeroStat label="Expectancy" value={formatCurrencyIn('kpi', stats.expectancy)} color={pnlColor(stats.expectancy)} icon={Sigma} />
+                <HeroStat
+                  label="Win rate"
+                  value={`${stats.winRate.toFixed(1)}%`}
+                  icon={Target}
+                  onClick={() => drillToTrades({ outcome: 'win' })}
+                  title="Winning trades — open in Trades"
+                />
+                <HeroStat
+                  label="Profit factor"
+                  value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'}
+                  icon={Scale}
+                  title="Computed ratio (gross W ÷ gross L) — no single trade cohort to drill"
+                />
+                <HeroStat
+                  label="Expectancy"
+                  value={formatCurrencyIn('kpi', stats.expectancy)}
+                  color={pnlColor(stats.expectancy)}
+                  icon={Sigma}
+                  title="Computed ratio (per-trade average) — no single trade cohort to drill"
+                />
                 <HeroStat
                   label="Streak"
                   value={stats.streak === 0 ? '—' : `${Math.abs(stats.streak)} ${stats.streak > 0 ? 'wins' : 'losses'}`}
                   color={stats.streak >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'}
                   icon={Flame}
+                  title="Current streak — mixed-outcome sequence, no single trade cohort to drill"
                 />
               </div>
             </div>
@@ -383,14 +437,32 @@ function AllInOneView({ stats, banner, onboarding, equityCurve, equityStart }: V
             <EquityChart curve={equityCurve} height={64} showAxes={false} />
           </div>
           <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-            <HeroStat label="Win rate" value={`${stats.winRate.toFixed(1)}%`} icon={Target} />
-            <HeroStat label="Profit factor" value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} icon={Scale} />
-            <HeroStat label="Expectancy" value={formatCurrencyIn('kpi', stats.expectancy)} color={pnlColor(stats.expectancy)} icon={Sigma} />
+            <HeroStat
+              label="Win rate"
+              value={`${stats.winRate.toFixed(1)}%`}
+              icon={Target}
+              onClick={() => drillToTrades({ outcome: 'win' })}
+              title="Winning trades — open in Trades"
+            />
+            <HeroStat
+              label="Profit factor"
+              value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'}
+              icon={Scale}
+              title="Computed ratio (gross W ÷ gross L) — no single trade cohort to drill"
+            />
+            <HeroStat
+              label="Expectancy"
+              value={formatCurrencyIn('kpi', stats.expectancy)}
+              color={pnlColor(stats.expectancy)}
+              icon={Sigma}
+              title="Computed ratio (per-trade average) — no single trade cohort to drill"
+            />
             <HeroStat
               label="Streak"
               value={stats.streak === 0 ? '—' : `${Math.abs(stats.streak)}${stats.streak > 0 ? 'W' : 'L'}`}
               color={stats.streak >= 0 ? 'var(--shell-success)' : 'var(--shell-danger)'}
               icon={Flame}
+              title="Current streak — mixed-outcome sequence, no single trade cohort to drill"
             />
           </div>
         </div>

@@ -18,7 +18,7 @@ export const EVIDENCE_TAG_PRESETS = [
   'Review',
 ] as const
 
-export type EvidenceTagPreset = (typeof EVIDENCE_TAG_PRESETS)[number]
+// SWEEP3 — the derived EvidenceTagPreset type had zero references; deleted.
 
 /** Max length for a custom tag — tags are short labels, not captions. */
 export const EVIDENCE_TAG_MAX = 24

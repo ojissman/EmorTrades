@@ -20,8 +20,21 @@ import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis
 import { ArrowUpRight, CalendarClock, RefreshCw, Sparkles, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FitValue } from '@/components/fit-value'
+// SWEEP3-WIRE3 — per-period evidence drill (the drillPeriod patch shape).
+import { drillToTrades } from '@/lib/drill'
 
-export type ModalDot = { label: string; value: number; hit: boolean; today: boolean; traded: boolean }
+// SWEEP3-WIRE3 — start/end carry the row's period window (local-day ISO) so
+// the per-period rows can drill exactly that window; server-metric dots
+// (progress.history) arrive without bounds and keep an honest title instead.
+export type ModalDot = {
+  label: string
+  value: number
+  hit: boolean
+  today: boolean
+  traded: boolean
+  start?: string
+  end?: string
+}
 
 export type ModalGoal = {
   id: string
@@ -231,28 +244,65 @@ export function GoalDetailModal({ goal, onClose }: { goal: ModalGoal | null; onC
               </div>
             </div>
 
-            {/* per-period table */}
+            {/* per-period table — SWEEP3-WIRE3: each row names a period window,
+                so a row click opens the trades scoped to exactly that window
+                (plan-scoped when the goal is linked — the drillPeriod patch
+                shape). Rows whose window bounds aren't in the payload
+                (server-metric history) keep an honest title instead of a
+                fake drill. */}
             <div>
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Period by period</p>
               <div className="grid grid-cols-2 gap-1.5">
-                {goal.dots.slice(-8).map((d, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex items-center justify-between rounded-md border px-2 py-1.5',
-                      !d.traded
-                        ? 'border-border/40 bg-muted/5'
-                        : d.hit
-                          ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
-                          : 'border-red-500/25 bg-red-500/[0.05]',
-                    )}
-                  >
-                    <span className="text-[10px] text-muted-foreground truncate">{d.label}</span>
-                    <span className={cn('text-[10px] font-semibold tnum ml-2 shrink-0', d.traded ? (d.hit ? 'text-emerald-400' : 'text-red-400') : 'text-muted-foreground/60')}>
-                      {d.traded ? goal.fmt(d.value) : '—'}
-                    </span>
-                  </div>
-                ))}
+                {goal.dots.slice(-8).map((d, i) => {
+                  const known = !!d.start && !!d.end
+                  const drillRow = () => {
+                    if (!d.start || !d.end) return
+                    drillToTrades({
+                      customStartDate: `${d.start}T00:00:00.000Z`,
+                      customEndDate: `${d.end}T23:59:59.999Z`,
+                      ...(goal.plan ? { tradingPlanId: goal.plan.id } : {}),
+                    })
+                  }
+                  return (
+                    <div
+                      key={i}
+                      role={known ? 'button' : undefined}
+                      tabIndex={known ? 0 : undefined}
+                      aria-label={known ? `${d.label} — open this period's trades` : undefined}
+                      title={
+                        known
+                          ? `Open the trades for ${d.label}`
+                          : 'Period verdict — window bounds not in the goals payload for this metric'
+                      }
+                      onClick={known ? drillRow : undefined}
+                      onKeyDown={
+                        known
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                drillRow()
+                              }
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        'flex items-center justify-between rounded-md border px-2 py-1.5',
+                        !d.traded
+                          ? 'border-border/40 bg-muted/5'
+                          : d.hit
+                            ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
+                            : 'border-red-500/25 bg-red-500/[0.05]',
+                        known &&
+                          'cursor-pointer transition-colors hover:border-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
+                      )}
+                    >
+                      <span className="text-[10px] text-muted-foreground truncate">{d.label}</span>
+                      <span className={cn('text-[10px] font-semibold tnum ml-2 shrink-0', d.traded ? (d.hit ? 'text-emerald-400' : 'text-red-400') : 'text-muted-foreground/60')}>
+                        {d.traded ? goal.fmt(d.value) : '—'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
 

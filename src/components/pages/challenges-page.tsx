@@ -375,9 +375,11 @@ export function ChallengesPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-3 lg:ml-auto lg:w-80">
-              <HeroStat label="Total XP" value={xp?.total || 0} icon={Zap} tone="text-amber-400" />
-              <HeroStat label="Active" value={active.length} icon={Swords} tone="text-emerald-400" />
-              <HeroStat label="Best streak" value={bestOverall} icon={Flame} tone="text-rose-400" />
+              {/* SWEEP3-WIRE3 — honest titles only: these are challenge-scoped
+                  aggregates, not trade cohorts (no drills). */}
+              <HeroStat label="Total XP" value={xp?.total || 0} icon={Zap} tone="text-amber-400" title="XP across all challenges" />
+              <HeroStat label="Active" value={active.length} icon={Swords} tone="text-emerald-400" title="Challenges currently running" />
+              <HeroStat label="Best streak" value={bestOverall} icon={Flame} tone="text-rose-400" title="Longest daily streak — challenge-scoped, not a trade cohort" />
             </div>
           </div>
         </Card>
@@ -667,14 +669,18 @@ function HeroStat({
   value,
   icon: Icon,
   tone,
+  title,
 }: {
   label: string
   value: number
   icon: React.ComponentType<{ className?: string }>
   tone: string
+  /** SWEEP3-WIRE3 — honest hover text for the whole-list aggregates (no
+   *  drill: none of the three hero stats is a single trade cohort). */
+  title?: string
 }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-background/60 p-3">
+    <div className="rounded-lg border border-border/70 bg-background/60 p-3" title={title}>
       <div className="flex items-center gap-1.5">
         <Icon className={cn('h-3.5 w-3.5', tone)} />
         <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

@@ -292,6 +292,19 @@ export function QueryErrorCard({
   )
 }
 
+/** SWEEP3-WIRE4 — best-effort text of a clickable MiniTable row's first
+ *  cell (strings/numbers pass through; elements contribute their text
+ *  children) for the row button's aria-label. Falls back to the row number. */
+function nodeText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(nodeText).filter(Boolean).join(' ')
+  if (typeof node === 'object' && 'props' in node) {
+    return nodeText((node as { props?: { children?: ReactNode } }).props?.children)
+  }
+  return ''
+}
+
 export function MiniTable({
   head,
   rows,
@@ -327,6 +340,21 @@ export function MiniTable({
               className={`border-t ${onRowClick ? 'cursor-pointer transition-colors hover:bg-white/[0.04]' : ''}`}
               style={{ borderColor: 'var(--border-strong)' }}
               onClick={onRowClick ? () => onRowClick(ri) : undefined}
+              {...(onRowClick
+                ? {
+                    // SWEEP3-WIRE4 — keyboard path (the date-charts row
+                    // idiom): Enter/Space activate the same row handler.
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': nodeText(cells[0]).trim() || `Row ${ri + 1}`,
+                    onKeyDown: (e: ReactKeyboardEvent<HTMLTableRowElement>) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onRowClick(ri)
+                      }
+                    },
+                  }
+                : {})}
             >
               {cells.map((c, ci) => (
                 <td key={ci} className="py-1.5 pr-2 tabular-nums" style={{ color: 'var(--text-primary)' }}>

@@ -63,6 +63,10 @@ import { usePeekStore } from '@/store/peek-store'
 import { useToast } from '@/hooks/use-toast'
 import { useFilterStore } from '@/store/filter-store'
 import { formatCurrencyIn, type CurrencyArea } from '@/lib/format'
+// SWEEP3-WIRE1 — dead-surface wiring: KPI strip stats drill into the trades
+// table (drillToTrades); patience-scatter dots open the global trade peek
+// (aliased because this page owns a local peekTrade(t: ChartTrade) helper).
+import { drillToTrades, peekTrade as peekTradeGlobal } from '@/lib/drill'
 
 // ---- types -----------------------------------------------------------------------
 
@@ -224,17 +228,39 @@ export function TradesChartPage() {
     return { winH, lossH, wins, losses }
   }, [trades])
 
+  // SWEEP3 E2E-FIX — log-scale guard: 4 live trades carry holdingPeriod = 0
+  // (round-trip fills under a minute); log(0) = -Infinity poisoned the
+  // 'dataMin'..'dataMax' domain and EVERY symbol silently failed to render
+  // (324 empty <g> groups — the chart looked plotted but was blank). hold>0
+  // keeps the scale finite; the caption counts the exclusions honestly.
   const scatter = useMemo(
     () =>
       trades
-        .filter((t) => t.rMultiple !== null && t.holdingPeriod !== null)
+        .filter((t) => t.rMultiple !== null && t.holdingPeriod !== null && t.holdingPeriod > 0)
         .map((t) => ({
           hold: Math.round(t.holdingPeriod as number),
           r: t.rMultiple as number,
           sym: t.symbol,
           win: (t.pnl ?? 0) > 0,
-          pnl: Math.round(t.pnl ?? 0),
+          // SWEEP3-WIRE1 — peek fields ride along so a dot click can open the
+          // global trade peek (exact pnl: the field feeds the peek subtitle;
+          // no chart renderer reads it — tooltip shows R/Hold, Cells use win).
+          id: t.id,
+          symbol: t.symbol,
+          side: t.side,
+          entryTime: t.entryTime,
+          pnl: t.pnl ?? 0,
         })),
+    [trades],
+  )
+
+  // SWEEP3 E2E-FIX — excluded-from-plot count (R without a positive hold
+  // window can't sit on a log axis; the number is honest, not hidden).
+  const unplotted = useMemo(
+    () =>
+      trades.filter(
+        (t) => t.rMultiple !== null && (t.holdingPeriod === null || t.holdingPeriod <= 0),
+      ).length,
     [trades],
   )
 
@@ -723,7 +749,15 @@ export function TradesChartPage() {
     <div className="space-y-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <MetricStat label="Net P&L" value={money(stats.net)} tone={stats.net >= 0 ? 'good' : 'bad'} big sub={`${stats.n} closed trades`} />
+        <MetricStat
+          label="Net P&L"
+          value={money(stats.net)}
+          tone={stats.net >= 0 ? 'good' : 'bad'}
+          big
+          sub={`${stats.n} closed trades`}
+          onClick={() => drillToTrades({})}
+          ariaLabel="Net P&L — open the trades behind this number"
+        />
         <MetricStat
           label="Best trade"
           value={money(stats.best?.pnl ?? 0, 'kpi')}
@@ -740,8 +774,22 @@ export function TradesChartPage() {
           onClick={stats.worst ? () => peekTrade(stats.worst!) : undefined}
           ariaLabel="Open the worst trade peek"
         />
-        <MetricStat label="Avg win" value={stats.avgWin === null ? '—' : money(stats.avgWin)} sub={`${(stats.avgWin && stats.avgLoss ? money(stats.avgWin / Math.abs(stats.avgLoss)) + ' × avg loss' : '—')}`} tone="good" />
-        <MetricStat label="Avg loss" value={stats.avgLoss === null ? '—' : money(stats.avgLoss)} sub={winLossRatio !== null ? `win/loss size ${winLossRatio.toFixed(2)}×` : undefined} tone="bad" />
+        <MetricStat
+          label="Avg win"
+          value={stats.avgWin === null ? '—' : money(stats.avgWin)}
+          sub={`${(stats.avgWin && stats.avgLoss ? money(stats.avgWin / Math.abs(stats.avgLoss)) + ' × avg loss' : '—')}`}
+          tone="good"
+          onClick={() => drillToTrades({ outcome: 'win' })}
+          ariaLabel="Avg win — open the winning trades"
+        />
+        <MetricStat
+          label="Avg loss"
+          value={stats.avgLoss === null ? '—' : money(stats.avgLoss)}
+          sub={winLossRatio !== null ? `win/loss size ${winLossRatio.toFixed(2)}×` : undefined}
+          tone="bad"
+          onClick={() => drillToTrades({ outcome: 'loss' })}
+          ariaLabel="Avg loss — open the losing trades"
+        />
         <MetricStat label="Longest streaks" value={`${stats.streaks.win}W / ${stats.streaks.loss}L`} sub="consecutive wins / losses (R-qualified)" />
       </div>
 
@@ -883,8 +931,22 @@ export function TradesChartPage() {
           </Panel>
           <Panel title="Size anatomy" hint="The shape of your wins and losses">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <MetricStat label="Winning trades" value={`${winLoss.wins.length}`} sub={`avg ${stats.avgWin === null ? '—' : money(stats.avgWin)}`} tone="good" />
-              <MetricStat label="Losing trades" value={`${winLoss.losses.length}`} sub={`avg ${stats.avgLoss === null ? '—' : money(stats.avgLoss)}`} tone="bad" />
+              <MetricStat
+                label="Winning trades"
+                value={`${winLoss.wins.length}`}
+                sub={`avg ${stats.avgWin === null ? '—' : money(stats.avgWin)}`}
+                tone="good"
+                onClick={() => drillToTrades({ outcome: 'win' })}
+                ariaLabel="Winning trades — open the win cohort"
+              />
+              <MetricStat
+                label="Losing trades"
+                value={`${winLoss.losses.length}`}
+                sub={`avg ${stats.avgLoss === null ? '—' : money(stats.avgLoss)}`}
+                tone="bad"
+                onClick={() => drillToTrades({ outcome: 'loss' })}
+                ariaLabel="Losing trades — open the loss cohort"
+              />
               <MetricStat label="Largest win" value={money(Math.max(0, ...winLoss.wins), 'kpi')} sub={`${((winLoss.wins.length / stats.n) * 100).toFixed(0)}% of trades are wins`} />
               <MetricStat label="Largest loss" value={money(Math.min(0, ...winLoss.losses.map((v) => -v)), 'kpi')} sub="size ratio drives expectancy" />
             </div>
@@ -894,17 +956,32 @@ export function TradesChartPage() {
 
       {view === 'duration-r' && (
         <div className="space-y-4">
-          <Panel title="Patience — holding period vs R" hint="Each dot is a trade: longer holds are not automatically better — the extremes table below is clickable">
+          <Panel title="Patience — holding period vs R" hint="Each dot is a trade — click a dot for the trade peek: longer holds are not automatically better — the extremes table below is clickable">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+                {/* SWEEP3 E2E-FIX — RECHARTS LAW extension: Scatter-level
+                    onClick NEVER fires in recharts 2.15.x (proven live: DOM
+                    click lands on g.recharts-scatter-symbol but the handler
+                    callback is not invoked — same class as the Area/Radar
+                    shape-click law). The drill goes on the CHART element
+                    reading state?.activePayload (the drawdown-page idiom):
+                    hover a dot → tooltip activates → click → peek. */}
+                <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.id) peekTradeGlobal({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl }) }} style={{ cursor: 'pointer' }}>
                   <CartesianGrid stroke="var(--border-strong)" strokeDasharray="3 3" />
-                  <XAxis dataKey="hold" name="Hold" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-strong)' }} tickLine={false} scale="log" domain={['dataMin', 'dataMax']} tickFormatter={(v: number) => (v >= 1440 ? `${Math.round(v / 1440)}d` : v >= 60 ? `${Math.round(v / 60)}h` : `${Math.round(v)}m`)} />
+                  {/* SWEEP3 E2E-FIX — type="number" was missing: a log-scale
+                      axis without it falls back to category semantics, the
+                      scale computation yields no ticks/positions and EVERY
+                      symbol silently fails to render (blank chart). The rvol
+                      and analytics scatters both carry type="number". */}
+                  <XAxis dataKey="hold" type="number" name="Hold" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-strong)' }} tickLine={false} scale="log" domain={['dataMin', 'dataMax']} tickFormatter={(v: number) => (v >= 1440 ? `${Math.round(v / 1440)}d` : v >= 60 ? `${Math.round(v / 60)}h` : `${Math.round(v)}m`)} />
                   <YAxis dataKey="r" name="R" tick={AXIS_TICK} axisLine={false} tickLine={false} width={44} tickFormatter={(v: number) => `${v}R`} />
                   <ZAxis range={[36, 36]} />
                   <ReTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number | string, name) => (name === 'R' ? [`${Number(v).toFixed(2)}R`, 'Result'] : [holdTxt(Number(v)), 'Hold'])} labelFormatter={() => ''} />
                   <ReferenceLine y={0} stroke="var(--border-strong)" />
-                  <Scatter data={scatter} fill="var(--shell-success)">
+                  <Scatter
+                    data={scatter}
+                    fill="var(--shell-success)"
+                  >
                     {scatter.map((d, i) => (
                       <Cell key={i} fill={d.win ? 'var(--shell-success)' : 'var(--shell-danger)'} fillOpacity={0.75} />
                     ))}
@@ -913,7 +990,7 @@ export function TradesChartPage() {
               </ResponsiveContainer>
             </div>
             <p className="mt-2 text-[11px] flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-              <Hourglass className="h-3 w-3" /> {scatter.length} of {stats.n} trades plotted (need both hold time and R) — x-axis is logarithmic.
+              <Hourglass className="h-3 w-3" /> {scatter.length} of {stats.n} trades plotted (need both hold time and R) — x-axis is logarithmic{unplotted > 0 ? `; ${unplotted} R-qualified trade${unplotted === 1 ? '' : 's'} with a zero-minute hold can't sit on a log axis` : ''}.
             </p>
           </Panel>
           <Panel title="Longest holds — patience extremes" hint="The 10 longest-held trades with a journaled R — click a row for the full trade peek">
@@ -1187,7 +1264,14 @@ export function TradesChartPage() {
                 <MetricStat label="Month net" value={money(drillNet)} tone={drillNet >= 0 ? 'good' : 'bad'} big sub={selSym ? `${selSym}-only view` : 'all symbols this month'} />
                 <MetricStat label="Trades" value={String(drillRows.length)} sub={`${drillWins}W · ${drillRows.length - drillWins}L`} />
                 <MetricStat label="Win rate" value={drillRows.length ? `${Math.round((drillWins / drillRows.length) * 100)}%` : '—'} sub={selSym ? 'filtered to selected symbol' : 'of closed trades this month'} />
-                <MetricStat label="Top symbol" value={monthDrill.bestSym?.symbol ?? '—'} sub={monthDrill.bestSym ? `${money(monthDrill.bestSym.net, 'kpi')} · ${monthDrill.bestSym.n} trades` : '—'} tone="good" />
+                <MetricStat
+                  label="Top symbol"
+                  value={monthDrill.bestSym?.symbol ?? '—'}
+                  sub={monthDrill.bestSym ? `${money(monthDrill.bestSym.net, 'kpi')} · ${monthDrill.bestSym.n} trades` : '—'}
+                  tone="good"
+                  onClick={monthDrill.bestSym ? () => openSymbolPeek(monthDrill.bestSym!.symbol) : undefined}
+                  ariaLabel="Top symbol — open the symbol snapshot"
+                />
               </div>
               <div className="h-56" data-testid="ag-drill-chart">
                 <AgCharts options={drillOptions} />

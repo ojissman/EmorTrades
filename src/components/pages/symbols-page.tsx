@@ -217,11 +217,29 @@ export function SymbolsPage() {
 
       {/* Summary cards — COHORTSWEEP: Total P&L drills the trades, Winning /
           Losing drill their exact symbol cohorts via tradeIds; Symbols Traded
-          is a distinct-symbol count (no single cohort) and stays honest. */}
+          (SWEEP3-WIRE3) now drills the whole in-scope trade set like its Total
+          P&L sibling — every symbol's trades are one cohort. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card
-          className="p-4 overflow-hidden"
-          title="Distinct symbols with closed trades in scope — a count, not a single cohort"
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            symbolStats.length > 0 && 'cursor-pointer hover:border-border'
+          )}
+          title={symbolStats.length > 0 ? 'Every symbol in scope — open the trades' : 'No closed trades in scope yet'}
+          role={symbolStats.length > 0 ? 'button' : undefined}
+          tabIndex={symbolStats.length > 0 ? 0 : undefined}
+          aria-label={symbolStats.length > 0 ? `Symbols traded: ${symbolStats.length} — open the trades` : undefined}
+          onClick={symbolStats.length > 0 ? () => drillToTrades({}) : undefined}
+          onKeyDown={
+            symbolStats.length > 0
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    drillToTrades({})
+                  }
+                }
+              : undefined
+          }
         >
           <p className="text-xs text-muted-foreground uppercase tracking-wider">Symbols Traded</p>
           <FitValue className="text-xl font-bold tnum mt-1">{symbolStats.length}</FitValue>

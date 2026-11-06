@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 // Task 15-W3 — honest error state.
 import { QueryErrorCard, EmptyRange } from '@/components/metrics/metrics-kit'
 import { useAppStore } from '@/store/app-store'
@@ -561,7 +562,10 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
           <h3 className="font-semibold tracking-tight mb-1">R-Multiple vs Holding Period</h3>
           <p className="text-xs text-muted-foreground mb-3">Bubble size = |P&amp;L| — click a bubble to peek the trade</p>
           <ResponsiveContainer width="100%" height={260}>
-            <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            {/* SWEEP3 E2E-FIX — RECHARTS LAW extension: Scatter-level onClick
+                never fires in recharts 2.15.x (E2E-proven; the wiring below had
+                been dead since CLICKSWEEP). Chart-level activePayload idiom. */}
+            <ScatterChart margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl }) }} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 type="number"
@@ -599,11 +603,6 @@ function AnalyticsContent({ accountId, dateRange }: { accountId: string, dateRan
               />
               <Scatter
                 data={scatterData}
-                cursor="pointer"
-                onClick={(data: any) => {
-                  const p = data?.payload
-                  if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl })
-                }}
               >
                 {scatterData.map((d: any, i: number) => (
                   <Cell key={i} fill={d.pnl > 0 ? '#10b981' : '#ef4444'} fillOpacity={0.6} />
@@ -638,8 +637,22 @@ function MetricTile({
   return (
     <Card
       onClick={onClick}
-      aria-label={ariaLabel}
+      aria-label={onClick ? ariaLabel ?? label : ariaLabel}
       className={cn('p-3 overflow-hidden', onClick && 'cursor-pointer transition-colors hover:border-ring/50 hover:bg-muted/30')}
+      {...(onClick
+        ? {
+            // SWEEP3-WIRE4 — keyboard path for the clickable tiles (the
+            // date-charts row idiom): Enter/Space trigger the same drill.
+            role: 'button',
+            tabIndex: 0,
+            onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            },
+          }
+        : {})}
     >
       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
         {label}

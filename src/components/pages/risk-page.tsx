@@ -474,8 +474,27 @@ export function RiskPage() {
             )
           })()}
 
-          {/* 3. Risk-per-trade check */}
-          <Card className={cn('p-4 overflow-hidden', guardrails.breach ? 'border-amber-500/30' : '')}>
+          {/* 3. Risk-per-trade check — SWEEP3-WIRE2: joins the drill family.
+              The check grades the last few closed losers against the 1R
+              target; that cohort is drillToTrades(last N, outcome loss) —
+              the same tail+outcome idiom the streak card above uses.
+              recentLoserCount 0 = nothing to drill (honest no-op; the card
+              copy already says "No recent losers to check"). */}
+          <Card
+            className={cn(
+              'p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors',
+              guardrails.breach ? 'border-amber-500/30' : ''
+            )}
+            title="Open the recent losers behind this check"
+            onClick={() => {
+              if (guardrails.recentLoserCount > 0) {
+                drillToTrades({
+                  lastTrades: guardrails.recentLoserCount,
+                  outcome: 'loss',
+                })
+              }
+            }}
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5">
                 <Percent className="h-3 w-3" /> Risk per trade

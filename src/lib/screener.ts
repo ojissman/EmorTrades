@@ -1,47 +1,9 @@
 // Shared constants + helpers for the screener pages (Live Screener and
-// Daily Stock Screener Result). Both pages quote/score the same universes
-// so their numbers stay comparable.
+// Daily Stock Screener Result).
+// SWEEP3 — the removed "universes" feature left 4 symbol-list consts + 2
+// interfaces behind (zero references repo-wide, proofs in worklog); deleted.
 
 import { currencyCompactFor } from '@/lib/format'
-
-export interface UniverseDef {
-  id: 'mine' | 'majors' | 'crypto' | 'forex' | 'indices'
-  label: string
-  symbols: string[]
-  /** assetClass hint for symbol resolution (in-process lib/market quote
-   *  fetches; the old /api/market/candles HTTP proxy was an orphan and
-   *  removed — CLICKSWEEP) */
-  assetClass?: 'crypto' | 'forex'
-  hint: string
-}
-
-/** US majors across mega-cap tech, banks, ETFs — 20 symbols, under the 40 cap. */
-export const MAJOR_SYMBOLS = [
-  'AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'NFLX', 'AMD', 'MU',
-  'JPM', 'BAC', 'GS', 'MS', 'COIN', 'SPY', 'QQQ', 'IWM', 'XLF', 'XLE',
-] as const
-
-export const CRYPTO_SYMBOLS = [
-  'BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD', 'ADAUSD',
-] as const
-
-export const FOREX_SYMBOLS = [
-  'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD',
-] as const
-
-export const INDEX_SYMBOLS = ['SPX', 'NDX', 'DJI', 'RUT', 'VIX'] as const
-
-// ---- quote row shape shared by both pages ------------------------------------
-
-export interface JournalSymbolStat {
-  symbol: string
-  trades: number
-  wins: number
-  net: number
-  longs: number
-  shorts: number
-  open: number
-}
 
 // ---- formatting ---------------------------------------------------------------
 

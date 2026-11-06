@@ -83,6 +83,10 @@ export function WeeklyExplorePage() {
   const lw = data.lastWeek
   const weekStart = new Date(data.weekRange.start)
   const weekEnd = new Date(data.weekRange.end)
+  // SWEEP3-WIRE4 — this week's day key, the exact form the MetricMini drills
+  // above use (weekRange.start sliced to 'YYYY-MM-DD' → weekPatch → the
+  // Monday-based UTC week window). The CompareRow drills reuse it.
+  const thisWeekKey = String(data.weekRange.start).slice(0, 10)
 
   // Delta calculations
   const deltas = {
@@ -307,10 +311,36 @@ export function WeeklyExplorePage() {
               </tr>
             </thead>
             <tbody>
-              <CompareRow label="Net P&L" thisVal={formatCurrencyIn('ai', tw.pnl)} lastVal={formatCurrencyIn('ai', lw.pnl)} delta={deltas.pnl} deltaStr={formatCurrencyIn('ai', deltas.pnl)} />
-              <CompareRow label="Win Rate" thisVal={`${tw.winRate.toFixed(1)}%`} lastVal={`${lw.winRate.toFixed(1)}%`} delta={deltas.winRate} deltaStr={`${deltas.winRate > 0 ? '+' : ''}${deltas.winRate.toFixed(1)}%`} />
+              {/* SWEEP3-WIRE4 — the rows that aggregate this week's cohort
+                  drill it, mirroring the sibling MetricMinis above. */}
+              <CompareRow
+                label="Net P&L"
+                thisVal={formatCurrencyIn('ai', tw.pnl)}
+                lastVal={formatCurrencyIn('ai', lw.pnl)}
+                delta={deltas.pnl}
+                deltaStr={formatCurrencyIn('ai', deltas.pnl)}
+                onClick={() => drillToTrades(weekPatch(thisWeekKey))}
+                title="Open this week's trades"
+              />
+              <CompareRow
+                label="Win Rate"
+                thisVal={`${tw.winRate.toFixed(1)}%`}
+                lastVal={`${lw.winRate.toFixed(1)}%`}
+                delta={deltas.winRate}
+                deltaStr={`${deltas.winRate > 0 ? '+' : ''}${deltas.winRate.toFixed(1)}%`}
+                onClick={() => drillToTrades({ ...weekPatch(thisWeekKey), outcome: 'win' })}
+                title="Open this week's winning trades"
+              />
               <CompareRow label="Profit Factor" thisVal={isFinite(tw.profitFactor) ? tw.profitFactor.toFixed(2) : '∞'} lastVal={isFinite(lw.profitFactor) ? lw.profitFactor.toFixed(2) : '∞'} delta={deltas.profitFactor} deltaStr={`${deltas.profitFactor > 0 ? '+' : ''}${deltas.profitFactor.toFixed(2)}`} />
-              <CompareRow label="Trades" thisVal={String(tw.trades)} lastVal={String(lw.trades)} delta={deltas.trades} deltaStr={`${deltas.trades > 0 ? '+' : ''}${deltas.trades}`} />
+              <CompareRow
+                label="Trades"
+                thisVal={String(tw.trades)}
+                lastVal={String(lw.trades)}
+                delta={deltas.trades}
+                deltaStr={`${deltas.trades > 0 ? '+' : ''}${deltas.trades}`}
+                onClick={() => drillToTrades(weekPatch(thisWeekKey))}
+                title="Open this week's trades"
+              />
               <CompareRow label="Avg R-Multiple" thisVal={`${tw.avgRMultiple.toFixed(2)}R`} lastVal={`${lw.avgRMultiple.toFixed(2)}R`} delta={tw.avgRMultiple - lw.avgRMultiple} deltaStr={`${(tw.avgRMultiple - lw.avgRMultiple > 0 ? '+' : '')}${(tw.avgRMultiple - lw.avgRMultiple).toFixed(2)}R`} />
               <CompareRow label="Expectancy" thisVal={formatCurrencyIn('ai', tw.expectancy)} lastVal={formatCurrencyIn('ai', lw.expectancy)} delta={tw.expectancy - lw.expectancy} deltaStr={formatCurrencyIn('ai', tw.expectancy - lw.expectancy)} />
             </tbody>
@@ -335,6 +365,15 @@ export function WeeklyExplorePage() {
                   key={i}
                   onClick={() => w.id && peekTrade({ id: w.id, symbol: w.symbol, side: w.side, entryTime: w.entryTime, pnl: w.pnl })}
                   title="Open the trade peek"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open the trade peek for ${w.symbol}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (w.id) peekTrade({ id: w.id, symbol: w.symbol, side: w.side, entryTime: w.entryTime, pnl: w.pnl })
+                    }
+                  }}
                   className="flex items-center gap-3 p-2 rounded-md bg-white/[0.03] border border-[var(--border-strong)] transition-colors hover:bg-white/[0.06] cursor-pointer"
                 >
                   <span className="text-xs text-muted-foreground tnum w-4">{i + 1}</span>
@@ -370,6 +409,15 @@ export function WeeklyExplorePage() {
                   key={i}
                   onClick={() => l.id && peekTrade({ id: l.id, symbol: l.symbol, side: l.side, entryTime: l.entryTime, pnl: l.pnl })}
                   title="Open the trade peek"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open the trade peek for ${l.symbol}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (l.id) peekTrade({ id: l.id, symbol: l.symbol, side: l.side, entryTime: l.entryTime, pnl: l.pnl })
+                    }
+                  }}
                   className="flex items-center gap-3 p-2 rounded-md bg-red-500/5 border border-red-500/20 transition-colors hover:bg-red-500/10 cursor-pointer"
                 >
                   <span className="text-xs text-muted-foreground tnum w-4">{i + 1}</span>
@@ -421,6 +469,15 @@ export function WeeklyExplorePage() {
                     className="border-b border-border/40 hover:bg-muted/30 cursor-pointer"
                     onClick={() => peekTrade({ id: t.id, symbol: t.symbol, side: t.side, pnl: t.pnl })}
                     title="Open the trade peek"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open the trade peek for ${t.symbol}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        peekTrade({ id: t.id, symbol: t.symbol, side: t.side, pnl: t.pnl })
+                      }
+                    }}
                   >
                     <td className="py-1.5 pr-2 tnum whitespace-nowrap">{formatDate(t.exitTime)}</td>
                     <td className="py-1.5 pr-2 font-medium">{t.symbol}</td>
@@ -744,10 +801,27 @@ function MetricMini({ label, value, delta, suffix, onClick, title }: { label: st
   )
 }
 
-function CompareRow({ label, thisVal, lastVal, delta, deltaStr }: { label: string, thisVal: string, lastVal: string, delta: number, deltaStr: string }) {
+function CompareRow({ label, thisVal, lastVal, delta, deltaStr, onClick, title }: { label: string, thisVal: string, lastVal: string, delta: number, deltaStr: string, onClick?: () => void, title?: string }) {
   const positive = delta > 0
   return (
-    <tr className="border-b border-border/40">
+    <tr
+      className={cn('border-b border-border/40', onClick && 'cursor-pointer hover:bg-muted/30')}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `${label}: ${thisVal} — ${title ?? 'open this week\u2019s trades'}` : undefined}
+      title={title}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+    >
       <td className="py-2.5 text-muted-foreground">{label}</td>
       <td className="py-2.5 text-right tnum font-medium">{thisVal}</td>
       <td className="py-2.5 text-right tnum text-muted-foreground">{lastVal}</td>
@@ -1126,18 +1200,25 @@ function WeeklyAiCoachCard({
                 key={r.id}
                 className="group flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs"
               >
-                <button
-                  className="font-medium hover:text-emerald-400"
-                  onClick={() => {
-                    if (r.periodStart) {
+                {r.periodStart ? (
+                  <button
+                    className="font-medium hover:text-emerald-400"
+                    onClick={() => {
                       setViewed({ key: periodStartIso, report: r })
                       window.scrollTo({ top: 0, behavior: 'smooth' })
-                    }
-                  }}
-                  title={r.periodStart ? `Week of ${r.periodStart.split('T')[0]} — click to open` : r.title}
-                >
-                  {r.periodStart ? `W ${r.periodStart.split('T')[0]}` : r.title}
-                </button>
+                    }}
+                    title={`Week of ${r.periodStart.split('T')[0]} — click to open`}
+                  >
+                    {`W ${r.periodStart.split('T')[0]}`}
+                  </button>
+                ) : (
+                  // SWEEP3-WIRE4 — no periodStart means the chip can't target a
+                  // week: plain text (with the honest r.title tooltip) instead
+                  // of a button that no-ops behind hover styling.
+                  <span className="font-medium" title={r.title}>
+                    {r.title}
+                  </span>
+                )}
                 <button
                   aria-label={`Delete report ${r.title}`}
                   className="text-muted-foreground/50 opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"

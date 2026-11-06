@@ -613,14 +613,17 @@ export function TradeExplorePage() {
               >
                 {t.symbol}
               </button>
-              <span
+              <button
+                type="button"
+                onClick={() => drillToTrades({ side: derived.long ? 'long' : 'short' })}
+                title={`Show all ${derived.long ? 'LONG' : 'SHORT'} trades in the Trades table`}
                 className={cn(
-                  'inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold',
+                  'inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer transition-colors hover:bg-white/5',
                   derived.long ? 'border-emerald-500/30 text-emerald-400' : 'border-red-500/30 text-red-400',
                 )}
               >
                 {derived.long ? 'LONG' : 'SHORT'}
-              </span>
+              </button>
               <span
                 className={cn(
                   'inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase',
@@ -665,14 +668,18 @@ export function TradeExplorePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-3" style={{ borderTop: '1px solid var(--border-strong)' }}>
+          {/* SWEEP3-WIRE1 — the account badge drills like the symbol/setup
+              chips above: click → the Trades table scoped to this account. */}
           {t.account ? (
-            <span
-              className="inline-flex items-center gap-1.5 rounded border border-white/10 px-1.5 py-0.5 text-[10px]"
-              title={`${t.account.name} · ${t.account.broker}`}
+            <button
+              type="button"
+              onClick={() => t.account && drillToTrades({ accountId: t.account.id })}
+              title={`Filter trades by this account — ${t.account.name} · ${t.account.broker}`}
+              className="inline-flex items-center gap-1.5 rounded border border-white/10 px-1.5 py-0.5 text-[10px] cursor-pointer transition-colors hover:bg-white/5"
             >
               <span className="h-2 w-2 rounded-full shrink-0" style={{ background: t.account.color ?? '#71717a' }} />
               {t.account.broker}
-            </span>
+            </button>
           ) : null}
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             {/* Task 7 — Edit trade: the workstation could review a trade but

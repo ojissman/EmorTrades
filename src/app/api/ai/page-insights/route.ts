@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireUser } from '@/lib/server/auth'
+import { requireUser, getSessionUserId } from '@/lib/server/auth'
 import { equityBaselineFor } from '@/lib/server/equity-baseline'
 import { calculateAnalytics, calculateSymbolStats, type TradeInput } from '@/lib/analytics'
 import { zaiChatWithRetry } from '@/lib/ai/zai-retry'
@@ -163,7 +163,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ text: '' })
     }
 
+    // SWEEP3 (audit S4) — scope the insight cache to the session user:
+    // two users with equal tradeCount+totalPnl could otherwise receive
+    // each other's cached insight text.
+    const uid = await getSessionUserId()
+
     const signature = JSON.stringify([
+      uid,
       pageName,
       route,
       mode,

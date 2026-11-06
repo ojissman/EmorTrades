@@ -49,6 +49,35 @@ const COLOR_OPTIONS = ['#ef4444', '#f97316', '#eab308', '#dc2626', '#f59e0b']
 
 // Severity tints for the mistake-category badges.
 
+// SWEEP3-WIRE2 — hero affordance: the psychology-page hero idiom (a
+// clickable stat opens the cohort behind it — button + title + hover) with
+// the honest fallback the audit requires: when there is nothing behind the
+// number, the tile renders non-clickable with a title that says so (no
+// dead cursor).
+function heroTile(
+  drill: { title: string; onClick: () => void } | null,
+  honestTitle: string,
+  children: React.ReactNode
+) {
+  if (drill) {
+    return (
+      <button
+        type="button"
+        className="text-left cursor-pointer rounded-lg p-1 -m-1 transition-colors hover:bg-muted/30"
+        title={drill.title}
+        onClick={drill.onClick}
+      >
+        {children}
+      </button>
+    )
+  }
+  return (
+    <div className="rounded-lg p-1 -m-1 cursor-default" title={honestTitle}>
+      {children}
+    </div>
+  )
+}
+
 export function MistakesPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -121,6 +150,19 @@ export function MistakesPage() {
   const totalMistakeCost = mistakeStats
     .filter((m: any) => m.totalPnl < 0)
     .reduce((s: number, m: any) => s + Math.abs(m.totalPnl), 0)
+
+  // SWEEP3-WIRE2 — hero drill cohorts: the negative-cost mistake ids behind
+  // "Total Cost of Mistakes" (the psychology-page OR-cohort idiom — the
+  // trades API matches mistakeId lists with `some/in`, i.e. OR) and the
+  // most-expensive mistake (lowest avg P&L; the hero used to re-sort it
+  // inline twice — computed once now, display unchanged).
+  const negativeCostIds = mistakeStats
+    .filter((m: any) => m.totalPnl < 0)
+    .map((m: any) => m.id as string)
+  const mostExpensive =
+    mistakeStats.length > 0
+      ? [...mistakeStats].sort((a: any, b: any) => a.avgPnl - b.avgPnl)[0]
+      : null
 
 
   async function saveMistake() {
@@ -198,65 +240,106 @@ export function MistakesPage() {
       <Card className="p-5 md:p-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-transparent to-orange-500/10 pointer-events-none" />
         <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-md bg-red-500/15">
-                <TrendingDown className="h-4 w-4 text-red-400" />
+          {heroTile(
+            negativeCostIds.length > 0
+              ? {
+                  title: 'Open the trades behind this mistake cost',
+                  onClick: () => drillToTrades({ mistakeIds: negativeCostIds }),
+                }
+              : null,
+            'Aggregate cost across all mistakes — open the analysis below',
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-2 rounded-md bg-red-500/15">
+                  <TrendingDown className="h-4 w-4 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold tracking-tight">Total Cost of Mistakes</h3>
+                  <p className="text-xs text-muted-foreground">P&L impact from mistake-tagged trades</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold tracking-tight">Total Cost of Mistakes</h3>
-                <p className="text-xs text-muted-foreground">P&L impact from mistake-tagged trades</p>
+              <FitValue className="text-3xl font-bold tnum text-red-400">
+                -{formatCurrencyIn('table', totalMistakeCost)}
+              </FitValue>
+              <p className="text-xs text-muted-foreground mt-1">
+                across {mistakeStats.filter((m: any) => m.totalPnl < 0).length} mistake types
+              </p>
+            </>
+          )}
+          {heroTile(
+            mostFrequent
+              ? {
+                  title: "Open the most frequent mistake's breakdown",
+                  onClick: () =>
+                    // Same peek call the mistake cards below use.
+                    openPeek({
+                      type: 'mistake',
+                      title: mostFrequent.name,
+                      subtitle: `${mostFrequent.tradeCount} trades · ${mostFrequent.winRate.toFixed(0)}% WR`,
+                      data: { id: mostFrequent.id, name: mostFrequent.name },
+                      navigateTo: 'mistakes',
+                    }),
+                }
+              : null,
+            'Most frequent mistake — no tagged trades yet',
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-2 rounded-md bg-orange-500/15">
+                  <AlertTriangle className="h-4 w-4 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold tracking-tight">Most Frequent Mistake</h3>
+                  <p className="text-xs text-muted-foreground">Most common error</p>
+                </div>
               </div>
-            </div>
-            <FitValue className="text-3xl font-bold tnum text-red-400">
-              -{formatCurrencyIn('table', totalMistakeCost)}
-            </FitValue>
-            <p className="text-xs text-muted-foreground mt-1">
-              across {mistakeStats.filter((m: any) => m.totalPnl < 0).length} mistake types
-            </p>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-md bg-orange-500/15">
-                <AlertTriangle className="h-4 w-4 text-orange-400" />
+              {mostFrequent ? (
+                <>
+                  <p className="text-xl font-bold">{mostFrequent.name}</p>
+                  <p className="text-xs text-muted-foreground">{mostFrequent.tradeCount} trades</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No mistakes tagged yet</p>
+              )}
+            </>
+          )}
+          {heroTile(
+            mostExpensive
+              ? {
+                  title: "Open the most expensive mistake's breakdown",
+                  onClick: () =>
+                    // Same peek call the mistake cards below use.
+                    openPeek({
+                      type: 'mistake',
+                      title: mostExpensive.name,
+                      subtitle: `${mostExpensive.tradeCount} trades · ${mostExpensive.winRate.toFixed(0)}% WR`,
+                      data: { id: mostExpensive.id, name: mostExpensive.name },
+                      navigateTo: 'mistakes',
+                    }),
+                }
+              : null,
+            'Most expensive mistake — no tagged trades yet',
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-2 rounded-md bg-yellow-500/15">
+                  <DollarSign className="h-4 w-4 text-yellow-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold tracking-tight">Most Expensive Mistake</h3>
+                  <p className="text-xs text-muted-foreground">Highest cost per trade</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold tracking-tight">Most Frequent Mistake</h3>
-                <p className="text-xs text-muted-foreground">Most common error</p>
-              </div>
-            </div>
-            {mostFrequent ? (
-              <>
-                <p className="text-xl font-bold">{mostFrequent.name}</p>
-                <p className="text-xs text-muted-foreground">{mostFrequent.tradeCount} trades</p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No mistakes tagged yet</p>
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-md bg-yellow-500/15">
-                <DollarSign className="h-4 w-4 text-yellow-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold tracking-tight">Most Expensive Mistake</h3>
-                <p className="text-xs text-muted-foreground">Highest cost per trade</p>
-              </div>
-            </div>
-            {mistakeStats.length > 0 ? (
-              <>
-                <p className="text-xl font-bold">
-                  {[...mistakeStats].sort((a: any, b: any) => a.avgPnl - b.avgPnl)[0].name}
-                </p>
-                <p className="text-xs text-red-400">
-                  {formatCurrencyIn('table', [...mistakeStats].sort((a: any, b: any) => a.avgPnl - b.avgPnl)[0].avgPnl)}/trade avg
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No data</p>
-            )}
-          </div>
+              {mostExpensive ? (
+                <>
+                  <p className="text-xl font-bold">{mostExpensive.name}</p>
+                  <p className="text-xs text-red-400">
+                    {formatCurrencyIn('table', mostExpensive.avgPnl)}/trade avg
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No data</p>
+              )}
+            </>
+          )}
         </div>
       </Card>
 

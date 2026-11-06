@@ -136,7 +136,11 @@ export async function GET(
         legs: true,
         tags: { include: { tag: true } },
         mistakes: { include: { mistake: true } },
-        screenshots: true,
+        // SWEEP3 (audit S2) — scope screenshots to the requesting user: the
+        // include was unscoped, so a (now-blocked) cross-user FK injection
+        // would have been served back here. Defense in depth: a trade's
+        // screenshots are its owner's rows.
+        screenshots: { where: { userId: user.id } },
         journal: true,
         news: { orderBy: { eventTime: 'asc' } },
         executions: { orderBy: { timestamp: 'asc' } },

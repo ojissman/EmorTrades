@@ -300,10 +300,31 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
       {mode === 'best-exit-pnl' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <MetricStat label="Actual P&L" value={money(s.totalActualPnl)} sub={`${s.totalTrades} closed trades`} tone={s.totalActualPnl >= 0 ? 'good' : 'bad'} />
-            <MetricStat label="Best-exit potential" value={money(s.totalBestExitPnl)} sub="P&L if every exit were perfect" />
-            <MetricStat label="Left on the table" value={money(s.totalLeftOnTable)} sub="best exit − actual, summed" tone="warn" big />
-            <MetricStat label="Capture efficiency" value={pctTxt(s.captureEfficiency, 1)} sub="actual ÷ best-exit potential" tone={s.captureEfficiency >= 50 ? 'good' : s.captureEfficiency >= 25 ? 'warn' : 'bad'} />
+            {/* SWEEP3-WIRE3 — Actual P&L is the real booked sum over this page's
+                exact trade set, so it drills exactly like the parent
+                exit-analysis hero (drillToTrades({})). The other three are
+                counterfactual / derived aggregates: they carry the parent's
+                honest titles (no cohort to drill) and no onClick. MetricStat
+                has no title prop, so the tooltip rides a wrapper div. */}
+            <div className="min-w-0" title="Open the trades behind this page">
+              <MetricStat
+                label="Actual P&L"
+                value={money(s.totalActualPnl)}
+                sub={`${s.totalTrades} closed trades`}
+                tone={s.totalActualPnl >= 0 ? 'good' : 'bad'}
+                ariaLabel={`Actual P&L across ${s.totalTrades} trades — open the trades`}
+                onClick={() => drillToTrades({})}
+              />
+            </div>
+            <div className="min-w-0" title="Counterfactual estimate (every exit at MFE) — no exact trade cohort to drill">
+              <MetricStat label="Best-exit potential" value={money(s.totalBestExitPnl)} sub="P&L if every exit were perfect" />
+            </div>
+            <div className="min-w-0" title="Counterfactual estimate (best exit − actual, summed) — no exact trade cohort to drill">
+              <MetricStat label="Left on the table" value={money(s.totalLeftOnTable)} sub="best exit − actual, summed" tone="warn" big />
+            </div>
+            <div className="min-w-0" title="Derived ratio across every trade — no exact trade cohort to drill">
+              <MetricStat label="Capture efficiency" value={pctTxt(s.captureEfficiency, 1)} sub="actual ÷ best-exit potential" tone={s.captureEfficiency >= 50 ? 'good' : s.captureEfficiency >= 25 ? 'warn' : 'bad'} />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -521,7 +542,11 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                 <EmptyRange what="timestamped trades (entry + MFE markers needed)" />
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
-                  <ScatterChart margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
+                  {/* SWEEP3 E2E-FIX — RECHARTS LAW extension: Scatter-level
+                      onClick never fires in 2.15.x (E2E-proven; latent dead
+                      since the exit-detail wiring). Chart-level activePayload
+                      covers BOTH series (winners + losers) with one handler. */}
+                  <ScatterChart margin={{ left: 0, right: 12, top: 8, bottom: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl }) }} style={{ cursor: 'pointer' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-strong)" />
                     <XAxis dataKey="hold" name="Hold time" tick={AXIS_TICK} tickFormatter={minsTxt} />
                     <YAxis dataKey="toPeak" name="Time to peak" tick={AXIS_TICK} tickFormatter={minsTxt} />
@@ -532,21 +557,11 @@ export function ExitDetailChartsPage({ mode }: { mode: Mode }) {
                       name="Winners"
                       data={peakScatter.filter((d) => d.pnl >= 0)}
                       fill="var(--shell-success)"
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        const p = data?.payload
-                        if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl })
-                      }}
                     />
                     <Scatter
                       name="Losers"
                       data={peakScatter.filter((d) => d.pnl < 0)}
                       fill="var(--shell-danger)"
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        const p = data?.payload
-                        if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, entryTime: p.entryTime, pnl: p.pnl })
-                      }}
                     />
                   </ScatterChart>
                 </ResponsiveContainer>

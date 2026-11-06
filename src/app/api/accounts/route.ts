@@ -42,14 +42,28 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return auth.response
     const user = auth.user
     if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+    // SWEEP3 (audit S3) — validate before writing: a missing name used to
+    // fall through to Prisma and 500; a non-numeric startingBalance was
+    // silently coerced to 0 by `parseFloat(...) || 0`. Both are 400s now.
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name) return NextResponse.json({ error: 'Account name is required.' }, { status: 400 })
+    if (name.length > 80) return NextResponse.json({ error: 'Account name is too long (max 80).' }, { status: 400 })
+    let startingBalance = 0
+    if (body.startingBalance !== undefined && body.startingBalance !== null && `${body.startingBalance}`.trim() !== '') {
+      const n = parseFloat(body.startingBalance)
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json({ error: 'Starting balance must be a non-negative number.' }, { status: 400 })
+      }
+      startingBalance = n
+    }
     const account = await db.account.create({
       data: {
         userId: user.id,
-        name: body.name,
+        name,
         broker: body.broker || 'Manual',
         type: body.type || 'stock',
         currency: body.currency || 'USD',
-        startingBalance: parseFloat(body.startingBalance) || 0,
+        startingBalance,
         color: body.color || '#10b981',
         isProp: body.isProp || false,
         propFirm: body.propFirm || null,
@@ -96,7 +110,15 @@ export async function PUT(req: NextRequest) {
       if (body.name) updateData.name = body.name
       if (body.broker) updateData.broker = body.broker
       if (body.type) updateData.type = body.type
-      if (body.startingBalance !== undefined) updateData.startingBalance = parseFloat(body.startingBalance)
+      if (body.startingBalance !== undefined) {
+        // SWEEP3 (audit S3) — same validation on update: reject non-numeric
+        // balances instead of silently writing NaN-driven garbage.
+        const n = parseFloat(body.startingBalance)
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json({ error: 'Starting balance must be a non-negative number.' }, { status: 400 })
+        }
+        updateData.startingBalance = n
+      }
       if (body.isProp !== undefined) updateData.isProp = body.isProp
       if (body.propFirm !== undefined) updateData.propFirm = body.propFirm
     }

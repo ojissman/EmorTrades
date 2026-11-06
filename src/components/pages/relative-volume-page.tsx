@@ -111,13 +111,24 @@ export function RelativeVolumePage() {
     staleTime: 5 * 60_000,
   })
 
+  // SWEEP3 E2E-FIX — log-scale guard (same class as the patience chart):
+  // one live row carries rvol = 0 (a session with zero volume); log(0)
+  // poisoned the log XAxis and EVERY dot silently failed to render (103
+  // empty symbol groups — blank chart). rvol > 0 keeps the scale finite.
   const scatter = useMemo(
     () =>
       (q.data?.rows ?? [])
-        .filter((r) => r.r !== null)
+        .filter((r) => r.r !== null && r.rvol !== null && r.rvol > 0)
         // Task 15-W4 — keep the trade id (and peek decorations) so each dot
         // can open the trade behind it.
         .map((r) => ({ rvol: r.rvol, r: r.r as number, sym: r.symbol, win: r.pnl > 0, id: r.tradeId, symbol: r.symbol, side: r.side, pnl: r.pnl, date: r.date })),
+    [q.data],
+  )
+
+  // SWEEP3 E2E-FIX — honest exclusion count (R-qualified rows whose rvol
+  // can't sit on a log axis: zero-volume sessions).
+  const unloggable = useMemo(
+    () => (q.data?.rows ?? []).filter((r) => r.r !== null && (r.rvol === null || r.rvol <= 0)).length,
     [q.data],
   )
 
@@ -238,7 +249,10 @@ export function RelativeVolumePage() {
       <Panel title="Loud money — RVOL vs R" hint="Each dot: a trade’s session RVOL (log scale) vs its R-multiple">
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+            {/* SWEEP3 E2E-FIX — RECHARTS LAW extension: Scatter-level onClick
+                never fires in 2.15.x (E2E-proven; this wiring had been latent
+                dead). Chart-level activePayload idiom. */}
+            <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 8 }} onClick={(state: any) => { const p = state?.activePayload?.[0]?.payload; if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, pnl: p.pnl, entryTime: p.date }) }} style={{ cursor: 'pointer' }}>
               <CartesianGrid stroke="var(--border-strong)" strokeDasharray="3 3" />
               <XAxis dataKey="rvol" type="number" tick={AXIS_TICK} axisLine={{ stroke: 'var(--border-strong)' }} tickLine={false} scale="log" domain={['dataMin', 'dataMax']} tickFormatter={(v: number) => `${v}×`} />
               <YAxis dataKey="r" type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} width={44} tickFormatter={(v: number) => `${v}R`} />
@@ -246,14 +260,7 @@ export function RelativeVolumePage() {
               <ReTooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number | string, name) => (name === 'R' ? [`${Number(v).toFixed(2)}R`, 'Result'] : [`${Number(v).toFixed(2)}×`, 'RVOL'])} labelFormatter={() => ''} />
               <ReferenceLine y={0} stroke="var(--border-strong)" />
               <ReferenceLine x={1} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'normal volume', fill: 'var(--text-secondary)', fontSize: 10, position: 'top' }} />
-              <Scatter
-                data={scatter}
-                cursor="pointer"
-                onClick={(d: any) => {
-                  const p = d?.payload ?? d
-                  if (p?.id) peekTrade({ id: p.id, symbol: p.symbol, side: p.side, pnl: p.pnl, entryTime: p.date })
-                }}
-              >
+              <Scatter data={scatter}>
                 {scatter.map((d, i) => (
                   <Cell key={i} fill={d.win ? 'var(--shell-success)' : 'var(--shell-danger)'} fillOpacity={0.75} />
                 ))}
@@ -262,7 +269,7 @@ export function RelativeVolumePage() {
           </ResponsiveContainer>
         </div>
         <p className="mt-2 text-[11px] flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-          <Info className="h-3 w-3" /> {scatter.length} of {coverage.matched} matched trades have an R value; symbols without tape volume are excluded honestly
+          <Info className="h-3 w-3" /> {scatter.length} of {coverage.matched} matched trades have an R value; symbols without tape volume are excluded honestly{unloggable > 0 ? `; ${unloggable} zero-volume session${unloggable === 1 ? '' : 's'} can't sit on a log axis` : ''}
           {coverage.symbolsWithoutVolume.length > 0 && <> ({coverage.symbolsWithoutVolume.join(', ')})</>}.
         </p>
       </Panel>

@@ -100,7 +100,12 @@ export async function POST(req: NextRequest) {
     const note = typeof noteRaw === 'string' && noteRaw.trim() ? noteRaw.trim() : null
 
     if (tradeId) {
-      const t = await db.trade.findUnique({ where: { id: tradeId }, select: { id: true } })
+      // SWEEP3 (audit S2) — ownership check: the trade being attached to must
+      // belong to the caller. The old findUnique-by-bare-id accepted ANY trade
+      // id (cross-user FK injection: user B could attach screenshots to user
+      // A's trade, and A's trade-detail GET would then serve them back via the
+      // unscoped screenshots include — also fixed there).
+      const t = await db.trade.findFirst({ where: { id: tradeId, userId: user.id }, select: { id: true } })
       if (!t) return NextResponse.json({ error: 'Trade not found' }, { status: 400 })
     }
 

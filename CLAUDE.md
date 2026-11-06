@@ -377,6 +377,29 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
 
 - COHORTSWEEP (2026-11-05): chart drills go on the CHART element (activePayload idiom) — recharts 2.15.x shape-level onClick on Area/Radar never fires (4 shipped-dead wirings proved it); Bar/Pie shape clicks do work. Exact cohorts over approximations: when an aggregate payload carries trade ids (tradeIds param), drill those — never a filter range that "mostly matches"; counterfactual/derived tiles (ratios, best-exit potentials) stay honest with explaining titles instead of fake drills. Every new parseScope param must be APPLIED in every route that parses it (metrics parsed day/hour params for months without applying them). Clickable Cards need the full affordance set (cursor + hover + role=button + tabIndex + onKeyDown + aria-label), not cursor alone. E2E the exact surface you wired — a passing sibling proves nothing.
 
+## Task SWEEP3 — security + wiring + blank-chart fixes (2026-11-06)
+
+- **AI cache keys carry the session userId — every one of them** (ai/suite
+  leaked cached answers cross-user; page-insights + watchlist symbol
+  analysis had the same hole). An unscoped in-process cache keyed only by
+  request params is a cross-user data leak whenever the payload embeds
+  user data.
+- **FK-injection rule**: findUnique on a bare id from the client is an
+  ownership hole (library POST accepted foreign tradeIds; trades/[id] GET
+  served them back via an unscoped screenshots include). Every id lookup
+  filters userId; every include of user-owned rows scopes userId.
+- **RECHARTS LAW now covers Scatter**: Scatter-level onClick never fires in
+  2.15.x (same as Area/Radar shape clicks). Chart-level
+  `state?.activePayload?.[0]?.payload` is the only scatter drill idiom —
+  hover must activate the tooltip before the click.
+- **log(0) poisons the whole chart**: one zero-valued point on a log axis
+  renders EVERY symbol as an empty group (blank chart that looks plotted).
+  Filter zeros + count them honestly in the caption; a log XAxis also needs
+  type="number" or it silently falls back to category semantics.
+- Mutation routes validate before writing (accounts: name/number 400s);
+  implicit lib-level auth gives 500-not-401 — gate at the route.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

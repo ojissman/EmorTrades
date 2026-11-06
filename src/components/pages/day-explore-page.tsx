@@ -674,20 +674,72 @@ export function DayExplorePage() {
           tone={st.net > 0 ? 'good' : st.net < 0 ? 'bad' : 'neutral'}
           big
           sub={`${st.n} trade${st.n === 1 ? '' : 's'} · ${context ? `rank ${context.rank} of ${context.of}` : '—'}`}
+          onClick={() =>
+            // SWEEP3-WIRE4 — same entry-day UTC window as the page's own
+            // "Trades table" drill above (Task 15-W1 convention).
+            drillToTrades({
+              customStartDate: `${day.key}T00:00:00.000Z`,
+              customEndDate: `${day.key}T23:59:59.999Z`,
+            })
+          }
+          ariaLabel="Day net P&L — open this day's trades"
         />
         <MetricStat
           label="Win rate"
           value={`${st.winRate}%`}
           sub={`${st.wins}W / ${st.n - st.wins}L`}
           tone={st.winRate >= 50 ? 'good' : st.winRate >= 40 ? 'warn' : 'bad'}
+          onClick={() =>
+            drillToTrades({
+              customStartDate: `${day.key}T00:00:00.000Z`,
+              customEndDate: `${day.key}T23:59:59.999Z`,
+              outcome: 'win',
+            })
+          }
+          ariaLabel="Win rate — open this day's winning trades"
         />
-        <MetricStat label="Avg R" value={st.avgR === null ? '—' : `${st.avgR >= 0 ? '+' : '−'}${Math.abs(st.avgR).toFixed(2)}R`} sub="avg across R-qualified trades" tone={st.avgR === null ? 'neutral' : st.avgR >= 0 ? 'good' : 'bad'} />
-        <MetricStat label="Fees + commission" value={formatCurrencyIn('kpi', st.costs)} sub="cost of activity this day" />
+        <MetricStat
+          label="Avg R"
+          value={st.avgR === null ? '—' : `${st.avgR >= 0 ? '+' : '−'}${Math.abs(st.avgR).toFixed(2)}R`}
+          sub="avg across R-qualified trades"
+          tone={st.avgR === null ? 'neutral' : st.avgR >= 0 ? 'good' : 'bad'}
+          onClick={() =>
+            drillToTrades({
+              customStartDate: `${day.key}T00:00:00.000Z`,
+              customEndDate: `${day.key}T23:59:59.999Z`,
+            })
+          }
+          ariaLabel="Avg R — open this day's R-qualified trades"
+        />
+        <MetricStat
+          label="Fees + commission"
+          value={formatCurrencyIn('kpi', st.costs)}
+          sub="cost of activity this day"
+          onClick={() =>
+            // Fees are trade-scoped — the day window IS the drill.
+            drillToTrades({
+              customStartDate: `${day.key}T00:00:00.000Z`,
+              customEndDate: `${day.key}T23:59:59.999Z`,
+            })
+          }
+          ariaLabel="Fees + commission — open this day's trades"
+        />
         <MetricStat
           label="Discipline"
           value={st.discipline === null ? '—' : `${st.discipline}%`}
           sub="trades marked plan-followed"
           tone={st.discipline === null ? 'neutral' : st.discipline >= 70 ? 'good' : st.discipline >= 40 ? 'warn' : 'bad'}
+          onClick={() =>
+            // Discipline here IS the plan-followed share (dayStats counts
+            // planFollowed === true) and the filter store supports the exact
+            // counterpart — drill the followed cohort of this day.
+            drillToTrades({
+              customStartDate: `${day.key}T00:00:00.000Z`,
+              customEndDate: `${day.key}T23:59:59.999Z`,
+              planFollowed: true,
+            })
+          }
+          ariaLabel="Discipline — open this day's plan-followed trades"
         />
         <MetricStat
           label={context?.isBest ? 'BEST SESSION ON RECORD' : context?.isWorst ? 'WORST SESSION ON RECORD' : 'Best / worst trade'}

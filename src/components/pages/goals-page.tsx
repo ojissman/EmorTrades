@@ -33,6 +33,9 @@ import {
   FileSpreadsheet,
   ArrowUpRight,
   CalendarClock,
+  // SWEEP3-WIRE3 (Task 118) — the reorder chevrons.
+  ChevronDown,
+  ChevronUp,
   Activity,
   AlertTriangle,
   Flame,
@@ -141,6 +144,12 @@ function dayKeyOf(t: any): string | null {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 }
 
+/** SWEEP3-WIRE3 — zero-padded local-day ISO ('YYYY-MM-DD') for the dot
+ *  window drills (dayKeyOf's unpadded key stays the day-map bucket key). */
+function isoDayOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function periodValue(trades: any[], metric: string): number {
   if (!trades.length) return 0
   if (metric === 'pnl') return trades.reduce((s, t) => s + (t.pnl || 0), 0)
@@ -164,7 +173,20 @@ function periodValue(trades: any[], metric: string): number {
   return 0
 }
 
-type Dot = { label: string; value: number; hit: boolean; today: boolean; traded: boolean }
+// SWEEP3-WIRE3 — start/end carry the dot's period window (zero-padded
+// local-day ISO, 'YYYY-MM-DD') so the dot strip, the detail modal's period
+// rows and the matrix cells can drill exactly that window. Server-metric
+// dots (progress.history) arrive without bounds, so the fields stay optional
+// and those dots keep an honest no-drill rendering.
+type Dot = {
+  label: string
+  value: number
+  hit: boolean
+  today: boolean
+  traded: boolean
+  start?: string
+  end?: string
+}
 
 function buildDailyDots(dayMap: Map<string, any[]>, metric: string, target: number): Dot[] {
   const now = new Date()
@@ -180,6 +202,8 @@ function buildDailyDots(dayMap: Map<string, any[]>, metric: string, target: numb
       hit: trades.length > 0 && value >= target,
       today: cursor.getDate() === now.getDate(),
       traded: trades.length > 0,
+      start: isoDayOf(cursor),
+      end: isoDayOf(cursor),
     })
     cursor.setDate(cursor.getDate() + 1)
   }
@@ -201,12 +225,16 @@ function buildWeeklyDots(dayMap: Map<string, any[]>, metric: string, target: num
       if (arr) trades.push(...arr)
     }
     const value = periodValue(trades, metric)
+    const we = new Date(ws)
+    we.setDate(we.getDate() + 6)
     dots.push({
       label: `Wk of ${ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
       value,
       hit: trades.length > 0 && value >= target,
       today: w === 0,
       traded: trades.length > 0,
+      start: isoDayOf(ws),
+      end: isoDayOf(we),
     })
   }
   return dots
@@ -230,6 +258,8 @@ function buildMonthlyDots(dayMap: Map<string, any[]>, metric: string, target: nu
       hit: trades.length > 0 && value >= target,
       today: m === 0,
       traded: trades.length > 0,
+      start: isoDayOf(ms),
+      end: isoDayOf(new Date(ms.getFullYear(), ms.getMonth(), daysInMonth)),
     })
   }
   return dots
@@ -255,6 +285,8 @@ function buildAnnualDots(dayMap: Map<string, any[]>, metric: string, target: num
       hit: trades.length > 0 && value >= target,
       today: y === 0,
       traded: trades.length > 0,
+      start: `${year}-01-01`,
+      end: `${year}-12-31`,
     })
   }
   return dots
@@ -339,12 +371,17 @@ function GoalDotStrip({
   target,
   stripLabel,
   countNoun,
+  onDrillDot,
 }: {
   dots: Dot[]
   metric: string
   target: number
   stripLabel: string
   countNoun: string
+  /** SWEEP3-WIRE3 — per-dot evidence drill: opens the trades scoped to that
+   *  dot's own period window. Dots without a known window (server-metric
+   *  history) render as plain, honest spans. */
+  onDrillDot?: (d: Dot) => void
 }) {
   const hits = dots.filter((d) => d.hit).length
   return (
@@ -363,21 +400,43 @@ function GoalDotStrip({
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-[3px]">
-        {dots.map((d, i) => (
-          <span
-            key={i}
-            title={
-              d.traded
-                ? `${d.label} · ${METRIC_FORMATS[metric](d.value)} vs ${METRIC_FORMATS[metric](target)} · ${d.hit ? 'HIT' : 'MISS'}`
-                : `${d.label} · no trades`
-            }
-            className={cn(
-              'h-[7px] w-[7px] rounded-full transition-transform hover:scale-125',
-              d.traded ? (d.hit ? 'bg-emerald-500' : 'bg-red-500/70') : 'bg-muted-foreground/20',
-              d.today && 'ring-1 ring-sky-400/90'
-            )}
-          />
-        ))}
+        {dots.map((d, i) => {
+          const tip = d.traded
+            ? `${d.label} · ${METRIC_FORMATS[metric](d.value)} vs ${METRIC_FORMATS[metric](target)} · ${d.hit ? 'HIT' : 'MISS'}`
+            : `${d.label} · no trades`
+          // SWEEP3-WIRE3 — a dot with a known window is a button drilling that
+          // period's trades (plan-scoped, the drillPeriod patch shape);
+          // stopPropagation keeps the card's modal-open from firing.
+          const canDrill = !!onDrillDot && !!d.start && !!d.end
+          return canDrill ? (
+            <button
+              key={i}
+              type="button"
+              title={`${tip} — open this period's trades`}
+              aria-label={`${tip} — open this period's trades`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onDrillDot) onDrillDot(d)
+              }}
+              className={cn(
+                'h-[7px] w-[7px] rounded-full transition-transform hover:scale-125 cursor-pointer',
+                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
+                d.traded ? (d.hit ? 'bg-emerald-500' : 'bg-red-500/70') : 'bg-muted-foreground/20',
+                d.today && 'ring-1 ring-sky-400/90'
+              )}
+            />
+          ) : (
+            <span
+              key={i}
+              title={tip}
+              className={cn(
+                'h-[7px] w-[7px] rounded-full transition-transform hover:scale-125',
+                d.traded ? (d.hit ? 'bg-emerald-500' : 'bg-red-500/70') : 'bg-muted-foreground/20',
+                d.today && 'ring-1 ring-sky-400/90'
+              )}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -872,6 +931,7 @@ export function GoalsPage() {
       goalId: g.id,
       label: METRIC_LABELS[g.metric] || g.metric,
       type: g.type,
+      planId: g.planId ?? null,
       planName: g.plan?.name ?? null,
       color: g.color,
       dots: (dotsByGoal.get(g.id) || []).slice(-8),
@@ -898,6 +958,19 @@ export function GoalsPage() {
     } else {
       drillToTrades({ ...monthPatch(now.toISOString().slice(0, 7)), ...scope })
     }
+  }
+
+  // SWEEP3-WIRE3 — per-dot evidence drill: the dot strip, the detail modal's
+  // period rows and the matrix cells each name a period window (Dot.start/end);
+  // drilling opens the trades scoped to exactly that window — plan-scoped for
+  // linked goals, the same patch shape as drillPeriod above.
+  const drillDot = (g: { planId?: string | null }, d: { start?: string; end?: string }) => {
+    if (!d.start || !d.end) return
+    drillToTrades({
+      customStartDate: `${d.start}T00:00:00.000Z`,
+      customEndDate: `${d.end}T23:59:59.999Z`,
+      ...(g.planId ? { tradingPlanId: g.planId } : {}),
+    })
   }
 
   // TP2-P5 — open the detail modal for a goal (card click, matrix row, watchlist).
@@ -948,6 +1021,40 @@ export function GoalsPage() {
   const sectionRank = (goal: any) => {
     const section = goals.filter((g: any) => g.type === goal.type)
     return { idx: section.findIndex((g: any) => g.id === goal.id), len: section.length }
+  }
+
+  // SWEEP3-WIRE3 (Task 118) — the reorder itself: swap this goal with its
+  // same-type neighbor. `order` is a GLOBAL rank (sections filter the global
+  // ordering client-side — see /api/goals), so the swap exchanges the two
+  // rows' positions in the full sequence and the PATCH sends every goal
+  // re-indexed 0..n-1: the global sequence stays dense and only the two rows'
+  // relative order inside their section changes. A failed fetch throws so the
+  // toast catch fires; success invalidates ['goals'] (the data-backups
+  // invalidate idiom).
+  const moveGoal = async (goal: any, dir: -1 | 1) => {
+    const { idx, len } = sectionRank(goal)
+    const to = idx + dir
+    if (idx < 0 || to < 0 || to >= len) return
+    const section = goals.filter((g: any) => g.type === goal.type)
+    const a = section[idx]
+    const b = section[to]
+    const ia = goals.indexOf(a)
+    const ib = goals.indexOf(b)
+    if (!a || !b || ia < 0 || ib < 0) return
+    const next = [...goals]
+    next[ia] = b
+    next[ib] = a
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: next.map((g: any, i: number) => ({ id: g.id, order: i })) }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      queryClient.invalidateQueries({ queryKey: ['goals'] })
+    } catch {
+      toast({ title: 'Failed to reorder goal', variant: 'destructive' })
+    }
   }
 
   if (isLoading) {
@@ -1358,6 +1465,41 @@ export function GoalsPage() {
                             </p>
                           </div>
                         </div>
+                        {/* Task 118 — the reorder chevrons (SWEEP3-WIRE3 wired):
+                            up/down swaps this goal with its same-type neighbor
+                            in the global rank; first/last position and
+                            single-goal sections disable. stopPropagation keeps
+                            the card's modal-open from firing. */}
+                        <div className="flex flex-col gap-px shrink-0">
+                          <button
+                            type="button"
+                            disabled={rank.len < 2 || rank.idx <= 0}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void moveGoal(goal, -1)
+                            }}
+                            aria-label={`Move goal up in ${type} section`}
+                            title="Move this goal up within its section"
+                            className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/70"
+                            data-testid={`goal-move-up-${goal.id}`}
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={rank.len < 2 || rank.idx >= rank.len - 1}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void moveGoal(goal, 1)
+                            }}
+                            aria-label={`Move goal down in ${type} section`}
+                            title="Move this goal down within its section"
+                            className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/70"
+                            data-testid={`goal-move-down-${goal.id}`}
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        </div>
                       </div>
 
                       {/* TP-7-h — plan-aware badges: goal kind, linked plan
@@ -1543,6 +1685,7 @@ export function GoalsPage() {
                                   : 'Last 6 years') + (goal.planId ? ' · plan trades' : '')
                           }
                           countNoun={type === 'daily' ? 'days' : type === 'weekly' ? 'wks' : type === 'monthly' ? 'mo' : 'yrs'}
+                          onDrillDot={(d) => drillDot(goal, d)}
                         />
                       )}
                     </Card>
@@ -1570,7 +1713,11 @@ export function GoalsPage() {
 
           {/* TP2-P5 — the consistency matrix: every goal (respecting both
               filters) × its own last 8 periods, hit-rate ranked bar. */}
-          <PerformanceMatrix rows={matrixRows} onOpen={openGoal} />
+          <PerformanceMatrix
+            rows={matrixRows}
+            onOpen={openGoal}
+            onDrillDot={(row, d) => drillDot(row, d)}
+          />
         </div>
       )}
 

@@ -205,9 +205,31 @@ export function OpenTradesPage() {
 
   return (
     <div className="space-y-4">
-      {/* Hero stats */}
+      {/* Hero stats — SWEEP3-WIRE3: Open Positions drills the page's own
+          open-positions cohort (the Exposure-by-Side/Symbol chart idiom); the
+          other three are whole-book aggregates and stay honest titles only. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className={cn(
+            'p-4 overflow-hidden transition-colors',
+            openTrades.length > 0 && 'cursor-pointer hover:border-border'
+          )}
+          title={openTrades.length > 0 ? 'Every open position in scope — open the trades' : 'No open positions'}
+          role={openTrades.length > 0 ? 'button' : undefined}
+          tabIndex={openTrades.length > 0 ? 0 : undefined}
+          aria-label={openTrades.length > 0 ? `Open positions: ${openTrades.length} — open the trades` : undefined}
+          onClick={openTrades.length > 0 ? () => drillToTrades({ status: 'open' }) : undefined}
+          onKeyDown={
+            openTrades.length > 0
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    drillToTrades({ status: 'open' })
+                  }
+                }
+              : undefined
+          }
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Open Positions</p>
             <Activity className="h-3 w-3 text-emerald-400" />
@@ -215,7 +237,7 @@ export function OpenTradesPage() {
           <FitValue className="text-xl font-bold tnum">{openTrades.length}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">across {Object.keys(accounts).length} accounts</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Notional value of every open position — aggregate">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Exposure</p>
             <Wallet className="h-3 w-3 text-blue-400" />
@@ -223,7 +245,7 @@ export function OpenTradesPage() {
           <FitValue className="text-xl font-bold tnum">{formatCurrencyIn('table', totalExposure)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">notional value</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Sum of stop distances if every stop hits — aggregate">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Worst-Case Risk</p>
             <AlertTriangle className="h-3 w-3 text-red-400" />
@@ -231,7 +253,7 @@ export function OpenTradesPage() {
           <FitValue className="text-xl font-bold tnum text-red-400">{formatCurrencyIn('table', worstCaseRisk)}</FitValue>
           <p className="text-[10px] text-muted-foreground mt-1">if all stops hit</p>
         </Card>
-        <Card className="p-4 overflow-hidden">
+        <Card className="p-4 overflow-hidden" title="Counts by side — drill a single side from the Exposure by Side pie below">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Long/Short Split</p>
             <TrendingUp className="h-3 w-3 text-emerald-400" />

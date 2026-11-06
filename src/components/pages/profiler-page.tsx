@@ -445,7 +445,13 @@ function ProfileCard({
 
       {/* charts */}
       <div className="relative mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+        {/* SWEEP3-WIRE3 — hold bands are aggregate counts (the profiler payload
+            carries no per-bucket trade ids), so the honest title says so and
+            the bars stay non-clickable (no cursor:pointer lie). */}
+        <div
+          className="rounded-xl border border-border/60 bg-muted/10 p-4"
+          title="Hold-time bands — aggregate distribution (no per-band deep link yet)"
+        >
           <div className="mb-1 flex items-baseline justify-between">
             <h4 className="text-sm font-semibold">Hold-time distribution</h4>
             <span className="text-[10px] text-muted-foreground">trades per bucket</span>

@@ -42,11 +42,6 @@ export interface RawTable {
   rows: string[][]
 }
 
-export interface RawRow {
-  /** Header-keyed cells of one data row (keys are the detected header cells). */
-  [header: string]: string
-}
-
 /** The 14 canonical import fields (same contract as the legacy mapping UI). */
 export type FieldKey =
   | 'symbol'
@@ -74,11 +69,6 @@ export interface MappingCandidate {
   confidence: number
   /** Human label, e.g. "MT5 profile" / "Saved template ‘My IBKR export’". */
   label: string
-}
-
-export interface ParsedTradeRowIssue {
-  kind: 'dup' | 'invalid' | 'chrono' | 'future' | 'pnl' | 'review' | 'symbol' | 'side'
-  message: string
 }
 
 /** Normalized trade — superset of the legacy ParsedTrade with traceability. */

@@ -430,6 +430,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Rate limit: max 10 AI suite requests per minute.' }, { status: 429 })
     }
 
+    // SWEEP3 (audit S1) — ONE auth gate for every branch (query/review/
+    // summary/widget previously authenticated only implicitly via
+    // loadSuiteContext → getSessionUserId: anon got 404-not-401 and skipped
+    // the origin/suspension gates). The session user also scopes EVERY cache
+    // key below — they were user-agnostic, so user B could receive user A's
+    // cached review/insight/answer (which embeds A's P&L and win rate) by
+    // sending identical params. ai/calendar and ai/tools already keyed by
+    // userId; this route now matches them.
+    const auth = await requireUser()
+    if (!auth.ok) return auth.response
+    const user = auth.user
+    if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
+
     const body = (await req.json()) as SuiteBody
     // Currency Display pref — every money string this route renders (digests,
     // fallback text, chips) honors Settings ▸ Display ▸ Currency Display.
@@ -461,7 +474,7 @@ export async function POST(req: NextRequest) {
         .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
         .slice(-8)
 
-      const cacheKey = `q|${question}|${history.length}`
+      const cacheKey = `q|${user.id}|${question}|${history.length}`
       const cached = cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
@@ -492,7 +505,7 @@ Answer the trader's question about THEIR journal. If the digest cannot answer it
     // ---- REVIEW --------------------------------------------------------------
     if (kind === 'review') {
       const accountId = body.accountId?.trim() || null
-      const cacheKey = `rev|${period}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
+      const cacheKey = `rev|${user.id}|${period}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
       const cached = cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
@@ -562,7 +575,7 @@ Produce a STRUCTURED TRADING REVIEW as STRICT JSON only (no markdown fences, no 
     if (kind === 'summary') {
       const symbol = body.symbol?.trim() || null
       const accountId = body.accountId?.trim() || null
-      const cacheKey = `sum|${period}|${symbol ?? ''}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
+      const cacheKey = `sum|${user.id}|${period}|${symbol ?? ''}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
       const cached = cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
@@ -607,18 +620,13 @@ Write a PERIOD SUMMARY as STRICT JSON only. Schema:
 
     // ---- INSIGHTS ------------------------------------------------------------
     if (kind === 'insights') {
-      const auth = await requireUser()
-      if (!auth.ok) return auth.response
-      const user = auth.user
-      if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
-
       const days = await recentTradingDays(user.id)
       const date = body.date && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : days[0]
       if (!date) {
         return NextResponse.json({ error: 'No closed trades in the journal yet.' }, { status: 404 })
       }
 
-      const cacheKey = `ins|${date}`
+      const cacheKey = `ins|${user.id}|${date}`
       const cached = cacheGet<InsightsJson>(cacheKey)
       if (cached) return NextResponse.json({ ...cached, days })
 
@@ -668,10 +676,6 @@ Write the MORNING-STYLE INSIGHT for one trading day as STRICT JSON only. Schema:
 
     // ---- TRADE CHAT ----------------------------------------------------------
     if (kind === 'trade-chat') {
-      const auth = await requireUser()
-      if (!auth.ok) return auth.response
-      const user = auth.user
-      if (!user) return NextResponse.json({ error: 'No user' }, { status: 404 })
       const tradeId = (body.tradeId ?? '').trim()
       const question = (body.question ?? '').trim().slice(0, 500)
       if (!tradeId) return NextResponse.json({ error: 'No trade selected.' }, { status: 400 })
@@ -755,7 +759,7 @@ You are discussing ONE specific trade with the trader. Ground every claim in the
         ? (body.mode as 'briefing' | 'insight' | 'risk' | 'ask')
         : 'briefing'
       const question = (body.question ?? '').trim().slice(0, 200)
-      const cacheKey = `wg|${mode}|${question}`
+      const cacheKey = `wg|${user.id}|${mode}|${question}`
       const cached = cacheGet<WidgetJson>(cacheKey)
       if (cached) return NextResponse.json(cached)
 

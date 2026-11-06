@@ -44,7 +44,18 @@ const TONE_TEXT: Record<Tone, string> = {
   sky: 'text-sky-400',
 }
 
-export type WidgetDot = { label: string; value: number; hit: boolean; today: boolean; traded: boolean }
+// SWEEP3-WIRE3 — start/end carry the dot's period window (local-day ISO) so
+// matrix cells can drill that period's trades; server-metric dots arrive
+// without bounds and render as honest non-clickable cells.
+export type WidgetDot = {
+  label: string
+  value: number
+  hit: boolean
+  today: boolean
+  traded: boolean
+  start?: string
+  end?: string
+}
 
 const stagger = {
   hidden: {},
@@ -344,6 +355,8 @@ export type MatrixRow = {
   goalId: string
   label: string
   type: string
+  /** SWEEP3-WIRE3 — the linked plan's id, so cell drills can scope to it. */
+  planId?: string | null
   planName?: string | null
   color?: string
   dots: WidgetDot[]
@@ -358,7 +371,17 @@ function fmtCell(metric: string, v: number): string {
   return `${Math.round(v)}`
 }
 
-export function PerformanceMatrix({ rows, onOpen }: { rows: MatrixRow[]; onOpen: (goalId: string) => void }) {
+export function PerformanceMatrix({
+  rows,
+  onOpen,
+  onDrillDot,
+}: {
+  rows: MatrixRow[]
+  onOpen: (goalId: string) => void
+  /** SWEEP3-WIRE3 — optional per-cell evidence drill: opens the trades scoped
+   *  to that cell's period window (the page supplies the plan scoping). */
+  onDrillDot?: (row: MatrixRow, dot: WidgetDot) => void
+}) {
   return (
     <Card className="p-4" data-testid="performance-matrix">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -402,18 +425,50 @@ export function PerformanceMatrix({ rows, onOpen }: { rows: MatrixRow[]; onOpen:
                       <span className="text-[9px] text-muted-foreground/80 shrink-0">{r.type}</span>
                     </span>
                     <span className="flex items-center gap-[3px]">
-                      {r.dots.map((d, i) => (
-                        <span
-                          key={i}
-                          title={`${d.label} · ${d.traded ? `${fmtCell(r.metric, d.value)} — ${d.hit ? 'HIT' : 'miss'}` : 'no data'}`}
-                          className={cn(
-                            'h-5 w-5 rounded-[4px]',
-                            d.traded ? (d.hit ? 'bg-emerald-500/80' : 'bg-red-500/60') : 'bg-muted-foreground/[0.15]',
-                            d.today && 'ring-1 ring-sky-400/80',
-                          )}
-                          aria-label={`${d.label}: ${d.traded ? (d.hit ? 'hit' : 'miss') : 'no data'}`}
-                        />
-                      ))}
+                      {r.dots.map((d, i) => {
+                        const tip = `${d.label} · ${d.traded ? `${fmtCell(r.metric, d.value)} — ${d.hit ? 'HIT' : 'miss'}` : 'no data'}`
+                        // SWEEP3-WIRE3 — cells with a known period window drill
+                        // that window's trades (plan-scoped via the page's
+                        // onDrillDot); stopPropagation keeps the row's goal-modal
+                        // open from firing. Cells without bounds (server-metric
+                        // history) stay honest non-clickable spans.
+                        const canDrill = !!onDrillDot && !!d.start && !!d.end
+                        return (
+                          <span
+                            key={i}
+                            title={canDrill ? `${tip} — open this period's trades` : tip}
+                            className={cn(
+                              'h-5 w-5 rounded-[4px]',
+                              d.traded ? (d.hit ? 'bg-emerald-500/80' : 'bg-red-500/60') : 'bg-muted-foreground/[0.15]',
+                              d.today && 'ring-1 ring-sky-400/80',
+                              canDrill &&
+                                'cursor-pointer transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
+                            )}
+                            aria-label={`${d.label}: ${d.traded ? (d.hit ? 'hit' : 'miss') : 'no data'}${canDrill ? ` — open this period's trades` : ''}`}
+                            role={canDrill ? 'button' : undefined}
+                            tabIndex={canDrill ? 0 : undefined}
+                            onClick={
+                              canDrill
+                                ? (e) => {
+                                    e.stopPropagation()
+                                    if (onDrillDot) onDrillDot(r, d)
+                                  }
+                                : undefined
+                            }
+                            onKeyDown={
+                              canDrill
+                                ? (e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      if (onDrillDot) onDrillDot(r, d)
+                                    }
+                                  }
+                                : undefined
+                            }
+                          />
+                        )
+                      })}
                     </span>
                     <span className="w-14 flex items-center gap-1.5 justify-end shrink-0">
                       <span className="h-1 w-6 rounded-full bg-muted/40 overflow-hidden" aria-hidden>

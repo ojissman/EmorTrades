@@ -34,6 +34,9 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { useAppStore } from '@/store/app-store'
 import { cn } from '@/lib/utils'
+// SWEEP3-WIRE2 — the WeeklyChallengeDigest week-unit dots join the
+// UnitDots (challenges-page) evidence-drill family.
+import { drillToDay, peekTrade } from '@/lib/drill'
 import { AnimatedNumber } from '@/components/animated-number'
 
 // ---------------------------------------------------------------------------
@@ -568,8 +571,8 @@ export function WeeklyChallengeDigest({
                 key={row.id}
                 // COHORTSWEEP — same fix as the strip's active cards: the
                 // hover-border now opens Challenges (/tools/challenges). The
-                // week-unit dots are passive spans (titles only), no children
-                // to stopPropagation.
+                // week-unit dots below stopPropagation and drill their own
+                // day/trade (SWEEP3-WIRE2).
                 className="rounded-lg border border-border/60 bg-card/50 p-3 transition-colors hover:border-border cursor-pointer"
                 title="Open Challenges"
                 role="button"
@@ -605,11 +608,23 @@ export function WeeklyChallengeDigest({
                 {/* Week unit strip */}
                 <div className="mt-2 flex items-center gap-1" aria-label={`${units.length} graded units this week`}>
                   {units.map((u) => (
-                    <span
+                    <button
                       key={u.key}
-                      title={`${u.label}: ${u.compliant ? 'compliant' : 'violation'} — ${u.detail}`}
+                      type="button"
+                      aria-label={`${u.label}: ${u.compliant ? 'compliant' : 'violation'} — ${u.detail}`}
+                      title={t.scope === 'days' ? 'Open this day in Day Explore' : 'Open this trade\u2019s peek'}
+                      onClick={(e) => {
+                        // SWEEP3-WIRE2 — the UnitDots evidence drill
+                        // (challenges-page idiom): a dot names the exact day
+                        // (day key) or trade (id) it grades — click opens it.
+                        // stopPropagation keeps the wrapping card's
+                        // "Open Challenges" navigation from racing the drill.
+                        e.stopPropagation()
+                        if (t.scope === 'days') drillToDay(u.key)
+                        else peekTrade({ id: u.key })
+                      }}
                       className={cn(
-                        'flex h-4 w-4 items-center justify-center rounded-full text-white',
+                        'flex h-4 w-4 items-center justify-center rounded-full text-white cursor-pointer',
                         u.compliant ? a.dot : 'bg-rose-500'
                       )}
                     >
@@ -618,7 +633,7 @@ export function WeeklyChallengeDigest({
                       ) : (
                         <AlertTriangle className="h-2.5 w-2.5" />
                       )}
-                    </span>
+                    </button>
                   ))}
                   {units.length === 0 && (
                     <span className="text-[10px] text-muted-foreground/60">

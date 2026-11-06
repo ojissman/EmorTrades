@@ -439,3 +439,43 @@ Owner directive (CONTINUE of CLICKSWEEP): close the documented blocked cohort dr
 **Tests:** 221/221 (19 files, +8 cohort-params: store wire-format/counters/clearAll-voids + parseScope dayOfMonth). Gates: lint 0, tsc 0.
 
 **Remaining (owner-visible, none blocking):** demo seeding (challenges=0 rows so the completed-card drill compiles but can't be exercised on live data; psych tags + missed-trade row from CLICKSWEEP still unseeded); optional: challenges API could add a winning-run snapshot so completed cards drill the exact streak, not the run window; Dashboard/User.displayMode owner decisions carried forward.
+
+## Audit addendum — SWEEP3 (2026-11-06, FULL-SWEEP #3: security + every remaining dead surface + blank-chart discovery)
+
+**Method:** 5 parallel audit agents (2 dead-surface zones covering all ~70 page components, per-method guard audit of all 135 route files / ~227 exported handlers, dead-code sweep of src/lib+hooks+config, mechanical fetch↔route cross-check of all 390 literal call sites vs the 136-route tree) + orchestrator verification of every finding before any fix. The mechanical cross-check found ZERO fetch↔route mismatches — the gmail/test silent-404 class is closed for the current tree.
+
+### Issues found by severity (all fixed + E2E-verified unless noted)
+
+**CRITICAL**
+1. `/api/ai/suite` — five user-agnostic in-process AI cache keys (query/review/summary/insights/widget): user B sending identical params received user A's cached responses (net P&L, win rate, stats embedded). Fixed: session userId prefixes all five + requireUser hoisted to the single POST gate (4 branches had only implicit auth: anon got 404-not-401, origin/suspension gates skipped). E2E: anon 401 ×1 route family, authed review+insights 200 with new keys.
+
+**HIGH**
+2. `/api/library` POST — cross-user FK injection: tradeId lookup was findUnique-by-bare-id; any signed-in user could attach screenshots to another user's trade. Amplified by `/api/trades/[id]` GET's unscoped `screenshots: true` include serving the injection back. Fixed both (findFirst where {id, userId}; include where {userId}). E2E: foreign tradeId → 400; own-trade flow → 200 + cleanup verified; trade GET scoped.
+3. `/api/accounts` POST — no validation: missing name → Prisma 500; non-numeric startingBalance → silent 0 via `parseFloat||0`. Fixed: name required/≤80, balance finite ≥0, 400s on POST and PUT. E2E: both 400 branches + create/delete roundtrip.
+4. **FIVE dead Scatter-chart wirings** (RECHARTS LAW extension, E2E-proven): Scatter-level onClick never fires in recharts 2.15.x — trades-chart patience + day-plans sleep/stress (wired this sweep, dead on arrival), analytics R-vs-hold (latent dead since CLICKSWEEP), relative-volume RVOL-vs-R, exit-detail peak-timing ×2 series (latent dead). All moved to the chart-level `state?.activePayload?.[0]?.payload` idiom. E2E: patience→AAPL peek, rvol→ETH peek, analytics→WMT peek, exit-detail→USD/CNH peek, day-plans→Day Explore.
+5. **TWO charts visually blank** (log(0) poison): patience (4 trades holdingPeriod=0 → all 324 symbols empty <g> groups) and relative-volume (1 row rvol=0 → 103 empty groups). A log-scale domain ['dataMin'..'dataMax'] with a zero goes -Infinity and every symbol silently fails to render — the charts LOOKED plotted, were blank. Fixed: zero-filter + honest exclusion counts; patience also needed `type="number"` on the log XAxis (category-fallback bug). E2E: dots render (320/102/320/41) and click through.
+
+**MEDIUM**
+6. ai/page-insights + ai/watchlist symbol-analysis cache keys lacked userId (equal-digest users could swap insight text) — scoped.
+7. technical-analysis + relative-volume GETs: implicit lib-level auth (anon → 500 not 401, gates skipped) — explicit requireUser. E2E: 401/401.
+8. ~25 remaining no-wiring-but-deserves surfaces (the owner's "cards, KPI, modals that deserve clickability"): overview Win-rate hero, trades-chart Net P&L/Avg win-loss/Winning-Losing/Top-symbol MetricStats, trade-explore account badge + side pill, day-explore 5 MetricStats, weekly CompareRow, chart-explore asset-class family, treemap honesty + Net P&L KPI, yearly annual-goal segments, mistakes hero trio, risk guardrail #3, executions Symbols tile, symbols hero, trend Avg R + Plan discipline, exit-detail quartet, goals REORDER CHEVRONS (broken-but-intended: computed for buttons that never rendered — now live against the existing PATCH batch-reorder), goals dot family (strip/modal/matrix), challenge-status digest dots; honest titles on symbols/missed-trades/challenges/open-trades heroes; a11y affordances completed on 10 row/tile surfaces (MiniTable, MetricTile, explore rows/cards). Every one E2E'd (see worklog verification).
+9. Validation debt on mutation POSTs (day-notes, journal, tags, mistakes, goals …): manual checks, no zod, 500-on-bad-JSON — ownership always enforced; documented, not blocking (gold standard exists: trades POST zod schema).
+
+### Dead code removed (proofs: rg -w zero outside-defining-file hits, re-run by orchestrator)
+- screener.ts: MAJOR/CRYPTO/FOREX/INDEX_SYMBOLS + UniverseDef + JournalSymbolStat (removed-universes remnants; stale header fixed)
+- analytics.ts: PnLDistribution, MonteCarloResult · import/types.ts: RawRow, ParsedTradeRowIssue · evidence-tags.ts: EvidenceTagPreset (all definition-only)
+- tailwind.config.ts + tailwindcss-animate dep (Tailwind v4 CSS-first: no @config anywhere, components.json config="" — v3 leftovers)
+- NOT deleted (listed for owner): 51 over-exported-but-internally-used symbols + 141 over-exported types (churn without functional gain)
+
+### Tests
+221/221 (19 files). Gates: lint 0, tsc 0. No new logic modules introduced that warrant new test files (the security fixes are route-guard behaviors verified by live curl E2E; the scatter fixes are render-behavior verified by browser E2E).
+
+### Junk purged
+/tmp 2.1G → 58M (build_fullstack ×6, scratch repo copy, db preserves, verification artifacts); project tool-results/ (untracked). /tmp/my-project persists as a platform-owned empty mountpoint (Operation not permitted — documented).
+
+### Remaining / needs owner decision (none blocking)
+- Challenges demo seeding (0 rows): digest dots + completed-card drills compile + keyboard-affordable, not exercisable on live data (carried since COHORTSWEEP); psych tags + missed-trade seeding (carried since CLICKSWEEP).
+- Edge-dot click caveat (recharts-inherent): dots centered exactly on a domain boundary need the in-plot half clicked (day-plans bubbles at P&L $0.00; verified working via the in-plot half).
+- 51 + 141 over-exported symbols/types (deletion = churn; owner appetite).
+- Dashboard + User.displayMode orphan models (Nov-2 deferral, unchanged).
+- Certification: PRODUCTION-READY (full certificate in worklog.md SWEEP3 entry).

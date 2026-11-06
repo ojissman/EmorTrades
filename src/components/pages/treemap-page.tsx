@@ -87,10 +87,14 @@ function TreemapCell(props: {
   pnl?: number
   trades?: number
   maxAbs?: number
+  /** SWEEP3-WIRE4 — mirrors go()'s resolution (passed down from the page);
+   *  the rect cursor is honest about whether a drill exists. */
+  canDrill?: (name: string) => boolean
 }) {
-  const { x = 0, y = 0, width = 0, height = 0, name, pnl = 0, trades = 0, maxAbs = 1 } = props
+  const { x = 0, y = 0, width = 0, height = 0, name, pnl = 0, trades = 0, maxAbs = 1, canDrill } = props
   if (width <= 0 || height <= 0) return null
   const safeName = typeof name === 'string' && name.length > 0 ? name : ''
+  const drillable = canDrill ? canDrill(safeName) : Boolean(safeName)
   const positive = pnl >= 0
   const intensity = maxAbs > 0 ? Math.min(1, Math.abs(pnl) / maxAbs) : 0
   // emerald #10b981 / red #ef4444 — alpha 0.18 (faint) → 0.82 (strong)
@@ -113,7 +117,7 @@ function TreemapCell(props: {
           stroke: 'var(--border-strong)',
           strokeWidth: 1,
           transition: 'fill 200ms ease',
-          cursor: safeName ? 'pointer' : 'default',
+          cursor: drillable ? 'pointer' : 'default',
         }}
       />
       {showName && safeName && (
@@ -202,6 +206,21 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
     }
   }
 
+  // SWEEP3-WIRE4 — go()'s resolution WITHOUT executing: does this group name
+  // have a filter counterpart to drill to? Tiles, Best/Worst buttons and
+  // ranked rows show cursor:pointer + "Open these trades" only when this is
+  // true, so the page stops promising a drill it silently no-ops ('—'
+  // symbols, 'Unclassified', 'Untagged', sector names with no single-class
+  // family).
+  const canDrill = (name: string): boolean => {
+    if (mode === 'symbol') return name !== '—'
+    if (mode === 'tags') return tagIdByName.has(name)
+    return (
+      name !== 'Unclassified' &&
+      Boolean(L2_ASSET_TYPES.find((a) => a.classes.length === 1 && a.classes[0] === name.toLowerCase()))
+    )
+  }
+
   const netPnl = groups.reduce((s, g) => s + g.pnl, 0)
   const best = groups.length ? groups.reduce((a, b) => (b.pnl > a.pnl ? b : a)) : null
   const worst = groups.length ? groups.reduce((a, b) => (b.pnl < a.pnl ? b : a)) : null
@@ -231,7 +250,20 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
     <div className="space-y-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="p-4 overflow-hidden">
+        <Card
+          className="p-4 overflow-hidden cursor-pointer transition-colors hover:border-ring/50 hover:bg-muted/30"
+          title="Open all trades in scope"
+          role="button"
+          tabIndex={0}
+          aria-label={`Net P&L (all scope): ${netPnl >= 0 ? '+' : '−'}${formatCurrencyIn('table', Math.abs(netPnl))} — open all trades in scope`}
+          onClick={() => drillToTrades({})}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              drillToTrades({})
+            }
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Net P&L (all scope)</p>
             {netPnl >= 0 ? <TrendingUp className="h-3 w-3 text-emerald-400" /> : <TrendingDown className="h-3 w-3 text-red-400" />}
@@ -256,10 +288,19 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
             <TrendingUp className="h-3 w-3 text-emerald-400" />
           </div>
           {best && best.pnl > 0 ? (
-            <button type="button" onClick={() => go(best.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
-              <p className="text-sm font-bold truncate" title={best.name}>{best.name}</p>
-              <p className="text-[11px] text-emerald-400 tnum truncate" title={`+${formatCurrencyIn('table', best.pnl)}`}>+{formatCurrencyIn('table', best.pnl)}</p>
-            </button>
+            canDrill(best.name) ? (
+              <button type="button" onClick={() => go(best.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
+                <p className="text-sm font-bold truncate" title={best.name}>{best.name}</p>
+                <p className="text-[11px] text-emerald-400 tnum truncate" title={`+${formatCurrencyIn('table', best.pnl)}`}>+{formatCurrencyIn('table', best.pnl)}</p>
+              </button>
+            ) : (
+              // SWEEP3-WIRE4 — no filter counterpart ('Unclassified', …):
+              // plain text like the no-best fallback, not a lying button.
+              <>
+                <p className="text-sm font-bold truncate" title={best.name}>{best.name}</p>
+                <p className="text-[11px] text-emerald-400 tnum truncate" title={`+${formatCurrencyIn('table', best.pnl)}`}>+{formatCurrencyIn('table', best.pnl)}</p>
+              </>
+            )
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
           )}
@@ -270,10 +311,19 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
             <TrendingDown className="h-3 w-3 text-red-400" />
           </div>
           {worst && worst.pnl < 0 ? (
-            <button type="button" onClick={() => go(worst.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
-              <p className="text-sm font-bold truncate" title={worst.name}>{worst.name}</p>
-              <p className="text-[11px] text-red-400 tnum truncate" title={`−${formatCurrencyIn('table', Math.abs(worst.pnl))}`}>−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
-            </button>
+            canDrill(worst.name) ? (
+              <button type="button" onClick={() => go(worst.name)} title="Open these trades" className="block w-full text-left cursor-pointer">
+                <p className="text-sm font-bold truncate" title={worst.name}>{worst.name}</p>
+                <p className="text-[11px] text-red-400 tnum truncate" title={`−${formatCurrencyIn('table', Math.abs(worst.pnl))}`}>−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
+              </button>
+            ) : (
+              // SWEEP3-WIRE4 — no filter counterpart ('Unclassified', …):
+              // plain text like the no-worst fallback, not a lying button.
+              <>
+                <p className="text-sm font-bold truncate" title={worst.name}>{worst.name}</p>
+                <p className="text-[11px] text-red-400 tnum truncate" title={`−${formatCurrencyIn('table', Math.abs(worst.pnl))}`}>−{formatCurrencyIn('table', Math.abs(worst.pnl))}</p>
+              </>
+            )
           ) : (
             <p className="text-sm text-muted-foreground">—</p>
           )}
@@ -309,6 +359,10 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
               const name = el?.getAttribute('data-tm-name')
               if (name) go(name)
             }}
+            // SWEEP3-WIRE4 a11y note: the SVG treemap itself is deliberately
+            // exempt from role="button"/tabIndex — the cells are decorative
+            // geometry; the ranked table below and the Best/Worst buttons
+            // above ARE the keyboard path to the same drills.
           >
             <ResponsiveContainer width="100%" height={420}>
               <Treemap
@@ -317,7 +371,7 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
                 nameKey="name"
                 aspectRatio={16 / 10}
                 isAnimationActive={false}
-                content={<TreemapCell />}
+                content={<TreemapCell canDrill={canDrill} />}
               />
             </ResponsiveContainer>
           </div>
@@ -348,8 +402,26 @@ export function TreemapPage({ mode }: { mode: TreemapMode }) {
                 return (
                   <tr
                     key={g.name}
-                    className="border-b border-border/40 hover:bg-muted/40 cursor-pointer"
+                    className={cn('border-b border-border/40 hover:bg-muted/40', canDrill(g.name) && 'cursor-pointer')}
                     onClick={() => tableGo(g.name)}
+                    title={canDrill(g.name) ? 'Open these trades' : 'Aggregate group — no filter counterpart'}
+                    role={canDrill(g.name) ? 'button' : undefined}
+                    tabIndex={canDrill(g.name) ? 0 : undefined}
+                    aria-label={
+                      canDrill(g.name)
+                        ? `${MODE_LABEL[mode]} ${g.name} — open these trades`
+                        : `${MODE_LABEL[mode]} ${g.name} — aggregate group, no filter counterpart`
+                    }
+                    onKeyDown={
+                      canDrill(g.name)
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              tableGo(g.name)
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     <td className="py-2.5">
                       <span className="inline-flex items-center gap-2">

@@ -551,11 +551,8 @@ export function calculateHourOfDayStats(trades: TradeInput[]): HourOfDayStat[] {
   return result
 }
 
-export interface PnLDistribution {
-  range: string
-  count: number
-  pnl: number
-}
+// SWEEP3 — PnLDistribution + MonteCarloResult were definition-only exports
+// (zero references repo-wide); deleted with proofs in the worklog.
 
 function formatCurrencyShort(value: number): string {
   const sign = value < 0 ? '-' : ''
@@ -564,20 +561,6 @@ function formatCurrencyShort(value: number): string {
   // (server-side callers keep the compact default — no hydrated prefs there).
   if (abs >= 1000 && currencyCompactFor('table')) return `${sign}$${(abs / 1000).toFixed(1)}K`
   return `${sign}$${abs.toFixed(0)}`
-}
-
-// Monte Carlo Simulation
-export interface MonteCarloResult {
-  finalEquities: number[]
-  percentiles: {
-    p5: number
-    p25: number
-    p50: number
-    p75: number
-    p95: number
-  }
-  maxDrawdowns: number[]
-  riskOfRuin: number
 }
 
 // Calculate R-Multiple for a trade

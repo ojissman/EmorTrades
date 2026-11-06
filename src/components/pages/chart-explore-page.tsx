@@ -16,7 +16,8 @@
  *   - RANKING — "Symbol Ranking — Ranked by the selected metric; minimum
  *     trades filters out thin samples." Rank by Total PnL / Avg PnL / Trade /
  *     Win Rate / Trade Count / Volume / Duration; symbol rows open the
- *     symbol peek (the established drill), asset-class rows are inert.
+ *     symbol peek (the established drill), asset-class rows drill the
+ *     single-class L2 asset-type family (SWEEP3-WIRE4).
  *   - ALLOCATION — "Symbol Volume Allocation — Share of traded volume by
  *     symbol." Treemap (area ∝ volume, sign-toned fill, DOM-delegated clicks
  *     — the treemap-page idiom) or Pie.
@@ -45,6 +46,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { signTone } from '@/lib/screener'
 import { formatCurrencyIn, formatNumber, type CurrencyArea } from '@/lib/format'
+// SWEEP3-WIRE4 — asset-class drills + the L2 family resolution they use.
+import { drillToTrades } from '@/lib/drill'
+import { L2_ASSET_TYPES } from '@/lib/global-filter-core'
 
 // ---- types -----------------------------------------------------------------------
 
@@ -108,6 +112,14 @@ function classify(t: ExploreTrade, by: Classification): string {
   return ac || 'Unclassified'
 }
 
+/** SWEEP3-WIRE4 — asset-class group name → the single-class L2 "Asset Types"
+ *  family label (the treemap-page sector resolution idiom), or null when the
+ *  name has no filter counterpart ('Unclassified', …). */
+function assetClassFamily(name: string): string | null {
+  const single = L2_ASSET_TYPES.find((a) => a.classes.length === 1 && a.classes[0] === name.toLowerCase())
+  return single ? single.label : null
+}
+
 const RANK_BY: { id: RankBy; label: string }[] = [
   { id: 'pnl', label: 'Total PnL' },
   { id: 'avgPnl', label: 'Avg PnL / Trade' },
@@ -128,10 +140,14 @@ function VolumeCell(props: {
   pnl?: number
   volume?: number
   maxAbs?: number
+  /** SWEEP3-WIRE4 — names that resolve to a drill (symbol peek) or a real
+   *  asset-class family drill; the rect cursor is honest about it. */
+  drillableNames?: ReadonlySet<string>
 }) {
-  const { x = 0, y = 0, width = 0, height = 0, name, pnl = 0, volume = 0, maxAbs = 1 } = props
+  const { x = 0, y = 0, width = 0, height = 0, name, pnl = 0, volume = 0, maxAbs = 1, drillableNames } = props
   if (width <= 0 || height <= 0) return null
   const safeName = typeof name === 'string' && name.length > 0 ? name : ''
+  const drillable = drillableNames ? drillableNames.has(safeName) : Boolean(safeName)
   const positive = pnl >= 0
   const intensity = maxAbs > 0 ? Math.min(1, Math.abs(pnl) / maxAbs) : 0
   // area ∝ volume, tone ∝ pnl — emerald #10b981 / red #ef4444
@@ -155,7 +171,7 @@ function VolumeCell(props: {
           stroke: 'var(--border-strong)',
           strokeWidth: 1,
           transition: 'fill 200ms ease',
-          cursor: safeName ? 'pointer' : 'default',
+          cursor: drillable ? 'pointer' : 'default',
         }}
       />
       {showName && safeName && (
@@ -274,6 +290,22 @@ export function ChartExplorePage() {
   )
   const maxAbsPnl = useMemo(() => Math.max(1, ...allocation.map((a) => Math.abs(a.pnl))), [allocation])
 
+  // SWEEP3-WIRE4 — the names whose treemap rect resolves to a real action
+  // (symbol peek in symbol mode; the single-class family drill in asset-class
+  // mode). VolumeCell shows cursor:pointer only for these, so rects stop
+  // promising a click they don't deliver ('Unclassified', empty names).
+  const drillableNames = useMemo(() => {
+    const s = new Set<string>()
+    for (const a of allocation) {
+      if (classification === 'symbol') {
+        if (a.name) s.add(a.name)
+      } else if (assetClassFamily(a.name)) {
+        s.add(a.name)
+      }
+    }
+    return s
+  }, [allocation, classification])
+
   // ---- render ------------------------------------------------------------------------
 
   if (tradesQ.isLoading) {
@@ -372,25 +404,41 @@ export function ChartExplorePage() {
               { label: 'Worst PnL', g: spotlight.worst, icon: TrendingDown, tone: 'text-red-400', v: money(spotlight.worst.pnl, 'kpi') },
               { label: 'Best Win Rate', g: spotlight.bestWr, icon: Trophy, tone: 'text-emerald-400', v: `${spotlight.bestWr.winRate}%` },
               { label: 'Most Traded', g: spotlight.most, icon: BarChart3, tone: '', v: `${spotlight.most.trades} trades` },
-            ].map(({ label, g, icon: Icon, tone, v }) => (
-              <button
-                key={label}
-                type="button"
-                className={cn('rounded-lg p-3 text-left cursor-pointer transition-colors hover:border-emerald-500/40', classification !== 'symbol' && 'cursor-default hover:border-transparent')}
-                style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
-                title={classification === 'symbol' ? 'Open the symbol snapshot' : undefined}
-                onClick={
-                  classification === 'symbol'
-                    ? () =>
-                        openPeek({
-                          type: 'symbol',
-                          title: `${g.name} — symbol snapshot`,
-                          subtitle: 'from the chart explore spotlight',
-                          data: { symbol: g.name },
-                        })
-                    : undefined
-                }
-              >
+            ].map(({ label, g, icon: Icon, tone, v }) => {
+              // SWEEP3-WIRE4 — asset-class cards drill the single-class L2
+              // family label (same resolution as the treemap); classes with
+              // no filter counterpart stay inert with an honest title.
+              const family = classification === 'assetClass' ? assetClassFamily(g.name) : null
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={cn(
+                    'rounded-lg p-3 text-left cursor-pointer transition-colors hover:border-emerald-500/40',
+                    classification === 'assetClass' && !family && 'cursor-default hover:border-transparent',
+                  )}
+                  style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}
+                  title={
+                    classification === 'symbol'
+                      ? 'Open the symbol snapshot'
+                      : family
+                        ? 'Open trades in this asset class'
+                        : 'No filter counterpart for this class'
+                  }
+                  onClick={
+                    classification === 'symbol'
+                      ? () =>
+                          openPeek({
+                            type: 'symbol',
+                            title: `${g.name} — symbol snapshot`,
+                            subtitle: 'from the chart explore spotlight',
+                            data: { symbol: g.name },
+                          })
+                      : family
+                        ? () => drillToTrades({ assetTypes: [family] })
+                        : undefined
+                  }
+                >
                 <div className="flex items-center gap-1.5 mb-1">
                   <Icon className={cn('h-3.5 w-3.5', tone)} />
                   <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
@@ -405,7 +453,8 @@ export function ChartExplorePage() {
                   {g.trades} trades · {g.winRate}% WR
                 </div>
               </button>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div className="shell-widget p-6 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -418,7 +467,7 @@ export function ChartExplorePage() {
       <div className="grid xl:grid-cols-[1.25fr_1fr] gap-3 items-start">
         <Panel
           title="Symbol Ranking"
-          hint="Ranked by the selected metric; minimum trades filters out thin samples. Symbol rows open the symbol peek."
+          hint="Ranked by the selected metric; minimum trades filters out thin samples. Symbol rows open the symbol peek; asset-class rows drill the asset-type family."
         >
           <div className="mb-2 text-[10px] tnum" style={{ color: 'var(--text-secondary)' }}>
             Ranked by {rankLabel} · {ranked.length} {classification === 'symbol' ? 'symbols' : 'asset classes'}
@@ -428,26 +477,42 @@ export function ChartExplorePage() {
               <MiniTable
                 head={['#', classification === 'symbol' ? 'Symbol' : 'Asset class', 'Trades', 'Win rate', 'Total PnL', 'Avg PnL', 'Volume', 'Avg hold']}
                 maxH={384}
-                rows={ranked.map((g, i) => [
-                  <span key="r" className="tnum" style={{ color: 'var(--text-secondary)' }}>
-                    {i + 1}
-                  </span>,
-                  <span key="n" className="font-bold">
-                    {g.name}
-                  </span>,
-                  `${g.trades}`,
-                  `${g.winRate}%`,
-                  <span key="p" className="font-semibold" style={{ color: signTone(g.pnl) }}>
-                    {money(g.pnl)}
-                  </span>,
-                  <span key="ap" style={{ color: signTone(g.avgPnl) }}>
-                    {money(g.avgPnl)}
-                  </span>,
-                  <span key="v" className="tnum">
-                    {formatNumber(g.volume, 0)}
-                  </span>,
-                  minsTxt(g.avgDuration),
-                ])}
+                rows={ranked.map((g, i) => {
+                  // SWEEP3-WIRE4 — asset-class rows carry the same family
+                  // resolution as the treemap; unresolvable classes get an
+                  // honest title on the name cell instead of a dead click.
+                  const family = classification === 'assetClass' ? assetClassFamily(g.name) : null
+                  return [
+                    <span key="r" className="tnum" style={{ color: 'var(--text-secondary)' }}>
+                      {i + 1}
+                    </span>,
+                    <span
+                      key="n"
+                      className="font-bold"
+                      title={
+                        classification === 'symbol'
+                          ? undefined
+                          : family
+                            ? 'Open trades in this asset class'
+                            : 'No filter counterpart for this class'
+                      }
+                    >
+                      {g.name}
+                    </span>,
+                    `${g.trades}`,
+                    `${g.winRate}%`,
+                    <span key="p" className="font-semibold" style={{ color: signTone(g.pnl) }}>
+                      {money(g.pnl)}
+                    </span>,
+                    <span key="ap" style={{ color: signTone(g.avgPnl) }}>
+                      {money(g.avgPnl)}
+                    </span>,
+                    <span key="v" className="tnum">
+                      {formatNumber(g.volume, 0)}
+                    </span>,
+                    minsTxt(g.avgDuration),
+                  ]
+                })}
                 onRowClick={
                   classification === 'symbol'
                     ? (ri) => {
@@ -460,7 +525,15 @@ export function ChartExplorePage() {
                           data: { symbol: g.name },
                         })
                       }
-                    : undefined
+                    : // SWEEP3-WIRE4 — asset-class rows drill the single-class
+                      // family label; unresolvable names no-op (name-cell title
+                      // explains why).
+                      (ri) => {
+                        const g = ranked[ri]
+                        if (!g) return
+                        const family = assetClassFamily(g.name)
+                        if (family) drillToTrades({ assetTypes: [family] })
+                      }
                 }
               />
             </div>
@@ -500,18 +573,27 @@ export function ChartExplorePage() {
               onClick={(e) => {
                 const el = (e.target as HTMLElement).closest('[data-tm-name]')
                 const name = el?.getAttribute('data-tm-name')
-                if (name && classification === 'symbol') {
+                if (!name) return
+                if (classification === 'symbol') {
                   openPeek({
                     type: 'symbol',
                     title: `${name} — symbol snapshot`,
                     subtitle: 'from the chart explore treemap',
                     data: { symbol: name },
                   })
+                } else {
+                  // SWEEP3-WIRE4 — asset-class rects used to no-op behind a
+                  // pointer cursor; now they drill the single-class L2 family
+                  // (the treemap-page sector resolution). Unresolvable names
+                  // (e.g. 'Unclassified') do nothing — and their rect already
+                  // renders a default cursor via drillableNames.
+                  const family = assetClassFamily(name)
+                  if (family) drillToTrades({ assetTypes: [family] })
                 }
               }}
             >
               <ResponsiveContainer width="100%" height="100%">
-                <Treemap data={allocation} dataKey="volume" nameKey="name" aspectRatio={16 / 10} stroke="var(--border-strong)" isAnimationActive={false} content={<VolumeCell maxAbs={maxAbsPnl} />} />
+                <Treemap data={allocation} dataKey="volume" nameKey="name" aspectRatio={16 / 10} stroke="var(--border-strong)" isAnimationActive={false} content={<VolumeCell maxAbs={maxAbsPnl} drillableNames={drillableNames} />} />
               </ResponsiveContainer>
             </div>
           ) : (

@@ -325,6 +325,8 @@ export function TrendAnalysisPage() {
           value={rTxt(recent.avgR)}
           sub={`prior ${rTxt(prior.avgR)}${dR !== null ? ` · ${dR >= 0 ? '+' : '−'}${Math.abs(dR).toFixed(2)}R` : ''}`}
           tone={dR === null ? 'neutral' : dR >= 0 ? 'good' : 'bad'}
+          onClick={() => drillToTrades({ lastTrades: model.windowN })}
+          ariaLabel={`Avg R over the last ${model.windowN} trades — open those trades`}
         />
         <MetricStat
           label={`Net P&L — last ${model.windowN}`}
@@ -338,6 +340,8 @@ export function TrendAnalysisPage() {
           value={recent.discipline !== null ? `${Math.round(recent.discipline)}%` : '—'}
           sub={prior.discipline !== null ? `prior ${Math.round(prior.discipline)}% followed` : 'followed-plan share'}
           tone={recent.discipline !== null && prior.discipline !== null ? (recent.discipline >= prior.discipline ? 'good' : 'warn') : 'neutral'}
+          onClick={() => drillToTrades({ lastTrades: model.windowN, planFollowed: true })}
+          ariaLabel={`Plan-followed share over the last ${model.windowN} trades — open the followed trades`}
         />
       </div>
 
