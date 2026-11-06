@@ -252,6 +252,18 @@ export function SeoContentPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  // SWEEP4 — client-side validation for the post editor (announcements.tsx
+  // submitForm idiom): title/slug/content shape checks BEFORE the network
+  // round-trip; slug must be kebab-case when manually entered.
+  function submitPostForm() {
+    if (form.title.trim().length < 3) return toast.error('Title must be at least 3 characters.')
+    if (form.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
+      return toast.error('Slug must be lowercase kebab-case (letters, digits, single dashes).')
+    }
+    if (form.content.trim().length < 20) return toast.error('Content must be at least 20 characters.')
+    savePost.mutate()
+  }
+
   const togglePublish = useMutation({
     mutationFn: async (p: PostRow) => {
       const res = await fetch(`/api/admin/posts/${p.id}`, {
@@ -410,6 +422,19 @@ export function SeoContentPage() {
 
           {postsQ.isLoading ? (
             <p className="py-10 text-center text-sm a-muted">Loading posts…</p>
+          ) : postsQ.isError ? (
+            // SWEEP4 — honest error state (a failed fetch used to render
+            // "No posts yet"). Mirror of the sibling Pages tab error branch.
+            <div className="py-12 text-center">
+              <p className="text-sm font-medium">Failed to load posts.</p>
+              <p className="mt-1 text-xs a-muted">The blog posts API could not be reached.</p>
+              <button
+                className="a-btn a-btn-sm a-btn-ghost mt-3"
+                onClick={() => qc.invalidateQueries({ queryKey: ['admin-posts'] })}
+              >
+                Retry
+              </button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm font-medium">No posts {search ? 'match your search' : 'yet'}</p>
@@ -630,11 +655,13 @@ export function SeoContentPage() {
         </div>
       )}
 
-      {/* ── Post editor modal ────────────────────────────────────────────── */}
+      {/* ── Post editor modal ── SWEEP4: client validation (the only admin
+          form modal without it — empty titles/slugs round-tripped to the
+          server for a 400; announcements.tsx submitForm idiom). */}
       <FormModal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        onSubmit={() => savePost.mutate()}
+        onSubmit={submitPostForm}
         title={editing ? 'Edit post' : 'New post'}
         description={
           editing

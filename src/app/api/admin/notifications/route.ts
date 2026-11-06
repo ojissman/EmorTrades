@@ -43,17 +43,26 @@ async function countActivePlanMembers(planCode: string): Promise<number> {
   return new Set(subs.filter((s) => !s.expiresAt || s.expiresAt > now).map((s) => s.userId)).size
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await requirePermission('notifications.manage')
   if (!auth.ok) return auth.response
 
+  // SWEEP4 — real server-side pagination (the old route hard-capped take:100
+  // while the client pager sliced that capped list: rows beyond the 100th
+  // were permanently unreachable yet the footer claimed exact totals).
+  const sp = req.nextUrl.searchParams
+  const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1)
+  const pageSize = Math.min(100, Math.max(5, parseInt(sp.get('pageSize') ?? '10', 10) || 10))
+
   try {
-    const [rows, totalSent, totalReads] = await Promise.all([
+    const [rows, total, totalSent, totalReads] = await Promise.all([
       db.adminNotification.findMany({
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
         include: { _count: { select: { reads: true } } },
       }),
+      db.adminNotification.count(),
       db.adminNotification.count(),
       db.notificationRead.count(),
     ])
@@ -84,6 +93,7 @@ export async function GET() {
         sentByEmail: emailById.get(r.sentBy ?? '') ?? null,
         createdAt: r.createdAt,
       })),
+      total,
       stats: {
         totalSent,
         totalReads,

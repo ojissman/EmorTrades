@@ -513,14 +513,25 @@ export function LibraryPage() {
   return (
     <div className="space-y-4">
       {/* ---- KPI strip (not in a Panel) --------------------------------------------- */}
+      {/* SWEEP4 — Attached/Unattached tiles drive the gallery filter (the
+          sibling filter buttons implement exactly these filters). */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         <MetricStat label="Screenshots" value={String(stats.count)} sub="files stored in ./uploads" />
-        <MetricStat label="Attached to trades" value={String(stats.attached)} sub="linked to a journaled trade" tone="good" />
+        <MetricStat
+          label="Attached to trades"
+          value={String(stats.attached)}
+          sub="linked to a journaled trade"
+          tone="good"
+          onClick={() => setFilter('attached')}
+          ariaLabel="Show only screenshots attached to trades"
+        />
         <MetricStat
           label="Unattached"
           value={String(stats.unattached)}
           sub="no trade linked yet"
           tone={stats.unattached > 0 ? 'warn' : 'neutral'}
+          onClick={() => setFilter('unattached')}
+          ariaLabel="Show only unattached screenshots"
         />
         <MetricStat label="Storage used" value={fmtBytes(stats.totalBytes)} sub="sum of files on disk" />
         {stats.missing > 0 && (

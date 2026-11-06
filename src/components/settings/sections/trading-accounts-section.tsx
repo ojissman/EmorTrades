@@ -138,6 +138,9 @@ export function TradingAccountsSection() {
 
   // ---- Add form (migrated verbatim, now behind the accent header button) ----
   const [addOpen, setAddOpen] = useState(false)
+  // SWEEP4 — double-submit guard for the create dialog (the edit dialog's
+  // savingAcc idiom; a double-click could double-create the account).
+  const [creating, setCreating] = useState(false)
   const [newAccount, setNewAccount] = useState<AccountForm>(EMPTY_FORM)
 
   // ---- Task 22-d — broker deep link from the Connected Accounts directory
@@ -167,10 +170,12 @@ export function TradingAccountsSection() {
   }
 
   async function createAccount() {
+    if (creating) return // SWEEP4 — double-submit guard (edit dialog's savingAcc idiom)
     if (!newAccount.name || !newAccount.startingBalance) {
       toast({ title: 'Name and starting balance required', variant: 'destructive' })
       return
     }
+    setCreating(true)
     try {
       const res = await fetch('/api/accounts', {
         method: 'POST',
@@ -190,6 +195,8 @@ export function TradingAccountsSection() {
       setAddOpen(false)
     } catch {
       toast({ title: 'Failed', variant: 'destructive' })
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -558,9 +565,9 @@ export function TradingAccountsSection() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={createAccount} className="bg-emerald-600 hover:bg-emerald-700" data-testid="add-account">
+            <Button onClick={createAccount} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700" data-testid="add-account">
               <Plus className="h-4 w-4 mr-1.5" />
-              Add Account
+              {creating ? 'Adding…' : 'Add Account'}
             </Button>
           </DialogFooter>
         </DialogContent>

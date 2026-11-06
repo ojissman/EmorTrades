@@ -59,6 +59,10 @@ export const ADMIN_NAV: AdminNavItem[] = [
     children: [
       { label: 'Subscriptions & Plans', path: '/admin/subscriptions', permission: 'subscriptions.manage' },
       { label: 'Announcements', path: '/admin/announcements', permission: 'announcements.manage' },
+      // SWEEP4 — the fully-built Notifications page was registered in
+      // admin-platform.tsx but had NO nav entry (reachable only by typing
+      // the hash). Restored to the Growth group next to Announcements.
+      { label: 'Notifications', path: '/admin/notifications', permission: 'notifications.manage' },
       { label: 'SEO & Content', path: '/admin/seo', permission: 'content.manage' },
     ],
   },

@@ -149,3 +149,39 @@ export function markDrillOrigin(target: string) {
   if (origin.split('?')[0] === target) return
   s.setDrillOrigin({ route: origin, label: labelForRoute(origin.split('?')[0]), target })
 }
+
+/**
+ * SWEEP4 — AI-suite period lens → standard filter patch. The AI summary /
+ * trading-review chips drill to the trades behind their numbers; this maps
+ * the suite's SuitePeriod (+ optional custom window) onto the same filter
+ * fields every other drill uses. 'ytd' resolves against the CURRENT year
+ * (the suite computes it the same way, server-side, from Date.now()).
+ */
+export function suitePeriodPatch(
+  period: string,
+  custom?: { from: string; to: string } | null,
+): FilterPatch {
+  if (custom && (period === 'custom' || custom.from)) {
+    return {
+      customStartDate: new Date(custom.from).toISOString(),
+      customEndDate: new Date(custom.to).toISOString(),
+    }
+  }
+  switch (period) {
+    case '7d':
+    case '30d':
+    case '90d':
+    case '180d':
+    case '365d':
+      return { dateRange: period.replace('d', '') as FilterPatch['dateRange'] }
+    case 'ytd': {
+      const now = new Date()
+      return {
+        customStartDate: new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString(),
+        customEndDate: new Date(Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999)).toISOString(),
+      }
+    }
+    default:
+      return { dateRange: 'all' }
+  }
+}

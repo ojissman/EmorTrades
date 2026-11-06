@@ -1290,6 +1290,46 @@ permanent record:
   test on their Docker host (mt5-link/README.md) — never claim it from the
   sandbox.
 
+## Task SWEEP4 — fourth full-sweep: admin console + AI suite + utility pages (2026-11-06)
+
+Owner directive (fourth pass of the same words). Full entry + certificate in
+worklog.md; addendum in AUDIT_REPORT.md. Permanent-record additions:
+
+- THE REGENERATE LAW: a client "refresh" control is a WIRE-CUT whenever the
+  server ignores any part of its request. The AI Trading Review's Regenerate
+  sent `bust: Date.now()` the server never read — within the 5-min TTL it
+  returned byte-identical cached data. /api/ai/suite now honors bust on ALL
+  five cached kinds. When adding cache-busting, E2E it with a curl pair
+  (same-params-no-bust → identical timestamp; bust → fresh timestamp).
+- SWALLOWED ERROR STATES are a defect class of their own: a failed list
+  fetch rendering the empty-database state (plus zeroed KPIs) is a LIE. Every
+  admin list page now carries the users.tsx error-card + Retry idiom
+  (dashboard banner, settings IntegrationsTab, audit-logs, notifications,
+  announcements, seo posts tab). New list pages get the same branch by
+  default.
+- LYING PAGINATION: client-side slicing of a hard-capped server list
+  (take:100) makes rows unreachable while the pager claims exact totals —
+  notifications now does real server-side pagination (route page/pageSize +
+  total; keepPreviousData client). Caps that stay caps get honest captions
+  (subscriptions: "showing the latest 200").
+- ADMIN DRILL IDIOMS (for future admin pages): rows carry ids → reuse
+  TradeDetailModal (now exported from journals.tsx), ticket detail via
+  /api/admin/support/[id] (+ /reply), navigate(/admin/users/<id>) for
+  member rows, AdminModal detail for self-contained rows (notifications).
+- AI-SUITE DRILL BRIDGE: drill.suitePeriodPatch maps SuitePeriod + custom
+  window onto the standard filter patch — StatChip hosts (summary/review)
+  drill to /tables/trades with it; daily-insights drills by dateKey;
+  trade-chat strip peeks via peekTrade. StatChip is a button ONLY when
+  onClick is passed (affordance honesty).
+- DISCLOSURE STATE SCALING: one boolean for N repeated disclosures makes
+  them toggle together — use per-item state (Set of keys) for repeated
+  collapsibles (QA-hub team discussions).
+- AUDIT-ZONE ROTATION: after three sweeps of the trading surface, the
+  residue lived in admin + AI + utility pages. Rotate audit zones and the
+  SEARCH PATTERNS (literal dead handlers, cursor-lies, permanent-disables,
+  dead useState flags...) — each pattern class catches what keyword audits
+  miss.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

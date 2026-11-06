@@ -445,7 +445,8 @@ function GoalDotStrip({
 export function GoalsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [modalOpen, setModalOpen] = useState(false)
+  // SWEEP4 dead-code purge: the pre-TP2-P5 modalOpen flag was declaration-only
+  // (1 reference — this line; the live goal-detail modal runs off `detail`).
   // Task 111 — period filter: 'all' shows every section, a period shows only
   // its own section. The scoreboard pills make it a filter AND a summary.
   // TP-7-h — 'annual' joins the periods (schema comment: daily, weekly,

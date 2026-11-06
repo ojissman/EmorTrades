@@ -31,6 +31,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SuitePeriod } from '@/lib/ai-suite'
+// SWEEP4 — the review chips drill to the trades behind the numbers.
+import { drillToTrades, suitePeriodPatch } from '@/lib/drill'
 import {
   DegradedBadge,
   GradeRing,
@@ -106,6 +108,9 @@ export function AiTradingReviewPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [store, setStore] = useState<Store>(loadStore)
+  // SWEEP4 — reopening a past review: clicked history rows render as the
+  // current view until "Back to latest" (never mutates the store's latest).
+  const [viewedHistory, setViewedHistory] = useState<ReviewPayload | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [checksOverride, setChecksOverride] = useState<Record<number, boolean>>({})
 
@@ -135,7 +140,7 @@ export function AiTradingReviewPage() {
     setCustom(s.period === 'custom' && s.from && s.to ? { from: s.from, to: s.to } : null)
   }
 
-  const current = store.latest[cacheKey] ?? null
+  const current = viewedHistory ?? store.latest[cacheKey] ?? null
   const tone = current ? TONE[current.tone] : TONE.neutral
 
   async function generate(force = false) {
@@ -156,6 +161,7 @@ export function AiTradingReviewPage() {
       return
     }
     const review = data as unknown as ReviewPayload
+    setViewedHistory(null)
     setStore((prev) => {
       const next: Store = {
         latest: { ...prev.latest, [cacheKey]: review },
@@ -298,7 +304,19 @@ export function AiTradingReviewPage() {
                 <Markdownish text={current.overview} />
                 <div className="flex gap-2 flex-wrap pt-1">
                   {current.chips.map((c) => (
-                    <StatChip key={c.label} label={c.label} value={c.value} color={c.label === 'Max DD' ? '#ef4444' : undefined} />
+                    <StatChip
+                      key={c.label}
+                      label={c.label}
+                      value={c.value}
+                      color={c.label === 'Max DD' ? '#ef4444' : undefined}
+                      onClick={() =>
+                        drillToTrades({
+                          ...suitePeriodPatch(period, custom),
+                          ...(account ? { accountId: account } : {}),
+                        })
+                      }
+                      title="See the trades behind this review"
+                    />
                   ))}
                 </div>
               </div>
@@ -397,41 +415,61 @@ export function AiTradingReviewPage() {
           {/* meta + history toggle */}
           <div className="flex items-center justify-between px-1">
             <p className="text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+              {viewedHistory ? 'Viewing past review · ' : ''}
               Generated {new Date(current.generatedAt).toLocaleString()} · period:{' '}
               <span style={{ color: 'var(--text-primary)' }}>{period.toUpperCase()}</span>
             </p>
-            {store.history.length > 0 && (
-              <button
-                onClick={() => setShowHistory((s) => !s)}
-                className="text-[10px] font-semibold underline underline-offset-2 flex items-center gap-1 cursor-pointer"
-                style={{ color: 'var(--shell-accent-hover)' }}
-                aria-expanded={showHistory}
-              >
-                <History size={10} /> Past reviews ({store.history.length})
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {viewedHistory && (
+                <button
+                  onClick={() => setViewedHistory(null)}
+                  className="text-[10px] font-semibold underline underline-offset-2 cursor-pointer"
+                  style={{ color: 'var(--shell-accent-hover)' }}
+                  title="Return to the latest generated review"
+                >
+                  Back to latest
+                </button>
+              )}
+              {store.history.length > 0 && (
+                <button
+                  onClick={() => setShowHistory((s) => !s)}
+                  className="text-[10px] font-semibold underline underline-offset-2 flex items-center gap-1 cursor-pointer"
+                  style={{ color: 'var(--shell-accent-hover)' }}
+                  aria-expanded={showHistory}
+                >
+                  <History size={10} /> Past reviews ({store.history.length})
+                </button>
+              )}
+            </div>
           </div>
 
           {showHistory && (
             <ul className="space-y-2">
               {store.history.map((h) => (
-                <li
-                  key={h.generatedAt}
-                  className="rounded-lg px-3 py-2 flex items-center gap-3"
-                  style={{ background: 'var(--bg-card)', border: '1px solid var(--shell-border)' }}
-                >
-                  <span
-                    className="grid place-items-center w-7 h-7 rounded-full text-[11px] font-black shrink-0"
-                    style={{ background: `${TONE[h.tone].color}1a`, color: TONE[h.tone].color }}
+                <li key={h.generatedAt}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewedHistory(h)
+                      setShowHistory(false)
+                    }}
+                    className="w-full rounded-lg px-3 py-2 flex items-center gap-3 text-left cursor-pointer transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--shell-border)' }}
+                    title="Reopen this review"
                   >
-                    {h.grade}
-                  </span>
-                  <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
-                    {h.headline}
-                  </span>
-                  <span className="text-[10px] shrink-0" style={{ color: 'var(--text-secondary)' }}>
-                    {new Date(h.generatedAt).toLocaleDateString()}
-                  </span>
+                    <span
+                      className="grid place-items-center w-7 h-7 rounded-full text-[11px] font-black shrink-0"
+                      style={{ background: `${TONE[h.tone]?.color ?? TONE.neutral.color}1a`, color: TONE[h.tone]?.color ?? TONE.neutral.color }}
+                    >
+                      {h.grade}
+                    </span>
+                    <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
+                      {h.headline}
+                    </span>
+                    <span className="text-[10px] shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                      {new Date(h.generatedAt).toLocaleDateString()}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>

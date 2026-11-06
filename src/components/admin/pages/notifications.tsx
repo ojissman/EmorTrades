@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   BadgeDollarSign,
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { AdminPageHeader, KpiCard, StatusBadge, formatAdminDate } from '../ui/primitives'
 import { AdminDataTable, type AdminColumn } from '../ui/data-table'
-import { FormModal } from '../ui/dialogs'
+import { AdminModal, FormModal } from '../ui/dialogs'
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -44,6 +44,7 @@ interface NotificationRow {
 
 interface NotificationsResponse {
   notifications: NotificationRow[]
+  total?: number
   stats: { totalSent: number; totalReads: number }
 }
 
@@ -100,14 +101,20 @@ export function NotificationsPage() {
   const [pageSize, setPageSize] = useState(10)
   const [sendOpen, setSendOpen] = useState(false)
   const [form, setForm] = useState<NotificationForm>(EMPTY_FORM)
+  // SWEEP4 — row detail modal (rows truncated the message at 60 chars with
+  // no affordance; every sibling list drills).
+  const [detail, setDetail] = useState<NotificationRow | null>(null)
 
   const listQuery = useQuery<NotificationsResponse>({
-    queryKey: ['admin', 'notifications'],
+    // SWEEP4 — server-side pagination + honest error card (a failed fetch
+    // used to render "No notifications sent yet" and zero every KPI).
+    queryKey: ['admin', 'notifications', page, pageSize],
     queryFn: async () => {
-      const res = await fetch('/api/admin/notifications')
+      const res = await fetch(`/api/admin/notifications?page=${page}&pageSize=${pageSize}`)
       if (!res.ok) throw new Error('Failed to load notifications')
       return res.json()
     },
+    placeholderData: keepPreviousData,
   })
 
   /* Plans + users lists are owned by other modules — degrade gracefully. */
@@ -150,12 +157,8 @@ export function NotificationsPage() {
   })
   const totalUsers = statsQuery.data?.stats?.totalUsers
 
-  const rows = useMemo(() => {
-    const all = listQuery.data?.notifications ?? []
-    const start = (page - 1) * pageSize
-    return all.slice(start, start + pageSize)
-  }, [listQuery.data, page, pageSize])
-  const totalRows = listQuery.data?.notifications.length ?? 0
+  const rows = listQuery.data?.notifications ?? []
+  const totalRows = listQuery.data?.total ?? listQuery.data?.notifications.length ?? 0
   const stats = listQuery.data?.stats
   const listLoading = listQuery.isLoading
 
@@ -347,7 +350,18 @@ export function NotificationsPage() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* Table — SWEEP4: honest error card + row click opens the full message. */}
+      {listQuery.isError ? (
+        <div className="a-card p-6 text-center text-sm a-muted">
+          Could not load notifications.{' '}
+          <button
+            className="a-btn a-btn-sm a-btn-ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ['admin', 'notifications'] })}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
       <AdminDataTable
         columns={columns}
         rows={rows}
@@ -369,7 +383,9 @@ export function NotificationsPage() {
           setPageSize(s)
           setPage(1)
         }}
+        onRowClick={(r) => setDetail(r)}
       />
+      )}
 
       {/* Send modal */}
       <FormModal
@@ -504,6 +520,41 @@ export function NotificationsPage() {
           <span className="a-muted">{deliveryHint}</span>
         </div>
       </FormModal>
+
+      {/* SWEEP4 — row detail modal: the full message (rows truncate at 60
+          chars), audience, delivery/read counts, sender — all fields already
+          on the row, no extra fetch needed (audit-logs detail idiom). */}
+      <AdminModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? detail.title : 'Notification'}
+        description={detail ? `${detail.category} · sent ${formatAdminDate(detail.createdAt, true)}${detail.sentByEmail ? ` by ${detail.sentByEmail}` : ''}` : undefined}
+        width="max-w-lg"
+      >
+        {detail && (
+          <div className="space-y-4">
+            <p className="whitespace-pre-wrap text-[0.875rem] leading-relaxed">{detail.message}</p>
+            <div className="grid grid-cols-2 gap-3 text-[0.8125rem]">
+              <div>
+                <p className="a-faint">Audience</p>
+                <p className="mt-0.5">
+                  {detail.audience === 'all'
+                    ? 'All users'
+                    : detail.audience === 'plan'
+                      ? `Plan ${detail.planCode ?? '—'}`
+                      : detail.targetUserEmail ?? 'One user'}
+                </p>
+              </div>
+              <div>
+                <p className="a-faint">Delivery · reads</p>
+                <p className="mt-0.5">
+                  {detail.deliveryCount} · {detail.readCount} real (NotificationRead rows)
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </AdminModal>
     </div>
   )
 }

@@ -73,6 +73,12 @@ interface SuiteBody {
   date?: string
   tradeId?: string
   mode?: 'briefing' | 'insight' | 'risk' | 'ask'
+  // SWEEP4 — client "Regenerate" buttons send bust=Date.now(). Any truthy
+  // bust skips the 5-min read cache for THIS request (cacheSet still
+  // refreshes the entry, so later normal loads see the fresh data). Before
+  // this field existed the server silently ignored it: within the TTL the
+  // button returned the byte-identical cached payload — a visual no-op.
+  bust?: number
   // Task 16-a — global-scope bridge: custom windows from the action bar's
   // custom range land here (period === 'custom').
   from?: string
@@ -475,7 +481,7 @@ export async function POST(req: NextRequest) {
         .slice(-8)
 
       const cacheKey = `q|${user.id}|${question}|${history.length}`
-      const cached = cacheGet(cacheKey)
+      const cached = body.bust ? null : cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
       const ctx = await loadSuiteContext('all')
@@ -506,7 +512,7 @@ Answer the trader's question about THEIR journal. If the digest cannot answer it
     if (kind === 'review') {
       const accountId = body.accountId?.trim() || null
       const cacheKey = `rev|${user.id}|${period}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
-      const cached = cacheGet(cacheKey)
+      const cached = body.bust ? null : cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
       const ctx = await loadSuiteContext(period, null, accountId, customWindow)
@@ -576,7 +582,7 @@ Produce a STRUCTURED TRADING REVIEW as STRICT JSON only (no markdown fences, no 
       const symbol = body.symbol?.trim() || null
       const accountId = body.accountId?.trim() || null
       const cacheKey = `sum|${user.id}|${period}|${symbol ?? ''}|${accountId ?? ''}|${customWindow ? `${customWindow.from.toISOString()}~${customWindow.to.toISOString()}` : ''}`
-      const cached = cacheGet(cacheKey)
+      const cached = body.bust ? null : cacheGet(cacheKey)
       if (cached) return NextResponse.json(cached)
 
       const ctx = await loadSuiteContext(period, symbol, accountId, customWindow)
@@ -627,7 +633,7 @@ Write a PERIOD SUMMARY as STRICT JSON only. Schema:
       }
 
       const cacheKey = `ins|${user.id}|${date}`
-      const cached = cacheGet<InsightsJson>(cacheKey)
+      const cached = body.bust ? null : cacheGet<InsightsJson>(cacheKey)
       if (cached) return NextResponse.json({ ...cached, days })
 
       const trades = await loadDay(user, date)
@@ -760,7 +766,7 @@ You are discussing ONE specific trade with the trader. Ground every claim in the
         : 'briefing'
       const question = (body.question ?? '').trim().slice(0, 200)
       const cacheKey = `wg|${user.id}|${mode}|${question}`
-      const cached = cacheGet<WidgetJson>(cacheKey)
+      const cached = body.bust ? null : cacheGet<WidgetJson>(cacheKey)
       if (cached) return NextResponse.json(cached)
 
       const ctx = await loadSuiteContext('30d') ?? await loadSuiteContext('all')

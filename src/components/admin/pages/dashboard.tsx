@@ -8,8 +8,9 @@
  * only render when history exists).
  */
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Area,
   AreaChart,
@@ -166,6 +167,7 @@ function ATooltip({ active, payload, label, money }: { active?: boolean; payload
 export function DashboardPage() {
   const [range, setRange] = useState('12m')
   const [granularity, setGranularity] = useState('monthly')
+  const qc = useQueryClient()
 
   const { data, isLoading, isError } = useQuery<DashboardData>({
     queryKey: ['admin-dashboard', range, granularity],
@@ -176,6 +178,13 @@ export function DashboardPage() {
     },
   })
 
+  // SWEEP4 — a failed dashboard fetch used to degrade silently (KPIs '—',
+  // empty charts, "No activity recorded yet"). Now one honest banner + retry
+  // (the analytics.tsx error-toast + subscriptions retry idiom).
+  useEffect(() => {
+    if (isError) toast.error('Could not load the dashboard — check your connection and retry.')
+  }, [isError])
+
   const k = data?.kpis
   const w = data?.widgets
 
@@ -185,6 +194,20 @@ export function DashboardPage() {
         title="Dashboard"
         description="Platform performance and health at a glance — every metric from the live database."
       />
+
+      {/* SWEEP4 — honest fetch-failure banner + retry (was: silent
+          degradation to '—' KPIs and a misleading empty activity table). */}
+      {isError && (
+        <div className="a-card mb-4 flex flex-wrap items-center justify-between gap-2 p-4">
+          <p className="text-sm a-muted">Could not load the dashboard data.</p>
+          <button
+            className="a-btn a-btn-sm a-btn-ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ['admin-dashboard'] })}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── A. Six KPI cards ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -413,7 +436,15 @@ export function DashboardPage() {
                       </td>
                     </tr>
                   ))
-                ) : isError || !data?.activity?.length ? (
+                ) : isError ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <p className="py-6 text-center text-sm a-muted">
+                        Activity unavailable — the dashboard fetch failed (Retry above).
+                      </p>
+                    </td>
+                  </tr>
+                ) : !data?.activity?.length ? (
                   <tr>
                     <td colSpan={4}>
                       <p className="py-6 text-center text-sm a-muted">No activity recorded yet.</p>
@@ -521,7 +552,15 @@ export function DashboardPage() {
               <ul className="space-y-1.5">
                 {w.latestUsers.map((u) => (
                   <li key={u.id} className="flex items-center justify-between gap-2 text-[0.8125rem]">
-                    <span className="min-w-0 truncate">{u.name || u.email}</span>
+                    {/* SWEEP4 — rows drill to the user (global-search + users
+                        table idiom); was fully static despite carrying u.id. */}
+                    <a
+                      className="min-w-0 truncate font-medium hover:underline"
+                      href={`#/admin/users/${u.id}`}
+                      title={`Open ${u.name || u.email}`}
+                    >
+                      {u.name || u.email}
+                    </a>
                     <span className="whitespace-nowrap a-faint">{formatAdminDate(u.createdAt)}</span>
                   </li>
                 ))}

@@ -464,6 +464,19 @@ export function AnnouncementsPage() {
       </FilterBar>
 
       {/* Table */}
+      {/* SWEEP4 — honest error card (a failed fetch used to render "No
+          announcements yet" and zero every status count). */}
+      {listQuery.isError ? (
+        <div className="a-card p-6 text-center text-sm a-muted">
+          Could not load announcements.{' '}
+          <button
+            className="a-btn a-btn-sm a-btn-ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ['admin', 'announcements'] })}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
       <AdminDataTable
         columns={columns}
         rows={rows}
@@ -486,6 +499,7 @@ export function AnnouncementsPage() {
           setPage(1)
         }}
       />
+      )}
 
       {/* Create / edit modal with live preview */}
       <FormModal

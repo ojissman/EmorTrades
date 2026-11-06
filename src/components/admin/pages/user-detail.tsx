@@ -45,6 +45,8 @@ import {
   formatMoney,
 } from '../ui/primitives'
 import { AdminModal, ConfirmDialog, FormModal } from '../ui/dialogs'
+// SWEEP4 — Recent Trades rows reuse the journals trade-detail peek.
+import { TradeDetailModal } from './journals'
 
 /* ── types (mirror the API contract) ─────────────────────────────────────── */
 
@@ -222,6 +224,10 @@ export function UserDetailPage({ userId }: { userId: string }) {
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [suspendReason, setSuspendReason] = useState('')
   const [pwOpen, setPwOpen] = useState(false)
+  // SWEEP4 — row peeks: trade detail (journals modal) + support ticket
+  // detail (fetches /api/admin/support/[id] — message + replies).
+  const [tradeDetailId, setTradeDetailId] = useState<string | null>(null)
+  const [ticketDetail, setTicketDetail] = useState<{ id: string; subject: string } | null>(null)
   const [pwForm, setPwForm] = useState({ password: '', confirm: '' })
   const [pwShow, setPwShow] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
@@ -656,7 +662,12 @@ export function UserDetailPage({ userId }: { userId: string }) {
                 </thead>
                 <tbody>
                   {data.recentTrades.map((t) => (
-                    <tr key={t.id}>
+                    <tr
+                      key={t.id}
+                      className="cursor-pointer transition-colors hover:bg-[var(--a-hover,rgba(0,0,0,0.03))]"
+                      title="Open trade detail"
+                      onClick={() => setTradeDetailId(t.id)}
+                    >
                       <td className="text-[0.8125rem] font-medium">{t.symbol}</td>
                       <td>
                         <span
@@ -813,16 +824,25 @@ export function UserDetailPage({ userId }: { userId: string }) {
           ) : (
             <ul className="divide-y" style={{ borderColor: 'var(--a-border-soft)' }}>
               {data.tickets.map((t) => (
-                <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <LifeBuoy className="h-4 w-4 shrink-0 a-faint" aria-hidden />
-                    <span className="truncate text-[0.8125rem] font-medium">{t.subject}</span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="a-badge a-badge-neutral">{t.priority}</span>
-                    <StatusBadge status={t.status} />
-                    <span className="text-xs a-faint">{formatAdminDate(t.createdAt)}</span>
-                  </div>
+                <li key={t.id}>
+                  {/* SWEEP4 — rows peek the ticket (message + replies) via
+                      /api/admin/support/[id]; was fully static. */}
+                  <button
+                    type="button"
+                    className="flex w-full flex-wrap items-center justify-between gap-2 py-2.5 text-left cursor-pointer transition-colors hover:bg-[var(--a-hover,rgba(0,0,0,0.03))]"
+                    title="Open this ticket"
+                    onClick={() => setTicketDetail({ id: t.id, subject: t.subject })}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <LifeBuoy className="h-4 w-4 shrink-0 a-faint" aria-hidden />
+                      <span className="truncate text-[0.8125rem] font-medium">{t.subject}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="a-badge a-badge-neutral">{t.priority}</span>
+                      <StatusBadge status={t.status} />
+                      <span className="text-xs a-faint">{formatAdminDate(t.createdAt)}</span>
+                    </div>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -1055,6 +1075,130 @@ export function UserDetailPage({ userId }: { userId: string }) {
         confirmLabel="Delete User"
         loading={deleteMutation.isPending}
       />
+
+      {/* SWEEP4 — row peeks: trade detail (reused journals modal) + ticket
+          detail (message + replies from /api/admin/support/[id]). */}
+      <TradeDetailModal tradeId={tradeDetailId} onClose={() => setTradeDetailId(null)} />
+      <TicketDetailModal
+        ticket={ticketDetail}
+        onClose={() => setTicketDetail(null)}
+        onReplySent={() => refetch()}
+      />
     </div>
+  )
+}
+
+/** SWEEP4 — support-ticket peek for the Support History rows (support.tsx's
+ *  detail-fetch pattern, read-only: message + reply thread + status). */
+function TicketDetailModal({
+  ticket,
+  onClose,
+  onReplySent,
+}: {
+  ticket: { id: string; subject: string } | null
+  onClose: () => void
+  onReplySent: () => void
+}) {
+  const { data, isLoading, isError } = useQuery<{
+    ticket: {
+      id: string
+      message: string
+      category: string
+      priority: string
+      status: string
+      createdAt: string
+      assignedAdmin: { name: string | null; email: string } | null
+      replies: { id: string; message: string; createdAt: string; author: { name: string | null; email: string } }[]
+    }
+  }>({
+    queryKey: ['admin-support-detail', ticket?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/support/${ticket!.id}`)
+      if (!res.ok) throw new Error('Failed to load ticket')
+      return res.json()
+    },
+    enabled: Boolean(ticket),
+  })
+
+  const replyMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const res = await fetch(`/api/admin/support/${ticket!.id}/reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) throw new Error(json.error ?? 'Reply failed.')
+      return json
+    },
+    onSuccess: () => {
+      toast.success('Reply sent — the user is notified by email.')
+      void qc2.invalidateQueries({ queryKey: ['admin-support-detail', ticket?.id] })
+      onReplySent()
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const [reply, setReply] = useState('')
+  const qc2 = useQueryClient()
+
+  return (
+    <AdminModal
+      open={Boolean(ticket)}
+      onClose={onClose}
+      title={ticket ? ticket.subject : 'Ticket'}
+      description={data ? `${data.ticket.category} · ${data.ticket.priority} · ${formatAdminDate(data.ticket.createdAt, true)}` : undefined}
+      width="max-w-xl"
+    >
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="a-skeleton h-6 w-2/3" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="a-skeleton h-12" />
+          ))}
+        </div>
+      ) : isError || !data ? (
+        <p className="text-sm a-muted">Could not load this ticket — it may have been removed. Reply from the Support console instead.</p>
+      ) : (
+        <div className="space-y-4">
+          <p className="whitespace-pre-wrap text-[0.875rem] leading-relaxed">{data.ticket.message}</p>
+          {data.ticket.replies.length > 0 && (
+            <div className="space-y-2.5">
+              {data.ticket.replies.map((r) => (
+                <div key={r.id} className="rounded-lg border p-3" style={{ borderColor: 'var(--a-border-soft)' }}>
+                  <p className="text-xs a-faint">
+                    {r.author.name || r.author.email} · {formatAdminDate(r.createdAt, true)}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-[0.8125rem] leading-relaxed">{r.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <label className="a-label" htmlFor="ticket-reply">Reply</label>
+            <textarea
+              id="ticket-reply"
+              className="a-input mt-1 min-h-[72px] w-full resize-y"
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder="Answer the user — delivered by email"
+              disabled={replyMutation.isPending}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                className="a-btn a-btn-sm"
+                disabled={replyMutation.isPending || reply.trim().length < 2}
+                onClick={() => {
+                  replyMutation.mutate(reply.trim())
+                  setReply('')
+                }}
+              >
+                {replyMutation.isPending ? 'Sending…' : 'Send reply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </AdminModal>
   )
 }

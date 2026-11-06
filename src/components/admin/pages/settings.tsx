@@ -780,7 +780,7 @@ function ApiChip({ label, probe }: { label: string; probe: { enabled: boolean; o
 
 function IntegrationsTab() {
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery<IntegrationsPayload>({
+  const { data, isLoading, isError } = useQuery<IntegrationsPayload>({
     queryKey: ['admin-integrations'],
     queryFn: async () => {
       const res = await fetch('/api/admin/integrations')
@@ -843,6 +843,23 @@ function IntegrationsTab() {
     },
     onError: (e: Error) => toast.error(e.message),
   })
+
+  // SWEEP4 — a failed /api/admin/integrations fetch used to leave this tab on
+  // pulse skeletons FOREVER (isLoading false, data undefined). Honest error
+  // card + retry (the RolesTab idiom).
+  if (isError) {
+    return (
+      <div className="a-card p-6 text-center text-sm a-muted">
+        Could not load the integration status.{' '}
+        <button
+          className="a-btn a-btn-sm a-btn-ghost"
+          onClick={() => qc.invalidateQueries({ queryKey: ['admin-integrations'] })}
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   if (isLoading || !data) {
     return (

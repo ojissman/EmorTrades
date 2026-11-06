@@ -16,6 +16,9 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, FileText, Filter, RefreshCw, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { SuitePeriod } from '@/lib/ai-suite'
+// SWEEP4 — the summary chips drill to the trades behind the numbers (the
+// lens — period/symbol/account — maps onto the standard filter patch).
+import { drillToTrades, suitePeriodPatch } from '@/lib/drill'
 import {
   DegradedBadge,
   PeriodChips,
@@ -309,6 +312,14 @@ export function AiSummaryPage() {
                   label={c.label}
                   value={c.value}
                   color={c.label === 'Net' ? (c.value.startsWith('+') ? '#22c55e' : c.value.startsWith('-') ? '#ef4444' : undefined) : undefined}
+                  onClick={() =>
+                    drillToTrades({
+                      ...suitePeriodPatch(period, custom),
+                      ...(symbol ? { symbol } : {}),
+                      ...(account ? { accountId: account } : {}),
+                    })
+                  }
+                  title="See the trades behind this summary"
                 />
               ))}
             </div>

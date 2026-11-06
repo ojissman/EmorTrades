@@ -16,6 +16,9 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, MessagesSquare, Search, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+// SWEEP4 — the trade summary strip now peeks the trade under discussion
+// (the app-wide peekTrade idiom; `selected` always carried id/symbol/side/pnl).
+import { peekTrade } from '@/lib/drill'
 import {
   Markdownish,
   fmtUsd,
@@ -305,9 +308,22 @@ export function AiTradeChatPage() {
             {/* trade summary strip */}
             <header className="px-4 py-2.5 border-b shrink-0" style={{ borderColor: 'var(--shell-border)' }}>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>
+                <button
+                  type="button"
+                  className="text-sm font-black cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 rounded-sm"
+                  style={{ color: 'var(--text-primary)' }}
+                  title={`Peek ${selected.symbol} — full trade record`}
+                  onClick={() =>
+                    peekTrade({
+                      id: selected.id,
+                      symbol: selected.symbol,
+                      side: selected.side,
+                      pnl,
+                    })
+                  }
+                >
                   {selected.symbol}
-                </span>
+                </button>
                 <span
                   className="text-[9px] font-bold uppercase rounded px-1.5 py-0.5"
                   style={{

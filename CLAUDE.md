@@ -429,6 +429,23 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   MT5 connectivity from this sandbox.
 
 
+## Task SWEEP4 — admin + AI + utility sweep (2026-11-06)
+
+- **A refresh button is a wire-cut if the server ignores any part of its
+  request.** AI Regenerate sent `bust` the suite route never read — 5-minute
+  visual no-op against the cache. bust is now honored on all five cached
+  kinds; curl-verify with a no-bust/bust timestamp pair.
+- **A failed list fetch must NEVER render the empty-database state** (nor
+  zeroed KPIs) — that indistinguishability is the defect. Error card +
+  Retry on every admin list (users.tsx idiom).
+- **Client-side slicing of a capped server list = lying pagination** —
+  paginate server-side (route page/pageSize + total) or caption the cap
+  honestly.
+- **Per-item state for repeated disclosures** (one shared boolean makes N
+  collapsibles toggle together).
+- **Dead useState flags** (declaration-only) are the quietest dead code —
+  grep per-file for single-reference state when sweeping.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

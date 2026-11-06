@@ -417,12 +417,18 @@ export function SubscriptionsPage() {
           <section className="mt-8" aria-label="Subscriptions">
             <div className="mb-3">
               <h2 className="text-sm font-semibold">Subscriptions</h2>
-              <p className="text-xs a-faint">Every assignment on record, newest first.</p>
+              <p className="text-xs a-faint">
+                Every assignment on record, newest first — showing the latest 200 (the API's
+                honest window).
+              </p>
             </div>
             <AdminDataTable
               columns={subColumns}
               rows={subs}
               loading={isLoading}
+              // SWEEP4 — rows drill to the member (users-table idiom; the row
+              // user cell was id-backed but static).
+              onRowClick={(s) => navigate(`/admin/users/${s.user.id}`)}
               emptyTitle="No subscriptions yet"
               emptyDescription="Assign a plan from a user's profile (#/admin/users) — subscriptions are entered manually, there is no payment gateway."
               emptyAction={

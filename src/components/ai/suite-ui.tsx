@@ -217,12 +217,44 @@ export function UseAppScopeButton({
 
 // ---- stat chip ------------------------------------------------------------------
 
-export function StatChip({ label, value, color }: { label: string; value: string; color?: string }) {
+/**
+ * SWEEP4 — optional drill-through. The chip always LOOKED interactive
+ * (hover:scale); now it can act: pass onClick for a real drill (cursor +
+ * keyboard + aria only when wired, per the app-wide affordance standard).
+ */
+export function StatChip({
+  label,
+  value,
+  color,
+  onClick,
+  title,
+}: {
+  label: string
+  value: string
+  color?: string
+  onClick?: () => void
+  title?: string
+}) {
+  const cls = [
+    'rounded-lg px-3 py-2 flex flex-col gap-0.5 min-w-[86px] transition-transform duration-150',
+    onClick ? 'cursor-pointer hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title={title} aria-label={title ?? `${label} ${value}`} className={cls} style={{ background: 'var(--bg-inset)', border: '1px solid var(--shell-border)' }}>
+        <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+          {label}
+        </span>
+        <span className="text-[13px] font-bold font-mono" style={{ color: color ?? 'var(--text-primary)' }}>
+          {value}
+        </span>
+      </button>
+    )
+  }
   return (
-    <div
-      className="rounded-lg px-3 py-2 flex flex-col gap-0.5 min-w-[86px] transition-transform duration-150 hover:scale-[1.03]"
-      style={{ background: 'var(--bg-inset)', border: '1px solid var(--shell-border)' }}
-    >
+    <div className={cls} style={{ background: 'var(--bg-inset)', border: '1px solid var(--shell-border)' }} title={title}>
       <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
         {label}
       </span>

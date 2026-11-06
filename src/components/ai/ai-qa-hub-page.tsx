@@ -176,7 +176,16 @@ export function AiQaHubPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [discussionOpen, setDiscussionOpen] = useState(false)
+  // SWEEP4 — per-message disclosure state: one shared boolean made every
+  // team-disclosure toggle together (and every chevron rotate together).
+  const [openDiscussions, setOpenDiscussions] = useState<Set<number>>(new Set())
+  const toggleDiscussion = (i: number) =>
+    setOpenDiscussions((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
   const threadRef = useRef<HTMLDivElement>(null)
 
   const { data, refetch } = useQuery({
@@ -275,7 +284,8 @@ export function AiQaHubPage() {
     if (!q || busy || selectedEntries.length === 0) return
     setInput('')
     setError(null)
-    setDiscussionOpen(false)
+    // SWEEP4 — collapse open disclosures on send (per-message state now).
+    setOpenDiscussions(new Set())
     const withUser = [...messages, { role: 'user' as const, text: q }]
     setMessages(withUser)
     saveThread(withUser)
@@ -444,10 +454,10 @@ export function AiQaHubPage() {
                 {m.mode === 'team' && m.discussion && m.discussion.length > 0 && (
                   <div className="mb-2 rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border-strong)' }}>
                     <button
-                      onClick={() => setDiscussionOpen((v) => !v)}
+                      onClick={() => toggleDiscussion(i)}
                       className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)]"
                       style={{ color: 'var(--text-primary)' }}
-                      aria-expanded={discussionOpen}
+                      aria-expanded={openDiscussions.has(i)}
                     >
                       <Users className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
                       Team discussion
@@ -456,10 +466,10 @@ export function AiQaHubPage() {
                       </span>
                       <ChevronDown
                         className="h-3.5 w-3.5 ml-auto transition-transform"
-                        style={{ color: 'var(--text-secondary)', transform: discussionOpen ? 'rotate(180deg)' : undefined }}
+                        style={{ color: 'var(--text-secondary)', transform: openDiscussions.has(i) ? 'rotate(180deg)' : undefined }}
                       />
                     </button>
-                    {discussionOpen && (
+                    {openDiscussions.has(i) && (
                       <div className="px-3 pb-3 space-y-2 max-h-72 overflow-y-auto shell-scroll" style={{ background: 'var(--bg-inset)' }}>
                         {m.discussion.map((d, di) => (
                           <div key={di} className="rounded-md p-2.5 mt-2" style={{ background: 'var(--bg-bar)', border: '1px solid var(--border-strong)' }}>

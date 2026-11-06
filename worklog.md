@@ -9996,6 +9996,56 @@ Ritual block intact in all 3 files: YES
 Verdict:                            PRODUCTION-READY — journal app + the entire MT5 integration surface, verified end-to-end on live data. One item explicitly OUTSIDE this sandbox's reach: live broker login via the self-hosted connector (needs the owner's Docker host + demo account — by design, per the hosting investigation). No claim of broker connectivity is made.
 
 
+---
+
+## Task SWEEP4 — the fourth full-sweep: admin console + AI suite + utility pages; the Regenerate wire-cut and the swallowed error states (FULL-SWEEP)   [2026-11-06T23:10:28Z]
+**Agent:** Z.ai Code   **Type:** NEW (owner's identical directive, fourth pass)   **Scope:** FULL-SWEEP
+
+**Task (owner's words):** "Check the the entire app for the same issue or more of that of the Tags that you just fix... the whole app... because i believe or i feel most pages, section, funtion, buttom are just like the Tags.... and also i have also notice some card, KPI, Modals etc that deserve peekview, clickability or so but now they dont......... Its your duty to find and fix and make this app a complete 'Production Ready' app"
+
+**Method:** day's second task — cycle clean (408a350 pushed), sync:prod pull 2026-11-06T22:34:50Z users=4 trades=386, baseline lint 0/tsc 0/239 tests. FOUR parallel audit agents over the zones the three prior sweeps touched LEAST: (1) admin console (all 13 pages + rendering wiring + fetch spot-checks), (2) settings + trades-import + library, (3) AI suite (all 10 files), (4) a fresh whole-app dead-surface scan using TEN NEW patterns (literal dead handlers, cursor-lies, stale labels, permanently-disabled buttons, keyboard traps, TODO-unfinished, inert dialogs, orphan routes, dead useState flags — patterns orthogonal to the prior sweeps' exclusion lists). 26 findings reported; EVERY one verified in code by the orchestrator before fixing; ONE rejected after verification (monthly-summary "quarter" toggle — documented honest-disabled with an in-code rationale: faking a quarter from one month would be dishonest data; kept as designed).
+
+**Work Log:**
+1. HEADLINE — AI SERVER CACHE CONTRACT CUT: the Trading Review "Regenerate" button sent `bust: Date.now()` the server NEVER read (SuiteBody had no bust; no cacheKey included it; cacheGet ran first) — within the 5-min TTL the button returned the byte-identical cached review. /api/ai/suite now honors bust on ALL five cached kinds (query/review/summary/insights/widget): a truthy bust skips the read cache for that request only; cacheSet still refreshes the entry for later normal loads. CURL-PROVEN: cached call → generatedAt 23:04:13.234Z identical; busted call → fresh 23:04:19.390Z.
+2. ADMIN CONSOLE — orphaned page: the fully-built Notifications page had NO nav entry (reachable only by typing #/admin/notifications); restored to the Growth group next to Announcements (admin-navigation.ts).
+3. SIX SWALLOWED ERROR STATES (failed fetches rendered misleading empty states + zeroed KPIs, indistinguishable from empty DBs): admin dashboard (whole page silent degradation — now an honest banner + Retry + a distinct activity-table error row), settings IntegrationsTab (infinite skeletons — now the RolesTab error idiom), audit-logs, notifications, announcements, seo posts tab — all error cards with Retry (users.tsx retry idiom).
+4. LYING PAGINATION: admin notifications sliced a server list hard-capped at take:100 client-side — rows beyond the 100th permanently unreachable while the footer claimed exact totals. Now real server-side pagination: route parses page/pageSize (clamped 5-100) and returns total; client passes params + keepPreviousData. E2E: page1 2 rows / page2 0 rows with total=2. Subscriptions' silent take:200 cap now carries an honest "showing the latest 200" caption.
+5. SEVEN MISSING CLICK AFFORDANCES (each with a verified sibling pattern): user-detail Recent Trades rows → the journals TradeDetailModal (exported from journals.tsx and reused; E2E: row click opens "TSLA — Trade detail"), user-detail Support History rows → a new TicketDetailModal (fetches /api/admin/support/[id]; message + reply thread + a working reply mutation with validation/loading/toasts; invalidates both the ticket query and the user detail), subscriptions rows → navigate(/admin/users/<id>), notifications rows → detail modal (full message, audience, delivery·reads — E2E-verified), dashboard Latest Users rows → #/admin/users/<id> links (4 live links post-fix), AI StatChip atom → optional onClick with button semantics + focus ring (cursor only when wired), import impact symbol chips → drillToTrades({symbol}).
+6. AI SUITE DRILLS: summary + trading-review chips now drill to the trades behind the numbers via a NEW shared helper drill.suitePeriodPatch (maps SuitePeriod + custom window onto the standard filter patch: 7d/30d/…/365d → dateRange, ytd → UTC year window, custom → full-timestamp window; symbol/account lens merged by the hosts) — E2E: Win-rate chip → #/tables/trades with the 30d scope. daily-insights date + Day-P&L/Trades chips → drillToDay(shown.date) (keyboard + aria complete). trade-chat summary strip symbol → peekTrade (id/symbol/side/pnl). trading-review history rows → reopen as the current view with "Viewing past review · Back to latest" (never mutates the store's latest; generate() clears the override) — E2E round-trip verified.
+7. SHARED-STATE DISCLOSURE BUG: QA-hub's single discussionOpen boolean made every team-discussion toggle together (and every chevron rotate together) — now a per-message Set<number>; send() collapses all.
+8. LIBRARY KPI TILES: Attached/Unattached drive the gallery filter (exactly what the sibling filter buttons implement) — E2E: tile click → filter button pressed=true.
+9. DOUBLE-SUBMIT GUARD: settings createAccount gained the edit dialog's guard (creating state + disabled + "Adding…" label).
+10. DEAD CODE (fresh zero-reference proofs, each re-run before deletion): goals-page modalOpen (1 reference — the declaration; pre-TP2-P5 remnant, the live modal runs off `detail`), symbols-page selected (1 reference; removed-selection remnant — the deep-link drill uses seededFrom/search/drillSymbol). Both deleted with explanatory comments.
+11. NOT FIXED BY DESIGN (verified honest, documented): monthly-summary "vs prev quarter" disabled toggle (in-code rationale: the component only receives one previous month; the tooltip says what's missing); its unreachable quarter-mode JSX branch is the defensive remnant of that documented decision — kept.
+
+**Verification:** lint 0 · tsc 0 · vitest 239/239 (20 files; no test changes needed — all fixes are route-guard/render behaviors verified by live curl + browser E2E per the repo's established standard for such fixes). E2E on the live pull (admin session, 1280×800 + 390×844): the bust curl proof (identical vs fresh generatedAt), notifications nav entry → page (TOTAL SENT 2, TOTAL READS 1) → row detail modal (full message) → server pagination (2/2, page2 empty) → mobile zero overflow, user-detail Trading Activity row → TSLA trade-detail modal, dashboard renders with 4 Latest-Users links, review chip drill → #/tables/trades, history reopen + Back-to-latest round-trip, library KPI tile → filter pressed. Console + page errors 0; dev.log clean. Whole-app smoke: Overview + Trades render real pulled data unchanged.
+
+**Cleanup report:** dead code: 2 declaration-only useState flags (proofs in Work Log 10; fresh rg before each). Junk: /tmp task screenshots purged post-verify. No tracked deletions beyond the 2 lines; KEEPERS untouched; no routes deleted (all 141 routes have live callers — the fresh scan's orphan-route check re-confirmed).
+
+**Production-readiness certificate:** see below.
+
+**Ritual:** pull 2026-11-06T22:34:50Z users=4 trades=386 (second task of the day — day gate CLEARED TO WORK 21:40:18Z stands); this entry above the block; commit + push last.
+
+**Needs owner decision / left over:** none blocking. Not exercisable on live data (compile + affordance verified only): the Support History ticket modal (0 support tickets in production — the reply mutation follows the audited /reply route contract), the import impact chips' drill (the done-step requires completing an import; the wiring is the page's own verified day-chips idiom). Carried forward unchanged: challenges/psych-tags/missed-trades demo seeding; 51+141 over-exports; Dashboard + User.displayMode orphan models.
+
+PRODUCTION-READINESS CERTIFICATE — SWEEP4
+Date (UTC, from `date -u`):         2026-11-06T23:10:28Z
+Task started / finished:            2026-11-06T22:34:41Z / 2026-11-06T23:10:28Z
+Last production pull (sync:prod):   2026-11-06T22:34:50Z   users=4 trades=386
+Production URL health:              200      Preview/dev: 200 (in-session)
+Build: lint 0 errors | tsc 0 errors | tests 239/239 passing
+Pages/flows verified (list):        admin Notifications (nav entry, KPIs, row modal, pagination, mobile), admin user-detail (Trading Activity row → trade modal; Support affordance), admin dashboard (error banner path + user links), admin subscriptions/announcements/audit-logs/seo (error-state paths), AI Suite (bust regenerate — curl proof; review chip drill; history reopen; StatChip affordances), library (KPI tiles → filter), import (chip wiring), + whole-app smoke
+Console + server-log errors:        0 / 0
+Touched-area audit:                 PASS (every finding fixed or honestly rejected with verification; 1 rejection documented)
+KPIs hand-checked vs raw DB:        notifications total=2 = DB count (route + client agree); stats totalSent 2 / totalReads 1 = DB
+Security: every touched handler guarded (notifications route keeps requirePermission + gains only read-side pagination params; AI bust is an additive optional field; no ownership change): PASS
+Dead code removed:                  2 dead state declarations (proofs in worklog)
+Junk purged:                        post-push (untracked screenshots only)
+Orphan DB models needing owner decision: none new (Dashboard/User.displayMode pre-existing, deferred)
+Ritual block intact in all 3 files: YES
+Verdict:                            PRODUCTION-READY
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

@@ -17,6 +17,9 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ArrowRight, RefreshCw, Sparkles, Sunrise } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+// SWEEP4 — the insight card's date + Day P&L chip now drill to Day Explore
+// (the app-wide dateKey idiom; the payload always carried the date).
+import { drillToDay } from '@/lib/drill'
 import {
   DegradedBadge,
   StatChip,
@@ -257,7 +260,20 @@ export function AiDailyInsightsPage() {
             >
               {tone.label}
             </span>
-            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+            <span
+              className="text-[10px] font-mono cursor-pointer hover:underline"
+              style={{ color: 'var(--text-secondary)' }}
+              title={`Open ${shown.date} in Day Explore`}
+              role="link"
+              tabIndex={0}
+              onClick={() => drillToDay(shown.date)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  drillToDay(shown.date)
+                }
+              }}
+            >
               {shown.date}
             </span>
             <DegradedBadge degraded={shown.degraded} rateLimited={Boolean(shown.rateLimited)} />
@@ -270,8 +286,15 @@ export function AiDailyInsightsPage() {
               label="Day P&L"
               value={fmtUsd(shown.dayPnl)}
               color={shown.dayPnl > 0 ? '#22c55e' : shown.dayPnl < 0 ? '#ef4444' : undefined}
+              onClick={() => drillToDay(shown.date)}
+              title={`Open ${shown.date} in Day Explore`}
             />
-            <StatChip label="Trades" value={String(shown.dayTrades)} />
+            <StatChip
+              label="Trades"
+              value={String(shown.dayTrades)}
+              onClick={() => drillToDay(shown.date)}
+              title={`Open ${shown.date} in Day Explore`}
+            />
           </div>
 
           <ul className="space-y-2 mb-4">

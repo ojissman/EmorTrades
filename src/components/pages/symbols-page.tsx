@@ -39,7 +39,8 @@ export function SymbolsPage() {
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState<'pnl' | 'trades' | 'winRate' | 'avgPnl'>('pnl')
   const [sortAsc, setSortAsc] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
+  // SWEEP4 dead-code purge: `selected` was declaration-only (1 reference —
+  // this line; the deep-link drill uses seededFrom/search/drillSymbol below).
 
   // Deep-link drill-through: "…symbols-sector-industries?symbol=AAPL" (from
   // widget rows, peeks or the command palette) pre-filters the page to that

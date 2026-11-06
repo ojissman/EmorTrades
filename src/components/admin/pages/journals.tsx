@@ -323,7 +323,9 @@ function TradeDetailBody({ detail: d }: { detail: TradeDetail }) {
 
 /* ── Modals ───────────────────────────────────────────────────────────────── */
 
-function TradeDetailModal({ tradeId, onClose }: { tradeId: string | null; onClose: () => void }) {
+// SWEEP4 — exported for reuse: user-detail Recent Trades rows open the same
+// trade detail peek (previously inline-only).
+export function TradeDetailModal({ tradeId, onClose }: { tradeId: string | null; onClose: () => void }) {
   const { data, isLoading, isError } = useQuery<TradeDetail>({
     queryKey: ['admin-trade-detail', tradeId],
     queryFn: () => fetchJson<TradeDetail>(`/api/admin/trades/${tradeId}`),

@@ -48,7 +48,7 @@ import { useToast } from '@/hooks/use-toast'
 import { formatCurrencyIn, formatDate, formatNumber, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useAppStore, PAGE_TO_ROUTE } from '@/store/app-store'
-import { drillToDay } from '@/lib/drill'
+import { drillToDay, drillToTrades } from '@/lib/drill'
 import {
   parseTradeFile,
   getCsvPreview,
@@ -1627,16 +1627,22 @@ export function ImportPage() {
                         <p className="text-[10px] text-muted-foreground mb-1.5">Symbols in this batch</p>
                         <div className="flex flex-wrap gap-1" data-testid="impact-symbols">
                           {impact.symbolRows.map((s) => (
-                            <span
+                            // SWEEP4 — chips drill to the trades table filtered
+                            // by symbol (drillToTrades idiom; hover styling
+                            // already advertised clickability).
+                            <button
                               key={s.symbol}
-                              title={`${s.symbol} · ${s.trades} trade${s.trades !== 1 ? 's' : ''} · net ${formatCurrencyIn('table', s.pnl)}`}
-                              className="inline-flex items-center gap-1 rounded-full border border-border bg-white/[0.04] px-1.5 py-0.5 text-[10px] tnum transition-colors hover:bg-white/[0.08]"
+                              type="button"
+                              title={`${s.symbol} · ${s.trades} trade${s.trades !== 1 ? 's' : ''} · net ${formatCurrencyIn('table', s.pnl)} — click to open the trades table filtered to ${s.symbol}`}
+                              aria-label={`Open trades filtered to ${s.symbol}`}
+                              onClick={() => drillToTrades({ symbol: s.symbol })}
+                              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-border bg-white/[0.04] px-1.5 py-0.5 text-[10px] tnum transition-colors hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                             >
                               <span className="font-semibold text-foreground">{s.symbol}</span>
                               <span className={s.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                                 {formatCurrencyIn('table', s.pnl)}
                               </span>
-                            </span>
+                            </button>
                           ))}
                         </div>
                       </div>

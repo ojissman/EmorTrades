@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   ChevronRight,
@@ -118,6 +118,7 @@ export function AuditLogsPage() {
   const rows = listQuery.data?.events ?? []
   const stats = listQuery.data?.stats
   const listLoading = listQuery.isLoading
+  const qc = useQueryClient()
 
   function exportCsv() {
     try {
@@ -324,7 +325,19 @@ export function AuditLogsPage() {
         />
       </FilterBar>
 
-      {/* Table */}
+      {/* Table — SWEEP4: honest error card instead of the misleading
+          "No events match these filters" empty state on fetch failure. */}
+      {listQuery.isError ? (
+        <div className="a-card p-6 text-center text-sm a-muted">
+          Could not load the audit log.{' '}
+          <button
+            className="a-btn a-btn-sm a-btn-ghost"
+            onClick={() => qc.invalidateQueries({ queryKey: ['admin', 'audit-logs'] })}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
       <AdminDataTable
         columns={columns}
         rows={rows}
@@ -342,6 +355,7 @@ export function AuditLogsPage() {
         }}
         onRowClick={(r) => setDetail(r)}
       />
+      )}
 
       {/* Detail modal */}
       <AdminModal
