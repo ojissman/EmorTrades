@@ -573,12 +573,40 @@ export function WinLossDonut({ stats, thickness = 24, separated = true }: { stat
  * `target` renders a goal tick + delta line; 0 = off. Defaults to off so the
  * preset layouts stay pixel-identical — the registry's settingsSchema default
  * (50%) applies only to builder instances that opt in.
+ * SWEEP5 — optional drill-through (Kpi idiom): pass onClick (e.g. the Multi
+ * All-in-one preset wires it to the winning-trades cohort) for button
+ * semantics + cursor; without it the meter renders exactly as before.
  */
-export function WinRateMeter({ stats, target = 0 }: { stats: OverviewStats; target?: number }) {
+export function WinRateMeter({
+  stats,
+  target = 0,
+  onClick,
+}: {
+  stats: OverviewStats
+  target?: number
+  onClick?: () => void
+}) {
   const hasTarget = target > 0
   const delta = stats.winRate - target
   return (
-    <div className="rounded-xl p-4" style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+      title={onClick ? 'Click to see the trades behind this number' : undefined}
+      className={cn('rounded-xl p-4', onClick && 'cursor-pointer hover:border-emerald-500/40 transition-colors')}
+      style={{ border: '1px solid var(--border-strong)', background: 'var(--bg-card)' }}
+    >
       <div className="flex items-center justify-between text-[11px]">
         <span className="font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Win rate</span>
         <span className="font-bold tnum" style={{ color: 'var(--text-primary)' }}>{stats.winRate.toFixed(1)}%</span>

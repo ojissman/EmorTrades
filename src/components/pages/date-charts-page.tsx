@@ -517,7 +517,16 @@ export function DateChartsPage({ mode }: { mode: 'day' | 'calendar' }) {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricStat label={`Net (${group === 'week' ? 'weeks' : 'months'})`} value={fmtMoney(model.periods.reduce((s, p) => s + p.net, 0), 'kpi')} sub={`${model.greenPeriods}/${model.periods.length} periods green`} tone={model.netAll >= 0 ? 'good' : 'bad'} big />
         <MetricStat label="Period consistency" value={`${consistency}%`} sub="share of periods in profit" tone={consistency >= 50 ? 'good' : 'bad'} />
-        <MetricStat label={`Best ${group}`} value={fmtMoney(model.bestPeriod.net, 'kpi')} sub={model.bestPeriod.label} tone="good" />
+        {/* SWEEP5-W2 — the Best-period tile now drills through the exact same
+            weekPatch/monthPatch window its bar (and every period-table row)
+            uses — the tile was the only dead surface in this strip. */}
+        <MetricStat
+          label={`Best ${group}`}
+          value={fmtMoney(model.bestPeriod.net, 'kpi')}
+          sub={model.bestPeriod.label}
+          tone="good"
+          onClick={() => drillToTrades(group === 'week' ? weekPatch(model.bestPeriod.key) : monthPatch(model.bestPeriod.key))}
+        />
         <MetricStat
           label={`Current ${group} streak`}
           value={`${model.streak} ${model.streakSign === 'green' ? 'green' : 'red'}`}

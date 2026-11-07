@@ -28,7 +28,10 @@ interface VariantRow {
 }
 
 export function PlanSystemsPage() {
-  const navigate = useAppStore()
+  // SWEEP5 fix (agent 3-a F1): this was `const navigate = useAppStore()` — the
+  // WHOLE state object, so every click on this page threw "navigate is not a
+  // function" at runtime. Selector idiom (the sibling pages' standard).
+  const navigate = useAppStore((s) => s.navigate)
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['plan-systems'],
     queryFn: async () => {

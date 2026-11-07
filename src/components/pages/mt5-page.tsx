@@ -31,6 +31,9 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { formatDateTime, formatCurrency } from '@/lib/format'
+// SWEEP5 — the synced-trade count drills to the trades table scoped to the
+// linked journal account.
+import { drillToTrades } from '@/lib/drill'
 
 // ---------------------------------------------------------------------------
 // Types (wire format of /api/mt5/*)
@@ -337,6 +340,9 @@ function ConnectionCard({
 }) {
   const meta = statusMeta(c.status)
   const info = c.accountInfo
+  // SWEEP5 — captured to a const so the drill closure below keeps the
+  // null-narrowing (connections without a linked journal account stay plain).
+  const linkedAccountId = c.accountId
   const syncingSoon = c.syncRequestedAt && (!c.lastSyncAt || new Date(c.syncRequestedAt) > new Date(c.lastSyncAt))
   return (
     <Card className="p-5 flex flex-col gap-4">
@@ -394,7 +400,24 @@ function ConnectionCard({
 
       <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-3">
         <p>
-          {c.tradeCount} synced trade{c.tradeCount === 1 ? '' : 's'} · {c.syncCount} sync{c.syncCount === 1 ? '' : 's'} logged
+          {/* SWEEP5 — the synced-trade count drills to the trades behind it
+              when the connection is linked to a journal account. */}
+          {linkedAccountId ? (
+            <button
+              type="button"
+              onClick={() => drillToTrades({ accountId: linkedAccountId })}
+              title="Open this connection's synced trades"
+              data-testid={`mt5-synced-trades-${c.id}`}
+              className="underline underline-offset-2 hover:text-foreground cursor-pointer transition-colors"
+            >
+              {c.tradeCount} synced trade{c.tradeCount === 1 ? '' : 's'}
+            </button>
+          ) : (
+            <span>
+              {c.tradeCount} synced trade{c.tradeCount === 1 ? '' : 's'}
+            </span>
+          )}{' '}
+          · {c.syncCount} sync{c.syncCount === 1 ? '' : 's'} logged
         </p>
         <p>
           {c.lastSyncAt ? `Last sync ${formatDateTime(c.lastSyncAt)}` : 'Never synced'}

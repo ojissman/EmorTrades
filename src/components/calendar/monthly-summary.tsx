@@ -312,7 +312,7 @@ export function MonthlySummary({
           label="Win rate"
           value={`${stats.winRate.toFixed(1)}%`}
           onClick={hasTrades ? () => drillToTrades({ ...monthPatch(month), outcome: 'win' }) : undefined}
-          title="Open the winning trades"
+          title={hasTrades ? 'Open the winning trades' : undefined}
         />
         <StatCell
           label="Profit factor"

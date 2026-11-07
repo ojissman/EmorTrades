@@ -26,6 +26,10 @@ import {
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
 import { formatCurrencyIn, formatDateTime } from '@/lib/format'
+// SWEEP5 — the context-panel chips join the app-wide drill family (day deep
+// link, streak trades deep link, open positions page, win cohort).
+import { drillToDay, drillToTrades } from '@/lib/drill'
+import { useAppStore } from '@/store/app-store'
 
 interface ChatMsg {
   role: 'user' | 'assistant'
@@ -269,27 +273,42 @@ export function AiCoachPage() {
       ? `${digest.streak.length}${digest.streak.type === 'win' ? 'W' : 'L'}`
       : '—'
 
+  // SWEEP5 — the streak cohort (guardrail #2 idiom): an exit-ordered run of
+  // length N is exactly the last N trades filtered to its outcome; streak 0
+  // = no run, nothing to drill (the chip then stays inert, honestly).
+  const streakDrill =
+    digest && digest.streak.type !== 'none' && digest.streak.length > 0
+      ? { lastTrades: digest.streak.length, outcome: digest.streak.type === 'win' ? ('win' as const) : ('loss' as const) }
+      : null
+
   const chips: {
     label: string
     value: string
     icon: React.ComponentType<{ className?: string }>
     valueClass?: string
+    /** SWEEP5 — optional drill-through; inert chips carry an honest title. */
+    onClick?: () => void
+    title?: string
   }[] = digest
     ? [
         {
           label: 'Equity',
           value: formatCurrencyIn('ai', digest.equity),
           icon: Wallet,
+          title: 'Account level (starting capital + realized P&L) — no single trade cohort to drill',
         },
         {
           label: 'Win Rate',
           value: `${digest.winRate.toFixed(1)}%`,
           icon: Percent,
+          onClick: () => drillToTrades({ outcome: 'win' }),
+          title: 'Winning trades — open in Trades',
         },
         {
           label: 'Profit Factor',
           value: digest.profitFactor,
           icon: Scale,
+          title: 'Computed ratio (gross W ÷ gross L) — no single trade cohort to drill',
         },
         {
           label: 'Current Streak',
@@ -301,17 +320,27 @@ export function AiCoachPage() {
               : digest.streak.type === 'loss'
                 ? 'text-red-400'
                 : undefined,
+          ...(streakDrill
+            ? {
+                onClick: () => drillToTrades({ lastTrades: streakDrill.lastTrades, outcome: streakDrill.outcome }),
+                title: 'Open the trades in the current streak',
+              }
+            : { title: 'No active win/loss run — nothing to drill' }),
         },
         {
           label: 'Open Positions',
           value: String(digest.openCount),
           icon: Clock3,
+          onClick: () => useAppStore.getState().navigate('/tables/open-positions'),
+          title: 'Open the live positions page',
         },
         {
           label: 'Today P&L',
           value: digest.todayPnl >= 0 ? `+${formatCurrencyIn('ai', digest.todayPnl)}` : formatCurrencyIn('ai', digest.todayPnl),
           icon: CalendarCheck,
           valueClass: digest.todayPnl > 0 ? 'text-emerald-400' : digest.todayPnl < 0 ? 'text-red-400' : undefined,
+          onClick: () => drillToDay(new Date().toISOString().slice(0, 10)),
+          title: 'Open today in Day Explore',
         },
       ]
     : []
@@ -509,8 +538,30 @@ export function AiCoachPage() {
             <div className="grid grid-cols-2 gap-2">
               {chips.map((c) => {
                 const Icon = c.icon
+                const interactive = typeof c.onClick === 'function'
                 return (
-                  <div key={c.label} className="rounded-lg border border-border bg-muted/30 p-2.5">
+                  <div
+                    key={c.label}
+                    className={cn(
+                      'rounded-lg border border-border bg-muted/30 p-2.5',
+                      interactive &&
+                        'cursor-pointer hover:border-emerald-500/40 transition-colors'
+                    )}
+                    role={interactive ? 'button' : undefined}
+                    tabIndex={interactive ? 0 : undefined}
+                    title={c.title}
+                    onClick={c.onClick}
+                    onKeyDown={
+                      interactive
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              c.onClick?.()
+                            }
+                          }
+                        : undefined
+                    }
+                  >
                     <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                       <Icon className="h-3 w-3" aria-hidden />
                       <span className="truncate">{c.label}</span>

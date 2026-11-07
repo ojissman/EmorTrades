@@ -660,7 +660,7 @@ export function ImportPage() {
   // truth (no second parse).
   const impact = useMemo(() => {
     if (!importedBatch || importedBatch.length === 0) return null
-    const dayMap = new Map<string, { pnl: number; trades: number; wins: number; grossWin: number; grossLoss: number; label: string }>()
+    const dayMap = new Map<string, { pnl: number; trades: number; wins: number; grossWin: number; grossLoss: number; label: string; dayKey: string }>()
     let minT = Infinity
     let maxT = -Infinity
     // Task 121 — per-symbol P&L AND trade counts (the chips strip needs both;
@@ -670,8 +670,12 @@ export function ImportPage() {
       const d = new Date(t.entryTime)
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      // SWEEP5 — zero-padded local-day ISO ('YYYY-MM-DD') for the day-dot
+      // drillToDay deep links — the grammar Day Explore requires (the bucket
+      // key above stays unpadded y-m-d; goals-page dayKeyOf/isoDayOf split).
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const e =
-        dayMap.get(key) || { pnl: 0, trades: 0, wins: 0, grossWin: 0, grossLoss: 0, label }
+        dayMap.get(key) || { pnl: 0, trades: 0, wins: 0, grossWin: 0, grossLoss: 0, label, dayKey }
       const p = t.pnl || 0
       e.pnl += p
       e.trades += 1
@@ -1589,16 +1593,22 @@ export function ImportPage() {
                     </div>
                     {/* Day strip — same dot grammar as the goals page's hit
                         strips, but sized by the batch: emerald green day,
-                        red losing day. Hover names the day and its net. */}
+                        red losing day. The goals-page dots drill, so these do
+                        too: click opens the day in Day Explore; hover names
+                        the day and its net. */}
                     <div>
                       <p className="text-[10px] text-muted-foreground mb-1.5">Trading days in the batch</p>
                       <div className="flex flex-wrap items-center gap-[3px]">
                         {impact.days.map((d) => (
-                          <span
+                          <button
                             key={d.key}
-                            title={`${d.label} · ${d.trades} trade${d.trades !== 1 ? 's' : ''} · ${formatCurrencyIn('table', d.pnl)}`}
+                            type="button"
+                            onClick={() => drillToDay(d.dayKey)}
+                            title={`${d.label} · ${d.trades} trade${d.trades !== 1 ? 's' : ''} · ${formatCurrencyIn('table', d.pnl)} — open this day`}
+                            aria-label={`${d.label} · ${d.trades} trade${d.trades !== 1 ? 's' : ''} · ${formatCurrencyIn('table', d.pnl)} — open this day`}
                             className={cn(
-                              'h-[9px] w-[9px] rounded-full transition-transform hover:scale-125',
+                              'h-[9px] w-[9px] rounded-full transition-transform hover:scale-125 cursor-pointer',
+                              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60',
                               d.pnl >= 0 ? 'bg-emerald-500' : 'bg-red-500/80'
                             )}
                           />

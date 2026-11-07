@@ -335,6 +335,13 @@ export function TradingPlansHubPage() {
           <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
             Create your first plan — nine sections from the master template, systems and setups inside it.
           </p>
+          {/* SWEEP5 — the empty state dead-ended in text while the header's
+              New plan button sat a scroll away; offer the same action
+              (setCreating) in place, header idiom included. */}
+          <Button size="sm" className="mt-3 bg-teal-600 hover:bg-teal-700" onClick={() => setCreating(true)} data-testid="tp-create-empty">
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Create your first plan
+          </Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -43,6 +43,36 @@ function datesOf(tag: DayTagRow): Set<string> {
   return new Set((tag.days ?? []).map((d) => (typeof d.date === 'string' ? d.date.slice(0, 10) : new Date(d.date).toISOString().slice(0, 10))))
 }
 
+/** SWEEP5-W1 — net P&L of the trades that fall on one UTC day key. */
+function netOnDay(trades: TaggedTrade[], day: string): number {
+  return trades.reduce((s, t) => (t.entryTime.slice(0, 10) === day ? s + (t.pnl ?? 0) : s), 0)
+}
+
+/**
+ * SWEEP5-W1 — a tag's best and worst tagged day by net P&L. A day tag's
+ * trade set spans many dates (it is not one trades filter — see the file
+ * header), so a single date is the deepest honest drill, the same per-date
+ * grammar as the date chips. Both are null when the tag has no dates.
+ */
+function bestWorstDates(trades: TaggedTrade[], dates: Set<string>): { bestDate: string | null; worstDate: string | null } {
+  let bestDate: string | null = null
+  let worstDate: string | null = null
+  let bestNet = -Infinity
+  let worstNet = Infinity
+  for (const d of dates) {
+    const net = netOnDay(trades, d)
+    if (net > bestNet) {
+      bestNet = net
+      bestDate = d
+    }
+    if (net < worstNet) {
+      worstNet = net
+      worstDate = d
+    }
+  }
+  return { bestDate, worstDate }
+}
+
 /** Task 15-W4 — expandable strip of a tag/group's dates; each chip opens
  *  that trading day in Day Explore (the per-date drill the data supports). */
 function DateChipsStrip({ dates }: { dates: string[] }) {
@@ -114,7 +144,10 @@ export function DayTagsIndividualPage() {
       .map((tag) => {
         const dates = datesOf(tag)
         const dayTrades = tradesOnDays(trades, dates)
-        return { tag, dates: dates.size, dayTrades, stats: statsOf(dayTrades) }
+        // SWEEP5-W1 — best/worst tagged day per tag: powers the KPI tile
+        // drills below (best tag → its best date, worst tag → its worst).
+        const { bestDate, worstDate } = bestWorstDates(dayTrades, dates)
+        return { tag, dates: dates.size, dayTrades, stats: statsOf(dayTrades), bestDate, worstDate }
       })
       .sort((a, b) => b.stats.net - a.stats.net)
   }, [tradesQ.data, tagsQ.data])
@@ -139,6 +172,12 @@ export function DayTagsIndividualPage() {
   const maxAbs = Math.max(...rows.map((r) => Math.abs(r.stats.net)), baseline.stats.net, 1)
   const best = rows[0] ?? null
   const worst = rows.length ? rows[rows.length - 1] : null
+  // SWEEP5-W1 — tagged-days net (the baseline card's hero used to hard-code
+  // an em-dash while its own sub-line computed this) + the tiles' drill
+  // targets (best tag → its best date, worst tag → its worst date).
+  const taggedNet = rows.reduce((s, r) => s + r.stats.net, 0)
+  const bestDay = best?.bestDate ?? null
+  const worstDay = worst && worst !== best ? worst.worstDate : null
 
   return (
     <div className="space-y-4">
@@ -149,12 +188,14 @@ export function DayTagsIndividualPage() {
           value={best ? best.tag.name : '—'}
           tone={best && best.stats.net >= 0 ? 'good' : 'neutral'}
           sub={best ? `${toneMoney(best.stats.net)} · ${best.dayTrades.length} trades on ${best.dates}d` : undefined}
+          onClick={bestDay ? () => drillToDay(bestDay) : undefined}
         />
         <MetricStat
           label="Worst day tag"
           value={worst && worst !== best ? worst.tag.name : '—'}
           tone={worst && worst.stats.net < 0 ? 'bad' : 'neutral'}
           sub={worst && worst !== best ? `${toneMoney(worst.stats.net)} · ${worst.dayTrades.length} trades` : undefined}
+          onClick={worstDay ? () => drillToDay(worstDay) : undefined}
         />
         <MetricStat
           label="Untagged baseline"
@@ -204,11 +245,8 @@ export function DayTagsIndividualPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           <div className="rounded-lg p-3 min-w-0 overflow-hidden" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)' }}>
             <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Tagged days</p>
-            <FitValue
-              className="text-lg font-bold tabular-nums"
-              style={{ color: signTone(rows.reduce((s, r) => s + r.stats.net, 0) / Math.max(rows.reduce((s, r) => s + r.stats.n, 0), 1)) }}
-            >
-              —
+            <FitValue className="text-lg font-bold tabular-nums" style={{ color: signTone(taggedNet) }}>
+              {toneMoney(taggedNet)}
             </FitValue>
             <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
               {rows.reduce((s, r) => s + r.stats.n, 0)} trades · net{' '}
@@ -258,8 +296,12 @@ export function DayTagsGroupsPage() {
         const dayTrades = tradesOnDays(trades, dates)
         const members = b.members
           .map((m) => {
-            const t = tradesOnDays(trades, datesOf(m))
-            return { tag: m, stats: statsOf(t), n: t.length }
+            const mDates = datesOf(m)
+            const t = tradesOnDays(trades, mDates)
+            // SWEEP5-W1 — best (highest-net) tagged day: the one date the
+            // member chip below deep-links into Day Explore.
+            const { bestDate } = bestWorstDates(t, mDates)
+            return { tag: m, stats: statsOf(t), n: t.length, bestDate }
           })
           .sort((a, c) => c.stats.net - a.stats.net)
         return { ...b, dates: dates.size, dayTrades, stats: statsOf(dayTrades), members }
@@ -281,7 +323,7 @@ export function DayTagsGroupsPage() {
 
   return (
     <div className="space-y-4">
-      <Panel title="Day-tag groups vs performance" hint="Union of member tags' dates — a day tagged in two groups counts in both (they are different lenses)">
+      <Panel title="Day-tag groups vs performance" hint="Union of member tags' dates — a day tagged in two groups counts in both (they are different lenses) · click a member chip to open that tag's best tagged day">
         <div className="space-y-2">
           {groups.map((g) => {
             const open = openGroup === g.id
@@ -302,13 +344,41 @@ export function DayTagsGroupsPage() {
                 <DateChipsStrip dates={[...new Set(g.members.flatMap((m) => [...datesOf(m.tag)]))].sort()} />
               )}
               <div className="mt-1 flex flex-wrap gap-1.5">
-                {g.members.map((m) => (
-                  <span key={m.tag.id} className="inline-flex items-center gap-1 text-[10px] rounded-md px-1.5 py-0.5" style={{ background: 'color-mix(in srgb, var(--text-primary) 5%, transparent)' }}>
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.tag.color }} />
-                    {m.tag.name}
-                    <span className="tabular-nums font-semibold" style={{ color: signTone(m.stats.net) }}>{m.n ? toneMoney(m.stats.net, true) : '—'}</span>
-                  </span>
-                ))}
+                {g.members.map((m) => {
+                  // SWEEP5-W1 — member chips drill like the mistakes-page
+                  // member chips; a day tag's trade set spans dates, so the
+                  // chip opens its BEST tagged day (the group's date chips
+                  // above cover the rest).
+                  const body = (
+                    <>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.tag.color }} />
+                      {m.tag.name}
+                      <span className="tabular-nums font-semibold" style={{ color: signTone(m.stats.net) }}>{m.n ? toneMoney(m.stats.net, true) : '—'}</span>
+                    </>
+                  )
+                  return m.bestDate ? (
+                    <button
+                      key={m.tag.id}
+                      type="button"
+                      onClick={() => drillToDay(m.bestDate!)}
+                      title="Open this tag's best tagged day"
+                      className="inline-flex items-center gap-1 text-[10px] rounded-md px-1.5 py-0.5 cursor-pointer enabled:hover:brightness-125 transition-[filter]"
+                      style={{ background: 'color-mix(in srgb, var(--text-primary) 5%, transparent)' }}
+                      data-testid={`day-tag-member-${m.tag.name}`}
+                    >
+                      {body}
+                    </button>
+                  ) : (
+                    <span
+                      key={m.tag.id}
+                      className="inline-flex items-center gap-1 text-[10px] rounded-md px-1.5 py-0.5"
+                      style={{ background: 'color-mix(in srgb, var(--text-primary) 5%, transparent)' }}
+                      title="No tagged dates yet — apply this tag to dates from Day Explore"
+                    >
+                      {body}
+                    </span>
+                  )
+                })}
               </div>
             </div>
             )
@@ -377,7 +447,9 @@ export function DayTagsAdvancedPage() {
     const weekday = tags.map((tag) => {
       const cells = WEEKDAYS.map((wd, idx) => {
         const dates = [...datesOf(tag)].filter((d) => new Date(`${d}T12:00:00Z`).getUTCDay() === idx)
-        return { wd, stats: statsOf(tradesOnDays(trades, new Set(dates))), n: dates.length }
+        // SWEEP5-W1 — keep the dates on the cell: a single-date cell can
+        // drill straight into that day in Day Explore.
+        return { wd, dates, stats: statsOf(tradesOnDays(trades, new Set(dates))), n: dates.length }
       })
       const used = cells.filter((c) => c.n > 0)
       const bestWd = used.length ? used.reduce((a, b) => (b.stats.net > a.stats.net ? b : a)) : null
@@ -440,7 +512,7 @@ export function DayTagsAdvancedPage() {
         </div>
       </Panel>
 
-      <Panel title="Tag × weekday" hint="Which weekday each condition fires on — hover cells for trade counts">
+      <Panel title="Tag × weekday" hint="Which weekday each condition fires on — hover cells for trade counts · a single-date cell opens that day in Day Explore">
         {advanced.weekday.length === 0 ? (
           <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>
             No day tags yet — create them in Settings ▸ Tags ▸ Add (Day) and apply them to dates from Day Explore.
@@ -463,13 +535,26 @@ export function DayTagsAdvancedPage() {
                   <td className="px-2 py-1.5"><Chip label={row.tag.name} color={row.tag.color} /></td>
                   {row.cells.map((c) => (
                     <td key={c.wd} className="px-2 py-1.5 text-right">
-                      <span
-                        className="inline-block rounded px-1.5 py-0.5 tabular-nums font-semibold"
-                        style={{ background: c.n ? cellTone(c.stats.net) : 'transparent', color: c.n ? signTone(c.stats.net) : 'var(--text-secondary)' }}
-                        title={c.n ? `${c.n} dates · ${c.stats.n} trades · ${toneMoney(c.stats.net)}` : 'no dates'}
-                      >
-                        {c.n ? toneMoney(c.stats.net, true) : '·'}
-                      </span>
+                      {c.dates.length === 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => drillToDay(c.dates[0])}
+                          className="inline-block rounded px-1.5 py-0.5 tabular-nums font-semibold cursor-pointer transition-[filter] hover:brightness-125"
+                          style={{ background: cellTone(c.stats.net), color: signTone(c.stats.net) }}
+                          title="Open this day"
+                          data-testid={`day-tag-weekday-cell-${row.tag.name}-${c.wd}`}
+                        >
+                          {toneMoney(c.stats.net, true)}
+                        </button>
+                      ) : (
+                        <span
+                          className="inline-block rounded px-1.5 py-0.5 tabular-nums font-semibold"
+                          style={{ background: c.n ? cellTone(c.stats.net) : 'transparent', color: c.n ? signTone(c.stats.net) : 'var(--text-secondary)' }}
+                          title={c.n ? `${c.n} tagged dates · ${c.stats.n} trades · ${toneMoney(c.stats.net)} — open the dates from this tag's row (Individual tab)` : 'no dates'}
+                        >
+                          {c.n ? toneMoney(c.stats.net, true) : '·'}
+                        </span>
+                      )}
                     </td>
                   ))}
                   <td className="px-2 py-1.5 text-right text-[10px]" style={{ color: 'var(--text-secondary)' }}>

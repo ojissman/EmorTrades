@@ -446,6 +446,33 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
 - **Dead useState flags** (declaration-only) are the quietest dead code —
   grep per-file for single-reference state when sweeping.
 
+## Task SWEEP5 — fifth full-sweep: tsc blind spot + persistence drops + tag core (2026-11-07)
+
+- **A passing "tsc 0" is NOT proof for store-handling code.** Two probe-proven
+  blind spots: incremental mode skips diagnostics for unchanged files (an
+  error that shipped once is never re-reported), and fresh mode silently
+  types the zustand store as `any` (store misuse invisible with
+  `noImplicitAny: false`). The strict check is an incremental run AFTER
+  changing the file; the browser E2E is the real gate. Runtime "X is not a
+  function" on a store value = someone assigned the whole store instead of
+  selecting (`useAppStore((s) => s.x)`).
+- **Diff every edit modal's form fields against the route's update `data`
+  field-by-field** — silent drops (journal tradeId, day-note date) toast
+  "updated" while persisting nothing.
+- **A picker with no creation path is a dead feature** (misc-notes tags had
+  no NoteTag writer anywhere + a wrong join field + unscoped ids — fixed:
+  /api/note-tags + inline New-tag form + noteTagId join + ownership filter).
+- **A series key is not a filter sentinel** — `__none__` (chart key) vs
+  `none` (the trades-API no-setup sentinel): check the store+route contract
+  before wiring a drill from an aggregate key.
+- **Restart dev via the double-fork** (`( setsid bash -c "exec bun run dev"
+  >>/tmp/next-dev.out 2>&1 </dev/null & )`) or `.zscripts/dev.sh` — plain
+  `setsid bun run dev &` from a tool call gets reaped at call boundaries.
+- **Affordance-consistency is an audit pattern of its own**: enumerate every
+  instance of a shared stat/card primitive with vs without onClick — the
+  gaps cluster where prior sweeps' exclusion lists ended (Overview's copy of
+  the AI-suite chips was the highest-traffic one).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

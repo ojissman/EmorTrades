@@ -430,7 +430,9 @@ function GoalDotStrip({
               key={i}
               title={tip}
               className={cn(
-                'h-[7px] w-[7px] rounded-full transition-transform hover:scale-125',
+                // SWEEP5 — no drill behind this dot, so no hover motion
+                // either (the clickable sibling above scales on hover).
+                'h-[7px] w-[7px] rounded-full',
                 d.traded ? (d.hit ? 'bg-emerald-500' : 'bg-red-500/70') : 'bg-muted-foreground/20',
                 d.today && 'ring-1 ring-sky-400/90'
               )}

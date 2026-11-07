@@ -1345,7 +1345,7 @@ function CompareRow({
   hint?: string
 }) {
   return (
-    <tr className="border-b border-border/60 last:border-0 hover:bg-muted/20">
+    <tr className="border-b border-border/60 last:border-0">
       <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap align-top">
         {label}
         {hint && (

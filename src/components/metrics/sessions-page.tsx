@@ -197,7 +197,7 @@ export function SessionsPage() {
       </div>
 
       {/* Session table */}
-      <Panel title="Performance by session" hint="entries bucketed by local entry-time hour — click a row to drill into its trades">
+      <Panel title="Performance by session" hint="entries bucketed by the UTC hour of entry time — click a row to drill into its trades">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -220,7 +220,7 @@ export function SessionsPage() {
                 <TableRow
                   key={s.name}
                   className={drillable ? 'cursor-pointer' : undefined}
-                  onClick={() => drillSession(s)}
+                  onClick={drillable ? () => drillSession(s) : undefined}
                   title={drillable ? `Show the ${s.trades} trades entered in ${s.window}` : s.startHour === null ? 'Entries outside every window — no hour range to drill' : undefined}
                 >
                   <TableCell>
@@ -370,11 +370,11 @@ export function SessionsPage() {
               />
             </div>
             <div>
-              <Label className="text-xs">Start (local)</Label>
+              <Label className="text-xs">Start (UTC hour)</Label>
               <Input className="mt-1 h-9" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">End (local)</Label>
+              <Label className="text-xs">End (UTC hour)</Label>
               <Input className="mt-1 h-9" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
             <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700" onClick={addSession}>
@@ -386,7 +386,7 @@ export function SessionsPage() {
             {data.usingDefaults ? (
               <>
                 <Sunrise className="h-3 w-3 shrink-0" />
-                Using the classic windows — Asia 00:00–08:00 · London 08:00–16:00 · New York 16:00–00:00 (your local entry clock). Add a window to take control.
+                Using the classic windows — Asia 00:00–08:00 · London 08:00–16:00 · New York 16:00–00:00 (the UTC entry clock). Add a window to take control.
               </>
             ) : (
               <>

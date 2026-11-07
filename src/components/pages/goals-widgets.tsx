@@ -319,14 +319,18 @@ export function TrophyCase({ trophies }: { trophies: TrophyItem[] }) {
         </Badge>
       </div>
       <div className="grid grid-cols-2 gap-2">
+        {/* SWEEP5 — KpiStrip honesty treatment: earned tiles have no drill (a
+            trophy criterion is an aggregate, not a trade cohort), so the
+            hover:bg that suggested one is gone; the title already states the
+            criterion (earned) or the lock reason. */}
         {trophies.map((t) => (
           <div
             key={t.id}
             title={t.earned ? `${t.name} — ${t.desc}` : `${t.name}: locked — ${t.desc}`}
             className={cn(
-              'rounded-lg border p-2.5 transition-colors',
+              'rounded-lg border p-2.5',
               t.earned
-                ? 'border-amber-500/25 bg-amber-500/[0.06] hover:bg-amber-500/10'
+                ? 'border-amber-500/25 bg-amber-500/[0.06]'
                 : 'border-border/50 bg-muted/10 opacity-60',
             )}
             data-testid={`trophy-${t.id}`}

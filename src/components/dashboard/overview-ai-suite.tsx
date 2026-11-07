@@ -23,6 +23,9 @@ import {
   Sparkles, Sunrise, ThumbsDown, ThumbsUp,
 } from 'lucide-react'
 import type { SuitePeriod } from '@/lib/ai-suite'
+// SWEEP5 — the chips drill to the trades behind their numbers, mirroring the
+// AI Suite sibling pages (review/summary) and Daily Insights (day deep link).
+import { drillToDay, drillToTrades, suitePeriodPatch } from '@/lib/drill'
 import {
   DegradedBadge, GradeRing, Markdownish, PeriodChips, StatChip, TONE, fmtUsd,
   loadJson, postSuite, saveJson, type SuiteTone,
@@ -316,7 +319,14 @@ export function OverviewAiSuite() {
                 </div>
                 <div className="flex gap-2 flex-wrap mt-3">
                   {review.chips.map((c) => (
-                    <StatChip key={c.label} label={c.label} value={c.value} color={c.label === 'Max DD' ? '#ef4444' : undefined} />
+                    <StatChip
+                      key={c.label}
+                      label={c.label}
+                      value={c.value}
+                      color={c.label === 'Max DD' ? '#ef4444' : undefined}
+                      onClick={() => drillToTrades({ ...suitePeriodPatch(reviewPeriod) })}
+                      title="See the trades behind this number"
+                    />
                   ))}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 mt-3">
@@ -380,6 +390,8 @@ export function OverviewAiSuite() {
                       label={c.label}
                       value={c.value}
                       color={c.label === 'Net' ? (c.value.startsWith('+') ? '#22c55e' : c.value.startsWith('-') ? '#ef4444' : undefined) : undefined}
+                      onClick={() => drillToTrades({ ...suitePeriodPatch(summaryPeriod) })}
+                      title="See the trades behind this number"
                     />
                   ))}
                 </div>
@@ -413,13 +425,29 @@ export function OverviewAiSuite() {
                   <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: TONE[insight.tone].soft, color: TONE[insight.tone].color }}>
                     {TONE[insight.tone].label}
                   </span>
-                  <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>{insight.date}</span>
+                  {/* SWEEP5 — the date drills to Day Explore (Daily Insights idiom). */}
+                  <span
+                    className="text-[10px] font-mono cursor-pointer hover:underline"
+                    style={{ color: 'var(--text-secondary)' }}
+                    title={`Open ${insight.date} in Day Explore`}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => drillToDay(insight.date)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        drillToDay(insight.date)
+                      }
+                    }}
+                  >
+                    {insight.date}
+                  </span>
                   <DegradedBadge degraded={insight.degraded} rateLimited={Boolean(insight.rateLimited)} />
                 </div>
                 <h4 className="text-sm font-bold leading-snug mb-3" style={{ color: 'var(--text-primary)' }}>{insight.headline}</h4>
                 <div className="flex gap-2 flex-wrap mb-3">
-                  <StatChip label="Day P&L" value={fmtUsd(insight.dayPnl)} color={insight.dayPnl > 0 ? '#22c55e' : insight.dayPnl < 0 ? '#ef4444' : undefined} />
-                  <StatChip label="Trades" value={String(insight.dayTrades)} />
+                  <StatChip label="Day P&L" value={fmtUsd(insight.dayPnl)} color={insight.dayPnl > 0 ? '#22c55e' : insight.dayPnl < 0 ? '#ef4444' : undefined} onClick={() => drillToDay(insight.date)} title="Open this day in Day Explore" />
+                  <StatChip label="Trades" value={String(insight.dayTrades)} onClick={() => drillToDay(insight.date)} title="Open this day in Day Explore" />
                 </div>
                 <ul className="space-y-2 mb-3">
                   {insight.bullets.map((b, i) => (

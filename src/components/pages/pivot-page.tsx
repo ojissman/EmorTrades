@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LayoutGrid, BarChart3, Table as TableIcon, Download, MousePointerClick } from 'lucide-react'
+import { LayoutGrid, BarChart3, Table as TableIcon, Download, MousePointerClick, ArrowUpRight } from 'lucide-react'
 import {
   BarChart,
   Bar,
@@ -335,6 +335,12 @@ export function PivotPage() {
             : 'No closed trades found — import or add trades to pivot them.'}
         </p>
         <p className="text-xs text-muted-foreground/70">The pivot grid needs closed trades within the selected range.</p>
+        {/* SWEEP5-W2 — real CTA (the calendar-page empty-state idiom): the
+            copy says "import", the button actually goes there. */}
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/trades-import')}>
+          <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+          Import trades
+        </Button>
       </Card>
     )
   }
@@ -344,6 +350,11 @@ export function PivotPage() {
     name: r,
     value: pivot.totals.row.get(r) || 0,
   })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 15)
+
+  // SWEEP5-W2 — can any Top-15 bar drill? Reuses the row-level drillFilter
+  // predicate (two cards above) so the chart only advertises the pointer
+  // when the row headers themselves would (rating-style dims never do).
+  const anyBarDrillable = pivot.rows.some((r) => drillFilter(rowDim, r, false))
 
   const formatValue = (v: number, area: 'table' | 'chart' = 'table') => {
     if (metric === 'winRate') return `${v.toFixed(1)}%`
@@ -660,7 +671,20 @@ export function PivotPage() {
               contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', borderRadius: 8, fontSize: 12 }}
               formatter={(v: any) => [formatValue(v, 'chart'), METRICS.find((m) => m.value === metric)?.label]}
             />
-            <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+            <Bar
+              dataKey="value"
+              radius={[0, 3, 3, 0]}
+              cursor={anyBarDrillable ? 'pointer' : undefined}
+              onClick={(data: any) => {
+                // SWEEP5-W2 — bar click mirrors the row-header drill two cards
+                // above: defensive payload read (recharts adapted entry), then
+                // the SAME local drillToTrades(rowKey, null) path. Non-drillable
+                // rows (rating, unmapped setups) resolve to an honest no-op.
+                const d = data?.payload ?? data
+                const name = d?.name
+                if (typeof name === 'string' && drillFilter(rowDim, name, false)) drillToTrades(name, null)
+              }}
+            >
               {chartData.map((d, i) => (
                 <Cell key={i} fill={d.value > 0 ? '#10b981' : '#ef4444'} />
               ))}

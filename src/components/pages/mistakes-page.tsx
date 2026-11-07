@@ -227,11 +227,20 @@ export function MistakesPage() {
   // Task 16-c — a failed fetch is not "no mistakes" (W3 straggler).
   if (isError) return <QueryErrorCard what="mistakes" error={error} onRetry={refetch} />
 
-  // Chart data: top 10 mistakes by cost
+  // Chart data: top 10 mistakes by cost. SWEEP5 fix (agent 3-a F2): the
+  // datum now carries the full stat fields (id, fullName, tradeCount,
+  // winRate) — the bar onClick AND the hover tooltip both read them, and the
+  // old shape (name/pnl/color only) made `winRate.toFixed(0)` throw on hover
+  // and click, and sent an undefined id (wrong all-trades cohort) with a
+  // truncated 15-char title.
   const chartData = mistakeStats.slice(0, 10).map((m: any) => ({
     name: m.name.length > 15 ? m.name.slice(0, 15) + '...' : m.name,
+    fullName: m.name,
     pnl: m.totalPnl,
     color: m.color,
+    id: m.id,
+    tradeCount: m.tradeCount,
+    winRate: m.winRate,
   }))
 
   return (
@@ -408,19 +417,23 @@ export function MistakesPage() {
                     const p = payload[0].payload
                     return (
                       <div className="bg-popover border border-border rounded-lg p-3 shadow-lg text-xs">
-                        <p className="font-medium mb-1">{p.name}</p>
+                        <p className="font-medium mb-1">{p.fullName ?? p.name}</p>
                         <p className={pnlColor(p.pnl)}>P&L: {formatCurrencyIn('table', p.pnl)}</p>
-                        <p className="text-muted-foreground">{p.tradeCount} trades · {p.winRate.toFixed(0)}% WR</p>
+                        <p className="text-muted-foreground">{p.tradeCount ?? 0} trades · {(p.winRate ?? 0).toFixed(0)}% WR</p>
                       </div>
                     )
                   }}
                 />
-                <Bar dataKey="pnl" radius={[0, 3, 3, 0]} onClick={(data: any) => {
+                <Bar dataKey="pnl" radius={[0, 3, 3, 0]} cursor="pointer" onClick={(data: any) => {
+                  // recharts 2.15.x Bar onClick passes the adapted entry whose
+                  // `payload` is the chart datum — read through it defensively
+                  // (the symbols-page sibling idiom).
+                  const d = data?.payload ?? data
                   openPeek({
                     type: 'mistake',
-                    title: data.name,
-                    subtitle: `${data.tradeCount} trades · ${data.winRate.toFixed(0)}% WR`,
-                    data: { id: data.id, name: data.name },
+                    title: d.fullName ?? d.name,
+                    subtitle: `${d.tradeCount ?? 0} trades · ${(d.winRate ?? 0).toFixed(0)}% WR`,
+                    data: { id: d.id, name: d.fullName ?? d.name },
                     navigateTo: 'mistakes',
                   })
                 }}>

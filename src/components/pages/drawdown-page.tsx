@@ -292,8 +292,13 @@ export function DrawdownPage() {
         </Card>
       </div>
 
-      {/* TP-7-g — the plan's declared monthly loss limit vs the month to date */}
-      <MonthlyLimitCard query={tpLimits} mtd={mtd} />
+      {/* TP-7-g — the plan's declared monthly loss limit vs the month to date.
+          SWEEP5 fix (agent 3-b D1): the percent-unit limit used to read a
+          `window.__ddEquity` global that is NEVER set anywhere (repo-wide
+          grep: this file only) — so percent limits could never resolve to an
+          amount. The live equity (last point of the walk above) is now passed
+          as a prop. */}
+      <MonthlyLimitCard query={tpLimits} mtd={mtd} equity={drawdownData.points[drawdownData.points.length - 1]?.equity ?? null} />
 
       {/* Drawdown chart */}
       <Card className="p-4 md:p-5">
@@ -476,9 +481,11 @@ type PlanLimitsRow = {
 function MonthlyLimitCard({
   query,
   mtd,
+  equity,
 }: {
   query: { data?: { plans?: PlanLimitsRow[] }; isLoading: boolean; isError: boolean }
   mtd: { pnl: number; trades: number; partial: boolean }
+  equity: number | null
 }) {
   const navigate = useAppStore((s) => s.navigate)
   const plans = (query.data?.plans ?? []).filter((p) => p.versionNo != null)
@@ -522,7 +529,8 @@ function MonthlyLimitCard({
           {declaring.map((p) => {
             // TP2 — a percent limit needs an equity to resolve; without one it
             // stays a declared label (honest) instead of a fake amount.
-            const equity = (window as unknown as { __ddEquity?: number }).__ddEquity ?? null
+            // (SWEEP5: was `window.__ddEquity` — a global never set anywhere;
+            // now the real equity prop from the equity walk above.)
             const limit =
               p.monthlyLossUnit === 'percent'
                 ? equity != null && equity > 0 ? (equity * p.monthlyLossLimit!) / 100 : null

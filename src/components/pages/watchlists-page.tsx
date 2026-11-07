@@ -730,6 +730,11 @@ export function WatchlistsPage() {
     return { symbols: allWatchItems.length, armed: armed.length, journalLinked, bestMover, closest }
   }, [allWatchItems, symbolStats, quoteMap])
 
+  // SWEEP5 — KPI-band drill targets (captured to consts: the onClick closures
+  // below would otherwise lose the null-narrowing on the memo properties).
+  const kpiBestMover = watchKpis.bestMover?.symbol ?? null
+  const kpiClosest = watchKpis.closest?.symbol ?? null
+
   // Sorted rows for the All Symbols table (quote/stats/dist joined).
   const sortedWatchSymbols = useMemo(() => {
     const dir = symSortAsc ? 1 : -1
@@ -1055,7 +1060,11 @@ export function WatchlistsPage() {
         </Card>
       ) : (
         <>
-        {/* TOOLS-AI — page KPI band */}
+        {/* TOOLS-AI — page KPI band. SWEEP5: the cards with a real destination
+            drill — Best Mover / Closest To Target open the per-symbol analysis
+            (only when a quoted symbol backs the number), Symbols / Journal-
+            Linked open the All Symbols tab; Alerts Armed stays inert (its
+            levels live per row — no single destination). */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" data-testid="watchlist-kpis">
           <Card className="p-4 overflow-hidden">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -1063,25 +1072,71 @@ export function WatchlistsPage() {
             </p>
             <FitValue className="text-xl font-bold tnum mt-1">{watchlists.length}</FitValue>
           </Card>
-          <Card className="p-4 overflow-hidden">
+          <Card
+            className="p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors"
+            role="button"
+            tabIndex={0}
+            title="Open the All Symbols tab"
+            onClick={() => setViewTab('symbols')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setViewTab('symbols')
+              }
+            }}
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Eye className="h-3 w-3" aria-hidden /> Symbols
             </p>
             <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.symbols}</FitValue>
           </Card>
-          <Card className="p-4 overflow-hidden">
+          <Card
+            className="p-4 overflow-hidden"
+            title="Target/stop levels armed across your watchlists — monitored by the alerts bell (levels live on each row, no single page to open)"
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Bell className="h-3 w-3" aria-hidden /> Alerts Armed
             </p>
             <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.armed}</FitValue>
           </Card>
-          <Card className="p-4 overflow-hidden">
+          <Card
+            className="p-4 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors"
+            role="button"
+            tabIndex={0}
+            title="Open the All Symbols tab"
+            onClick={() => setViewTab('symbols')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setViewTab('symbols')
+              }
+            }}
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Target className="h-3 w-3" aria-hidden /> Journal-Linked
             </p>
             <FitValue className="text-xl font-bold tnum mt-1">{watchKpis.journalLinked}</FitValue>
           </Card>
-          <Card className="p-4 overflow-hidden">
+          <Card
+            className={cn(
+              'p-4 overflow-hidden',
+              kpiBestMover && 'cursor-pointer hover:border-emerald-500/40 transition-colors'
+            )}
+            role={kpiBestMover ? 'button' : undefined}
+            tabIndex={kpiBestMover ? 0 : undefined}
+            title={kpiBestMover ? 'Analyze this symbol' : undefined}
+            onClick={kpiBestMover ? () => openSymbolAnalysis(kpiBestMover) : undefined}
+            onKeyDown={
+              kpiBestMover
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openSymbolAnalysis(kpiBestMover)
+                    }
+                  }
+                : undefined
+            }
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <ArrowLeftRight className="h-3 w-3" aria-hidden /> Best Mover
             </p>
@@ -1095,7 +1150,26 @@ export function WatchlistsPage() {
               )}
             </FitValue>
           </Card>
-          <Card className="p-4 overflow-hidden">
+          <Card
+            className={cn(
+              'p-4 overflow-hidden',
+              kpiClosest && 'cursor-pointer hover:border-emerald-500/40 transition-colors'
+            )}
+            role={kpiClosest ? 'button' : undefined}
+            tabIndex={kpiClosest ? 0 : undefined}
+            title={kpiClosest ? 'Analyze this symbol' : undefined}
+            onClick={kpiClosest ? () => openSymbolAnalysis(kpiClosest) : undefined}
+            onKeyDown={
+              kpiClosest
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openSymbolAnalysis(kpiClosest)
+                    }
+                  }
+                : undefined
+            }
+          >
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Crosshair className="h-3 w-3" aria-hidden /> Closest To Target
             </p>
@@ -1704,6 +1778,11 @@ export function WatchlistsPage() {
                 <p className="text-xs text-muted-foreground/70 mt-1">
                   Add symbols to any watchlist — they all land here too.
                 </p>
+                {/* SWEEP5 — empty-state CTA, mirroring the lists empty state
+                    above ("Create your first watchlist"). */}
+                <Button onClick={() => setViewTab('lists')} className="mt-3 bg-emerald-600 hover:bg-emerald-700">
+                  Open My Lists
+                </Button>
               </Card>
             ) : (
               <Card className="overflow-hidden" data-testid="watchlist-all-symbols">
@@ -1742,7 +1821,18 @@ export function WatchlistsPage() {
                       {sortedWatchSymbols.map((r) => (
                         <TableRow key={r.symbol} className="hover:bg-muted/40" data-testid={`all-symbols-row-${r.symbol}`}>
                           <TableCell>
-                            <div className="font-medium">{r.symbol}</div>
+                            {/* SWEEP5 — the symbol drills like the My Lists rows
+                                (Task 87 idiom: arrow slides in on hover). */}
+                            <button
+                              type="button"
+                              onClick={() => openSymbolAnalysis(r.symbol)}
+                              title={`Open ${r.symbol} analysis`}
+                              data-testid={`all-symbols-symbol-${r.symbol}`}
+                              className="group/sym inline-flex items-center gap-0.5 rounded text-sm font-medium transition-colors hover:text-emerald-300 focus-visible:outline-none focus-visible:text-emerald-300"
+                            >
+                              {r.symbol}
+                              <ArrowRight className="h-3 w-3 text-emerald-400 opacity-0 transition-opacity duration-150 group-hover/sym:opacity-80 group-focus-visible/sym:opacity-80" aria-hidden />
+                            </button>
                             <div className="mt-0.5 flex flex-wrap gap-1">
                               {r.lists.map((l) => (
                                 <span
@@ -1794,16 +1884,29 @@ export function WatchlistsPage() {
                             {r.distPct !== null ? `${r.distPct.toFixed(1)}%` : '—'}
                           </TableCell>
                           <TableCell className="text-right text-xs whitespace-nowrap">
+                            {/* SWEEP5 — the journal cell drills to the trades
+                                table filtered to the symbol (traded-chip idiom);
+                                zero trades stays inert with its honest title. */}
                             {r.st && r.st.trades > 0 ? (
-                              <span className="tnum">
-                                <span className="text-foreground font-medium">{r.st.trades}t</span>{' '}
-                                <span className="text-muted-foreground">
-                                  {Math.round((r.st.wins / r.st.trades) * 100)}%
-                                </span>{' '}
-                                <span className={pnlColor(r.st.pnl)}>
-                                  {formatCurrencyIn('table', r.st.pnl)}
+                              <button
+                                type="button"
+                                onClick={() => openSymbolTrades(r.symbol)}
+                                title={`${r.symbol}: ${r.st.trades} closed trade${r.st.trades === 1 ? '' : 's'} · net ${r.st.pnl >= 0 ? '+' : ''}${formatCurrencyIn('table', r.st.pnl)} — click to open the trades table filtered to this symbol`}
+                                data-testid={`all-symbols-journal-${r.symbol}`}
+                                className={cn(
+                                  'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60',
+                                  r.st.pnl >= 0
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20'
+                                    : 'border-red-500/30 bg-red-500/10 hover:bg-red-500/20'
+                                )}
+                              >
+                                <History className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                                <span className="whitespace-nowrap tnum">
+                                  <span className="text-foreground font-medium">{r.st.trades}t</span>{' '}
+                                  <span className="text-muted-foreground">{Math.round((r.st.wins / r.st.trades) * 100)}%</span>{' '}
+                                  <span className={pnlColor(r.st.pnl)}>{formatCurrencyIn('table', r.st.pnl)}</span>
                                 </span>
-                              </span>
+                              </button>
                             ) : (
                               <span className="text-muted-foreground" title="No journal history on this symbol">
                                 —

@@ -342,7 +342,9 @@ export function GradeRing({ grade, tone }: { grade: string; tone: SuiteTone }) {
   const c = TONE[tone].color
   return (
     <div
-      className="relative grid place-items-center rounded-full shrink-0 transition-transform duration-300 hover:scale-105"
+      // SWEEP5 — no handler behind this ring (it's a grade readout, not a
+      // control), so the hover-scale motion cue is gone; static styling stays.
+      className="relative grid place-items-center rounded-full shrink-0"
       style={{
         width: 74,
         height: 74,

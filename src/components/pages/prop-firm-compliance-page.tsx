@@ -395,6 +395,11 @@ export function PropFirmCompliancePage() {
         status: util >= 70 ? 'watch' : 'pass',
         current: formatCurrencyIn('table', worstDay), limit: `−${formatCurrencyIn('table', dailyLimit)}`,
         progress: clampPct(util), note: 'Worst realized day so far',
+        // SWEEP5 — the worst realized day is the day to inspect while the
+        // rule still holds, so the PASS/WATCH card offers the same "See the
+        // trades" drill the breach card does — but only when that worst day
+        // is actually negative (an all-green month has no day to review).
+        breachDayKey: worstDay < 0 ? worstDayKey ?? undefined : undefined,
       })
     } else {
       results.push({
@@ -489,10 +494,13 @@ export function PropFirmCompliancePage() {
   // Task 11-c — when the verdict is BREACHED and a rule pins it to a concrete
   // day, the banner offers the same day drill as the breached rule card
   // (daily-loss breach first — it is the explicitly day-scoped rule — else the
-  // drawdown-floor day).
+  // drawdown-floor day). SWEEP5: the daily rule's PASS/WATCH card now carries
+  // its worst-day key too, so the daily-first lookup must require an actual
+  // daily BREACH — otherwise a drawdown breach would drill the (non-breaching)
+  // daily worst day instead of the floor day.
   const bannerBreachDay =
     v === 'breached'
-      ? (eval_.results.find((r) => r.id === 'daily' && r.breachDayKey)?.breachDayKey ??
+      ? (eval_.results.find((r) => r.id === 'daily' && r.status === 'fail' && r.breachDayKey)?.breachDayKey ??
         eval_.results.find((r) => r.breachDayKey)?.breachDayKey ??
         null)
       : null

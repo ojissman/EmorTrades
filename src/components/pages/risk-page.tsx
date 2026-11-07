@@ -29,6 +29,7 @@ import {
   Layers,
   BookOpenCheck,
   Calculator,
+  ArrowUpRight,
 } from 'lucide-react'
 import { axisMoney, formatCurrencyIn, formatNumber, formatPercent, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -976,7 +977,10 @@ function tintBar(t: LimitTint): string {
 }
 
 /** A declared-limit row: label + declared value on the left, the journal's
- *  actual on the right, tinted by how they compare. */
+ *  actual on the right, tinted by how they compare.
+ *  SWEEP5 — optional drill-through: the actuals now land where the guardrail
+ *  cards above already send the same numbers (button semantics + cursor +
+ *  title only when wired; without onClick the row renders exactly as before). */
 function LimitRow({
   icon,
   label,
@@ -986,6 +990,8 @@ function LimitRow({
   tint,
   sub,
   progress,
+  onClick,
+  title,
 }: {
   icon: React.ReactNode
   label: string
@@ -995,9 +1001,31 @@ function LimitRow({
   tint: LimitTint
   sub: React.ReactNode
   progress?: number | null
+  onClick?: () => void
+  title?: string
 }) {
   return (
-    <div className={cn('rounded-md border p-2.5', declared ? 'border-border bg-muted/20' : 'border-dashed border-border/60')}>
+    <div
+      className={cn(
+        'rounded-md border p-2.5',
+        declared ? 'border-border bg-muted/20' : 'border-dashed border-border/60',
+        onClick && 'cursor-pointer hover:border-emerald-500/40 transition-colors'
+      )}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={onClick ? title : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+    >
       <div className="flex items-center justify-between gap-2 mb-1">
         <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1.5 min-w-0">
           {icon} <span className="truncate">{label}</span>
@@ -1157,7 +1185,19 @@ function PlanLimitsSection({
                       <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
                       <p className="text-xs font-semibold truncate">{p.name}</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">v{p.versionNo} in force</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">v{p.versionNo} in force</span>
+                      {/* SWEEP5 — jump into the plan editor for this plan (the
+                          trading-profile-page idiom). */}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/trading-plans/plan-editor?plan=${p.id}`)}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-emerald-400/40 hover:text-foreground"
+                        title="Open this plan in the editor"
+                      >
+                        Open in editor <ArrowUpRight className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
 
                   <LimitRow
@@ -1185,6 +1225,14 @@ function PlanLimitsSection({
                         ? `largest of the last ${recentLoserCount} closed losers: ${formatCurrencyIn('table', worstRecent)}`
                         : 'no recent losers to compare'
                     }
+                    /* SWEEP5 — the same loser cohort the guardrail card #3
+                       drills; no recent losers = nothing to drill (inert). */
+                    onClick={
+                      recentLoserCount > 0
+                        ? () => drillToTrades({ lastTrades: recentLoserCount, outcome: 'loss' })
+                        : undefined
+                    }
+                    title="Open the recent losers behind this check"
                   />
 
                   <LimitRow
@@ -1214,6 +1262,10 @@ function PlanLimitsSection({
                           : `${formatCurrencyIn('table', Math.max(0, dailyLimitAmt + Math.min(todayPnl, 0)))} of the limit left today`
                         : 'the version in force answers 5.3.2 with nothing'
                     }
+                    /* SWEEP5 — the actual is today's realized P&L: the same
+                       Day Explore deep link guardrail #1 uses. */
+                    onClick={() => drillToDay(new Date().toISOString().slice(0, 10))}
+                    title="Open today in Day Explore"
                   />
 
                   <LimitRow
@@ -1243,6 +1295,10 @@ function PlanLimitsSection({
                           : `${openRisk.count} open position${openRisk.count === 1 ? '' : 's'} at risk to stop`
                         : 'no total-open-risk cap in the version in force'
                     }
+                    /* SWEEP5 — the open-risk actual lives on the live
+                       positions page, same as guardrail #4. */
+                    onClick={() => navigate('/tables/open-positions')}
+                    title="Open the live positions page"
                   />
 
                   {(extras.length > 0 || p.standDownTriggers.length > 0) && (

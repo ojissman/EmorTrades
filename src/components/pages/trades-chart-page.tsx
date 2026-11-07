@@ -53,10 +53,11 @@ import type {
   AgBarSeriesOptions,
   AgLineSeriesOptions,
 } from 'ag-charts-community'
-import { TrendingUp, Info, Hourglass, Layers } from 'lucide-react'
+import { TrendingUp, Info, Hourglass, Layers, ArrowUpRight } from 'lucide-react'
 import { useAppStore } from '@/store/app-store'
 import { Panel, MetricStat, MiniTable, AXIS_TICK, TOOLTIP_STYLE, axisMoney } from '@/components/metrics/metrics-kit'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signTone } from '@/lib/screener'
 import { usePeekStore } from '@/store/peek-store'
@@ -66,7 +67,7 @@ import { formatCurrencyIn, type CurrencyArea } from '@/lib/format'
 // SWEEP3-WIRE1 — dead-surface wiring: KPI strip stats drill into the trades
 // table (drillToTrades); patience-scatter dots open the global trade peek
 // (aliased because this page owns a local peekTrade(t: ChartTrade) helper).
-import { drillToTrades, peekTrade as peekTradeGlobal } from '@/lib/drill'
+import { drillToTrades, monthPatch, peekTrade as peekTradeGlobal } from '@/lib/drill'
 
 // ---- types -----------------------------------------------------------------------
 
@@ -130,7 +131,9 @@ function streaks(rs: number[]): { win: number; loss: number } {
 // ---- page ------------------------------------------------------------------------------
 
 export function TradesChartPage() {
-  const { selectedAccountId } = useAppStore()
+  // SWEEP5-W2 — store navigate aliased as spaNavigate (the calendar-page
+  // empty-state idiom) so the Import-trades CTA rides the same SPA path.
+  const { selectedAccountId, navigate: spaNavigate } = useAppStore()
   const { open: openPeek } = usePeekStore()
   const { toast } = useToast()
   const [view, setView] = useState<View>('pnl-sequence')
@@ -227,6 +230,20 @@ export function TradesChartPage() {
     const lossH = labels.map((label, i) => { const b = losses.filter((v) => v >= edges[i] && v < edges[i + 1]); return { label, win: 0, loss: b.length, min: edges[i] as number, max: edges[i + 1] as number, sum: Math.round(b.reduce((a, v) => a + v, 0) * 100) / 100 } })
     return { winH, lossH, wins, losses }
   }, [trades])
+
+  // SWEEP5-W2 — trade objects behind the Size-anatomy "Largest win/loss"
+  // tiles: winLoss only keeps plain pnl numbers, so the extremes are reduced
+  // straight off the same closed cohort (null-safe on the empty range) —
+  // lets the tiles peek the actual trade like the KPI-strip Best/Worst pair
+  // instead of sitting inert while their siblings drill.
+  const largestWin = trades.reduce<ChartTrade | null>(
+    (a, t) => ((t.pnl ?? 0) > 0 && (!a || (t.pnl ?? 0) > (a.pnl ?? 0)) ? t : a),
+    null,
+  )
+  const largestLoss = trades.reduce<ChartTrade | null>(
+    (a, t) => ((t.pnl ?? 0) < 0 && (!a || (t.pnl ?? 0) < (a.pnl ?? 0)) ? t : a),
+    null,
+  )
 
   // SWEEP3 E2E-FIX — log-scale guard: 4 live trades carry holdingPeriod = 0
   // (round-trip fills under a minute); log(0) = -Infinity poisoned the
@@ -420,6 +437,14 @@ export function TradesChartPage() {
     const prev = monthly[monthly.length - 2]
     return { last, prev, delta: Math.round((last.pnl - prev.pnl) * 100) / 100 }
   }, [monthly])
+
+  // SWEEP5-W2 — best/worst month rows for the AG-view tiles: value, sub
+  // label AND the click all come off the same monthly array the bars/chips
+  // use; clicking selects that month in the page's own drill panel
+  // (pickMonth — the bar seriesNodeClick path), not a fake trades drill.
+  // Null-safe reduces so the empty range never throws before the guard.
+  const bestMonth = monthly.reduce<(typeof monthly)[number] | null>((a, m) => (!a || m.pnl > a.pnl ? m : a), null)
+  const worstMonth = monthly.reduce<(typeof monthly)[number] | null>((a, m) => (!a || m.pnl < a.pnl ? m : a), null)
 
   // Task 136 — month selection that also drops any symbol-level filter.
   const pickMonth = (m: string | null) => {
@@ -738,7 +763,13 @@ export function TradesChartPage() {
   if (trades.length === 0) {
     return (
       <div className="shell-widget p-10 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-        No closed trades in the selected range — widen the filter or import trades to chart your history.
+        <p>No closed trades in the selected range — widen the filter or import trades to chart your history.</p>
+        {/* SWEEP5-W2 — real CTA (the calendar-page empty-state idiom) instead
+            of dead-end prose: the text says "import trades", the button does it. */}
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => spaNavigate('/trades-import')}>
+          <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+          Import trades
+        </Button>
       </div>
     )
   }
@@ -947,8 +978,20 @@ export function TradesChartPage() {
                 onClick={() => drillToTrades({ outcome: 'loss' })}
                 ariaLabel="Losing trades — open the loss cohort"
               />
-              <MetricStat label="Largest win" value={money(Math.max(0, ...winLoss.wins), 'kpi')} sub={`${((winLoss.wins.length / stats.n) * 100).toFixed(0)}% of trades are wins`} />
-              <MetricStat label="Largest loss" value={money(Math.min(0, ...winLoss.losses.map((v) => -v)), 'kpi')} sub="size ratio drives expectancy" />
+              <MetricStat
+                label="Largest win"
+                value={largestWin ? money(largestWin.pnl ?? 0, 'kpi') : '—'}
+                sub={`${((winLoss.wins.length / stats.n) * 100).toFixed(0)}% of trades are wins`}
+                onClick={largestWin ? () => peekTrade(largestWin!) : undefined}
+                ariaLabel="Largest win — open this trade"
+              />
+              <MetricStat
+                label="Largest loss"
+                value={largestLoss ? money(largestLoss.pnl ?? 0, 'kpi') : '—'}
+                sub="size ratio drives expectancy"
+                onClick={largestLoss ? () => peekTrade(largestLoss!) : undefined}
+                ariaLabel="Largest loss — open this trade"
+              />
             </div>
           </Panel>
         </div>
@@ -1261,9 +1304,41 @@ export function TradesChartPage() {
                 ))}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <MetricStat label="Month net" value={money(drillNet)} tone={drillNet >= 0 ? 'good' : 'bad'} big sub={selSym ? `${selSym}-only view` : 'all symbols this month'} />
-                <MetricStat label="Trades" value={String(drillRows.length)} sub={`${drillWins}W · ${drillRows.length - drillWins}L`} />
-                <MetricStat label="Win rate" value={drillRows.length ? `${Math.round((drillWins / drillRows.length) * 100)}%` : '—'} sub={selSym ? 'filtered to selected symbol' : 'of closed trades this month'} />
+                <MetricStat
+                  label="Month net"
+                  value={money(drillNet)}
+                  tone={drillNet >= 0 ? 'good' : 'bad'}
+                  big
+                  sub={selSym ? `${selSym}-only view` : 'all symbols this month'}
+                  onClick={
+                    selMonth && drillRows.length > 0
+                      ? () => drillToTrades({ ...monthPatch(selMonth!), ...(selSym ? { symbol: selSym } : {}) })
+                      : undefined
+                  }
+                  ariaLabel="Month net — open these trades in the Trades table"
+                />
+                <MetricStat
+                  label="Trades"
+                  value={String(drillRows.length)}
+                  sub={`${drillWins}W · ${drillRows.length - drillWins}L`}
+                  onClick={
+                    selMonth && drillRows.length > 0
+                      ? () => drillToTrades({ ...monthPatch(selMonth!), ...(selSym ? { symbol: selSym } : {}) })
+                      : undefined
+                  }
+                  ariaLabel="Trades — open these trades in the Trades table"
+                />
+                <MetricStat
+                  label="Win rate"
+                  value={drillRows.length ? `${Math.round((drillWins / drillRows.length) * 100)}%` : '—'}
+                  sub={selSym ? 'filtered to selected symbol' : 'of closed trades this month'}
+                  onClick={
+                    selMonth && drillRows.length > 0
+                      ? () => drillToTrades({ ...monthPatch(selMonth!), ...(selSym ? { symbol: selSym } : {}), outcome: 'win' })
+                      : undefined
+                  }
+                  ariaLabel="Win rate — open the winning trades behind this rate"
+                />
                 <MetricStat
                   label="Top symbol"
                   value={monthDrill.bestSym?.symbol ?? '—'}
@@ -1352,15 +1427,19 @@ export function TradesChartPage() {
             <MetricStat label="Months traded" value={String(monthly.length)} sub="bar = month P&L · line = equity" />
             <MetricStat
               label="Best month"
-              value={monthly.length ? money(Math.max(...monthly.map((m) => m.pnl)), 'kpi') : '—'}
-              sub={monthly.length ? `${Math.max(...monthly.map((m) => m.n))} trades in peak month` : '—'}
+              value={bestMonth ? money(bestMonth.pnl, 'kpi') : '—'}
+              sub={bestMonth ? `${bestMonth.label} · ${bestMonth.n} trades` : '—'}
               tone="good"
+              onClick={bestMonth ? () => pickMonth(bestMonth!.month) : undefined}
+              ariaLabel="Best month — select this month in the drill panel"
             />
             <MetricStat
               label="Worst month"
-              value={monthly.length ? money(Math.min(...monthly.map((m) => m.pnl)), 'kpi') : '—'}
-              sub="hover bars for per-month detail"
+              value={worstMonth ? money(worstMonth.pnl, 'kpi') : '—'}
+              sub={worstMonth ? `${worstMonth.label} · ${worstMonth.n} trades` : '—'}
               tone="bad"
+              onClick={worstMonth ? () => pickMonth(worstMonth!.month) : undefined}
+              ariaLabel="Worst month — select this month in the drill panel"
             />
             <MetricStat
               label="Green months"

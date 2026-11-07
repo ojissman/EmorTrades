@@ -108,9 +108,15 @@ export function MistakesGroupsPage() {
     const allIds = new Set(catalog.map((m) => m.id))
     const totalCost = statsOf(tradesWithAnyMistake(trades, allIds)).net
     const tradesWithMistakes = trades.filter((t) => t.mistakes.length > 0)
+    // SWEEP5-W1 — mistake ids that ride ≥1 loaded trade: the OR-cohort
+    // behind the "Total mistake cost" / "Trades with mistakes" tiles (the
+    // trades mistake filter is some/in — OR-of-ids, the same grammar the
+    // group rows use). Unused catalog ids stay out; an empty array would
+    // mean "no filter", so the tiles only drill when this is non-empty.
+    const usedMistakeIds = [...new Set(trades.flatMap((t) => t.mistakes.map(({ mistake }) => mistake.id)))]
     const unused = catalog.filter((m) => !trades.some((t) => t.mistakes.some(({ mistake }) => mistake.id === m.id)))
     const ungroupedCount = ungrouped.length
-    return { groups, totalCost, tradesWithMistakes, total: trades.length, unused, ungroupedCount }
+    return { groups, totalCost, tradesWithMistakes, total: trades.length, unused, ungroupedCount, usedMistakeIds }
   }, [tradesQ.data, catQ.data])
 
   if (tradesQ.isLoading || catQ.isLoading) {
@@ -124,6 +130,9 @@ export function MistakesGroupsPage() {
 
   const maxAbs = Math.max(...report.groups.map((g) => Math.abs(g.stats.net)), 1)
   const costliest = report.groups[0] ?? null
+  // SWEEP5-W1 — cheapest group (the Costliest-group tile's mirror) for the
+  // KPI drill; same mistakeIds OR-cohort as the group cards.
+  const cheapest = report.groups.length ? report.groups[report.groups.length - 1] : null
   const cleanTrades = report.total - report.tradesWithMistakes.length
 
   return (
@@ -134,18 +143,21 @@ export function MistakesGroupsPage() {
           value={toneMoney(report.totalCost)}
           tone={report.totalCost < 0 ? 'bad' : 'good'}
           sub="net P&L of trades carrying ≥1 mistake (deduped by trade)"
+          onClick={report.usedMistakeIds.length ? () => drillToTrades({ mistakeIds: report.usedMistakeIds }) : undefined}
         />
         <MetricStat
           label="Trades with mistakes"
           value={`${report.tradesWithMistakes.length} / ${report.total}`}
           tone={report.tradesWithMistakes.length / Math.max(report.total, 1) > 0.3 ? 'warn' : 'neutral'}
           sub={`${Math.round((report.tradesWithMistakes.length / Math.max(report.total, 1)) * 100)}% of closed trades · ${cleanTrades} clean`}
+          onClick={report.usedMistakeIds.length ? () => drillToTrades({ mistakeIds: report.usedMistakeIds }) : undefined}
         />
         <MetricStat
           label="Costliest group"
           value={costliest ? costliest.name : '—'}
           tone={costliest && costliest.stats.net < 0 ? 'bad' : 'neutral'}
           sub={costliest ? `${toneMoney(costliest.stats.net)} · ${costliest.stats.n} trades` : undefined}
+          onClick={costliest ? () => drillToTrades({ mistakeIds: costliest.members.map((m) => m.mistake.id) }) : undefined}
         />
         <MetricStat
           label="Groups tracked"
@@ -157,6 +169,7 @@ export function MistakesGroupsPage() {
           value={report.groups.length ? report.groups[report.groups.length - 1].name : '—'}
           tone="good"
           sub={report.groups.length ? `${toneMoney(report.groups[report.groups.length - 1].stats.net)}` : undefined}
+          onClick={cheapest ? () => drillToTrades({ mistakeIds: cheapest.members.map((m) => m.mistake.id) }) : undefined}
         />
       </div>
 
@@ -329,6 +342,7 @@ export function MistakesAdvancedPage() {
           value={costliest ? costliest.name : '—'}
           tone={costliest && costliest.stats.net < 0 ? 'bad' : 'neutral'}
           sub={costliest ? `${toneMoney(costliest.stats.net)} · ${costliest.stats.n} occurrences` : undefined}
+          onClick={costliest?.id ? () => drillToTrades({ mistakeIds: [costliest.id!] }) : undefined}
         />
         <MetricStat
           label="Cost concentration"

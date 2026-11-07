@@ -1330,6 +1330,58 @@ worklog.md; addendum in AUDIT_REPORT.md. Permanent-record additions:
   dead useState flags...) — each pattern class catches what keyword audits
   miss.
 
+## Task SWEEP5 — fifth full-sweep: the tsc gate's blind spot + silent persistence drops + the misc-notes tag core (2026-11-07)
+
+Owner directive (fifth pass of the same words). Full entry + certificate in
+worklog.md; addendum in AUDIT_REPORT.md. Permanent-record additions:
+
+- THE TSC GATE HAS A TWO-MODE BLIND SPOT (SWEEP5, probe-proven live): (1)
+  `"incremental": true` in tsconfig means TypeScript SKIPS diagnostics for
+  files unchanged since the last program — an error that ships once is never
+  re-reported by later "tsc 0" runs; force a recheck by touching the file's
+  CONTENT (mtime alone does nothing). (2) In a FRESH program (tsbuildinfo
+  deleted) the zustand store import silently resolves to `any` (a
+  reveal-probe passes clean in fresh mode while TS2349 fires in incremental
+  mode) — fresh runs cannot see store misuse at all with
+  `noImplicitAny: false`. PRACTICE: never trust a "tsc 0" alone for
+  store-handling code — the strict mode is an incremental run AFTER changing
+  the file, and the browser E2E is the real gate. A runtime
+  "X is not a function" on a store value means someone assigned the whole
+  store (`const navigate = useAppStore()`) instead of selecting
+  (`useAppStore((s) => s.navigate)`) — grep for bare assignments when a page
+  throws on click.
+- SILENT PERSISTENCE DROPS are the purest Tags-like class: an editable form
+  field the update branch simply doesn't write (journal tradeId, day-note
+  date — both fixed + hardened; day-plans' upsert-by-date forked rows on date
+  edit, now blocked in the modal). When auditing an edit modal, diff the
+  form's fields against the route's update `data` object field-by-field.
+- THE MISC-NOTES TAG CORE (SWEEP5): /api/note-tags (GET/POST/DELETE,
+  session+ownership, duplicate 409 — JS-side case-insensitive compare:
+  SQLite Prisma has NO `mode: 'insensitive'` StringFilter) + the inline
+  "New tag" mini-form in the misc-notes dialog. The join is
+  MiscNoteNoteTag.noteTagId (NOT tagId) and the route filters tagIds to the
+  user's own tags before createMany.
+- SENTINEL LAW: a series key is not a filter value — the equities Best
+  Performer sent `setupId: '__none__'` (a chart series key) where the API's
+  no-setup sentinel is `'none'`. When wiring a drill from a chart/aggregate
+  key, check the store+route sentinel contract first.
+- DEV-SERVER REAPER (SWEEP5 environment finding): dev servers started with a
+  plain `setsid bun run dev &` from a tool call DIE at call boundaries (no
+  OOM trace, clean logs — an external reaper). The sanctioned restart is the
+  sync-script's own double-fork, PID-1-adopted pattern:
+  `( setsid bash -c "exec bun run dev" >>/tmp/next-dev.out 2>&1 </dev/null & )`
+  — or run `.zscripts/dev.sh`. After any server restart the open browser tab
+  may show a stale-chunk chrome-error page: one reload fixes it. The
+  4GB cgroup still overflows when server + headless chrome + a first
+  route-compile spike coincide — restart the server between E2E batches
+  (`.next` cache makes restarts fast) and curl NEW routes immediately after
+  boot while RSS is at its floor.
+- FRESH-EYES AUDIT PATTERN that paid off: affordance-consistency matrix
+  (every instance of a shared primitive WITH vs WITHOUT onClick where the
+  data supports drilling) + modal-internal audit + empty-state-CTA check +
+  tooltip-promise scan + hover-without-handler scan + badge-inertness scan.
+  The findings cluster exactly where prior sweeps' exclusion lists ended.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

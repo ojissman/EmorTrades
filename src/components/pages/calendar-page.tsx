@@ -1988,6 +1988,16 @@ export function CalendarPage() {
                     const wBest = traded.reduce((a, b) => (a.dd.pnl > b.dd.pnl ? a : b))
                     const wWorst = traded.reduce((a, b) => (a.dd.pnl < b.dd.pnl ? a : b))
                     const avg = weekStats.pnl / traded.length
+                    // SWEEP5 — Best/Worst day open that day in Day view (the
+                    // same drill the week strip's cells and the monthly
+                    // summary's best/worst rows perform). With ≤1 traded day
+                    // "best" and "worst" are the same day, so those two tiles
+                    // stay inert and honest.
+                    const multiDay = traded.length > 1
+                    const openDay = (d: Date) => {
+                      jumpToKey(toIsoDate(d))
+                      setView('day')
+                    }
                     return (
                       <>
                         <MiniInsight
@@ -1995,12 +2005,16 @@ export function CalendarPage() {
                           value={`${wBest.dd.pnl > 0 ? '+' : ''}${formatCurrencyIn('table', wBest.dd.pnl)}`}
                           hint={wBest.d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}
                           tone={wBest.dd.pnl > 0 ? 'good' : 'neutral'}
+                          onClick={multiDay ? () => openDay(wBest.d) : undefined}
+                          title={multiDay ? `Best day: ${toIsoDate(wBest.d)} — open in Day view` : undefined}
                         />
                         <MiniInsight
                           label="Worst day"
                           value={formatCurrencyIn('table', wWorst.dd.pnl)}
                           hint={wWorst.d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}
                           tone={wWorst.dd.pnl < 0 ? 'bad' : 'neutral'}
+                          onClick={multiDay ? () => openDay(wWorst.d) : undefined}
+                          title={multiDay ? `Worst day: ${toIsoDate(wWorst.d)} — open in Day view` : undefined}
                         />
                         <MiniInsight
                           label="Avg / traded day"
@@ -2612,24 +2626,46 @@ function MiniInsight({
   value,
   hint,
   tone = 'neutral',
+  onClick,
+  title,
 }: {
   label: string
   value: string
   hint: string
   tone?: 'good' | 'bad' | 'neutral'
+  /** SWEEP5 — when set, the value renders as a drill button (the
+   *  monthly-summary StatCell affordance: underline on hover + a title
+   *  naming the target); unset tiles stay plain and honest. */
+  onClick?: () => void
+  title?: string
 }) {
   return (
     <div className="min-w-0">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{label}</p>
-      <p
-        className={cn(
-          'text-sm font-bold tnum leading-tight',
-          tone === 'good' && 'text-emerald-400',
-          tone === 'bad' && 'text-red-400',
-        )}
-      >
-        {value}
-      </p>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          title={title}
+          className={cn(
+            'block w-full truncate text-left text-sm font-bold tnum leading-tight underline-offset-2 hover:underline cursor-pointer',
+            tone === 'good' && 'text-emerald-400',
+            tone === 'bad' && 'text-red-400',
+          )}
+        >
+          {value}
+        </button>
+      ) : (
+        <p
+          className={cn(
+            'text-sm font-bold tnum leading-tight',
+            tone === 'good' && 'text-emerald-400',
+            tone === 'bad' && 'text-red-400',
+          )}
+        >
+          {value}
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground truncate">{hint}</p>
     </div>
   )

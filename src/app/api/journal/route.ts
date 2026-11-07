@@ -40,6 +40,27 @@ export async function POST(req: NextRequest) {
     if (body.id) {
       const existing = await db.journal.findFirst({ where: { id: body.id, userId: user.id } })
       if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      // SWEEP5 fix (agent 3-a F3): the edit modal's "Linked Trade" select was
+      // silently dropped here — the update wrote every field EXCEPT tradeId,
+      // so re-linking an entry toasted "Entry updated" while nothing changed.
+      // Also hardened (audit standard): a linked trade must be the user's own,
+      // and Journal.tradeId is @unique (1 entry per trade) — a clash gets an
+      // honest 409 instead of a P2002 500.
+      let tradeId: string | null = null
+      if (body.tradeId) {
+        const trade = await db.trade.findFirst({ where: { id: body.tradeId, userId: user.id } })
+        if (!trade) return NextResponse.json({ error: 'Trade not found' }, { status: 400 })
+        const clash = await db.journal.findFirst({
+          where: { tradeId: body.tradeId, id: { not: existing.id } },
+        })
+        if (clash) {
+          return NextResponse.json(
+            { error: 'Another journal entry is already linked to that trade' },
+            { status: 409 },
+          )
+        }
+        tradeId = body.tradeId
+      }
       const journal = await db.journal.update({
         where: { id: existing.id },
         data: {
@@ -49,15 +70,31 @@ export async function POST(req: NextRequest) {
           emotion: body.emotion ?? null,
           confidence: body.confidence ? parseInt(body.confidence) : null,
           rating: body.rating ? parseInt(body.rating) : null,
+          tradeId,
         },
       })
       return NextResponse.json({ journal })
     }
 
+    // SWEEP5 (same hardening on create): the linked trade must be the user's
+    // own, and the @unique tradeId clash gets an honest 409 (was a P2002 500).
+    let createTradeId: string | null = body.tradeId || null
+    if (createTradeId) {
+      const trade = await db.trade.findFirst({ where: { id: createTradeId, userId: user.id } })
+      if (!trade) return NextResponse.json({ error: 'Trade not found' }, { status: 400 })
+      const clash = await db.journal.findFirst({ where: { tradeId: createTradeId } })
+      if (clash) {
+        return NextResponse.json(
+          { error: 'Another journal entry is already linked to that trade' },
+          { status: 409 },
+        )
+      }
+    }
+
     const journal = await db.journal.create({
       data: {
         userId: user.id,
-        tradeId: body.tradeId || null,
+        tradeId: createTradeId,
         title: body.title,
         content: body.content,
         mood: body.mood || null,

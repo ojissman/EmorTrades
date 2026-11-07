@@ -106,6 +106,13 @@ export function TradeTagsGroupPage() {
   }
 
   const maxAbsGroup = Math.max(...groups.map((g) => Math.abs(g.stats.net)), 1)
+  // SWEEP5-W1 — KPI tile drills: the same OR-of-member-tagIds cohorts the
+  // group StatBars below use (the trades tag filter is OR-of-ids — a
+  // group's deduped union). Hoisted to consts so the onClick closures keep
+  // the null-narrowing.
+  const bestGroup = kpis.best
+  const weakestGroup = kpis.worst && kpis.worst !== kpis.best ? kpis.worst : null
+  const costliestTag = kpis.worstTag
 
   return (
     <div className="space-y-4">
@@ -117,18 +124,21 @@ export function TradeTagsGroupPage() {
           value={kpis.best ? kpis.best.name : '—'}
           tone={kpis.best && kpis.best.stats.net >= 0 ? 'good' : 'neutral'}
           sub={kpis.best ? `${toneMoney(kpis.best.stats.net)} · ${kpis.best.stats.n} trades` : undefined}
+          onClick={bestGroup ? () => drillToTrades({ tagIds: bestGroup.members.map((m) => m.tag.id) }) : undefined}
         />
         <MetricStat
           label="Weakest group"
           value={kpis.worst && kpis.worst !== kpis.best ? kpis.worst.name : '—'}
           tone={kpis.worst && kpis.worst.stats.net < 0 ? 'bad' : 'neutral'}
           sub={kpis.worst && kpis.worst !== kpis.best ? `${toneMoney(kpis.worst.stats.net)} · ${kpis.worst.stats.n} trades` : undefined}
+          onClick={weakestGroup ? () => drillToTrades({ tagIds: weakestGroup.members.map((m) => m.tag.id) }) : undefined}
         />
         <MetricStat
           label="Costliest tag"
           value={kpis.worstTag ? kpis.worstTag.tag.name : '—'}
           tone={kpis.worstTag && kpis.worstTag.stats.net < 0 ? 'bad' : 'neutral'}
           sub={kpis.worstTag ? `${toneMoney(kpis.worstTag.stats.net)} across ${kpis.worstTag.stats.n} trades` : undefined}
+          onClick={costliestTag ? () => drillToTrades({ tagIds: [costliestTag.tag.id] }) : undefined}
         />
       </div>
 
@@ -374,7 +384,7 @@ export function TradeTagsAdvancedPage() {
             <tbody>
               {dims.matrix.map((row) => (
                 <tr key={row.tag.id} style={{ borderTop: '1px solid var(--border-strong)' }}>
-                  <td className="px-2 py-1.5"><Chip label={row.tag.name} color={row.tag.color} /></td>
+                  <td className="px-2 py-1.5"><Chip label={row.tag.name} color={row.tag.color} onClick={() => drillToTrades({ tagIds: [row.tag.id] })} title="Open this tag's trades" /></td>
                   {row.byClass.map((c) => (
                     <td key={c.c} className="px-2 py-1.5 text-right">
                       <span

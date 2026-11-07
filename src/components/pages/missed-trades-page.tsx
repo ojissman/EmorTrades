@@ -348,13 +348,13 @@ export function MissedTradesPage() {
             {formatCurrencyIn('kpi', totalExpectedPnl)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden" title="Count of missed records whose expected P&L was positive">
+        <Card className="p-4 overflow-hidden" title="Sum of expected P&L across missed records that were positive">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Opportunities Lost (+)</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-emerald-400">
             +{formatCurrencyIn('kpi', totalPositivePnl)}
           </FitValue>
         </Card>
-        <Card className="p-4 overflow-hidden" title="Count of missed records whose expected P&L was negative">
+        <Card className="p-4 overflow-hidden" title="Sum of expected P&L across missed records that were negative">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Bullets Dodged (-)</p>
           <FitValue className="text-xl font-bold tnum mt-1 text-red-400">
             {formatCurrencyIn('kpi', totalNegativePnl)}

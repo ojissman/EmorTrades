@@ -36,6 +36,7 @@ import {
   Calendar,
   Plus,
   Edit2,
+  Trash2,
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
@@ -61,7 +62,8 @@ import { useAppStore } from '@/store/app-store'
 import { axisMoney, formatCurrencyIn, formatDate, formatDateTime, pnlColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
 // SWEEP3-WIRE2 — the two correlation scatters drill their dot's day cohort.
-import { drillToDay } from '@/lib/drill'
+// SWEEP5 — the mood tiles drill their mood's trade cohort (drillToTrades).
+import { drillToDay, drillToTrades } from '@/lib/drill'
 // Task 22-c — daily trading rules (Settings ▸ Notes, Plans & Rules) become
 // the default checklist of NEW day plans.
 import { readRules } from '@/lib/note-templates'
@@ -246,6 +248,20 @@ function parseJsonObject(json: string | null | undefined): Record<string, unknow
     return p && typeof p === 'object' && !Array.isArray(p) ? (p as Record<string, unknown>) : {}
   } catch {
     return {}
+  }
+}
+
+// SWEEP5 fix (agent 3-a O1): the checklist column was JSON.parse'd unguarded
+// in two places (openEdit + the card render) — one malformed row crashed the
+// whole page. Same guard grammar as the sibling helpers; items keep their
+// object shape ({ text, done, ... }) so callers type them as `any` as before.
+function parseChecklist(json: string | null | undefined): any[] {
+  if (!json) return []
+  try {
+    const p = JSON.parse(json)
+    return Array.isArray(p) ? p : []
+  } catch {
+    return []
   }
 }
 
@@ -911,17 +927,21 @@ export function DayPlansPage() {
       trades: dayTrades.length,
       mood: p.mood,
       date: planDate,
+      // SWEEP5 — the day's trade ids, so the mood tiles below can drill the
+      // exact cohort behind their avg P&L (same entry-day matching as pnl).
+      ids: dayTrades.map((t: any) => t.id as string),
     }
   }).filter((d: any) => d.trades > 0)
 
   // Mood performance summary
   const moodStats = (() => {
-    const map = new Map<string, { count: number, pnl: number }>()
+    const map = new Map<string, { count: number, pnl: number, ids: string[] }>()
     for (const d of correlationData) {
       if (!d.mood) continue
-      const existing = map.get(d.mood) || { count: 0, pnl: 0 }
+      const existing = map.get(d.mood) || { count: 0, pnl: 0, ids: [] }
       existing.count += 1
       existing.pnl += d.pnl
+      existing.ids = existing.ids.concat(d.ids)
       map.set(d.mood, existing)
     }
     return Array.from(map.entries()).map(([mood, stats]) => ({
@@ -932,6 +952,7 @@ export function DayPlansPage() {
       avgPnl: stats.count > 0 ? stats.pnl / stats.count : 0,
       count: stats.count,
       totalPnl: stats.pnl,
+      tradeIds: stats.ids,
     }))
   })()
 
@@ -962,7 +983,7 @@ export function DayPlansPage() {
       mood: plan.mood || 'neutral',
       energyLevel: plan.energyLevel || 5,
       notes: plan.notes || '',
-      checklist: plan.checklist ? JSON.parse(plan.checklist) : [],
+      checklist: parseChecklist(plan.checklist),
     })
     setModalOpen(true)
   }
@@ -978,6 +999,23 @@ export function DayPlansPage() {
       toast({ title: editing ? 'Day plan updated' : 'Day plan saved' })
       queryClient.invalidateQueries({ queryKey: ['day-plans'] })
       setModalOpen(false)
+    } catch {
+      toast({ title: 'Failed', variant: 'destructive' })
+    }
+  }
+
+  // SWEEP5 fix (agent 3-a F6): day plans had NO delete affordance anywhere —
+  // DELETE /api/day-plans?id= existed, auth-guarded and id-scoped, but was
+  // called from nowhere, so a wrong/accidental day plan was permanently
+  // undeletable. The sibling Trash2 + confirm + res.ok idiom (journal/day-notes/
+  // misc-notes).
+  async function delPlan(id: string) {
+    if (!confirm('Delete this day plan?')) return
+    try {
+      const res = await fetch(`/api/day-plans?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: 'Day plan deleted' })
+      queryClient.invalidateQueries({ queryKey: ['day-plans'] })
     } catch {
       toast({ title: 'Failed', variant: 'destructive' })
     }
@@ -1022,20 +1060,44 @@ export function DayPlansPage() {
           <h3 className="font-semibold tracking-tight mb-1">Performance by Mood</h3>
           <p className="text-xs text-muted-foreground mb-3">How your emotional state correlates with P&L</p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {moodStats.map((m) => (
-              <div
-                key={m.mood}
-                className="p-3 rounded-md border border-border text-center overflow-hidden min-w-0"
-                style={{ background: `${m.color}15` }}
-              >
-                <div className="text-2xl mb-1">{m.emoji}</div>
-                <p className="text-xs font-medium" style={{ color: m.color }}>{m.label}</p>
-                <FitValue className={cn('text-lg font-bold tnum mt-1', pnlColor(m.avgPnl))} origin="center">
-                  {formatCurrencyIn('table', m.avgPnl)}
-                </FitValue>
-                <p className="text-[10px] text-muted-foreground">{m.count} days</p>
-              </div>
-            ))}
+            {/* SWEEP5 — mistakes-page heroTile idiom: a mood with trades behind
+                it drills the exact cohort (the ids of every trade entered on a
+                day planned with that mood); a mood with none stays an honest
+                non-clickable tile. Visuals unchanged — cursor/hover only when
+                clickable. */}
+            {moodStats.map((m) => {
+              const body = (
+                <>
+                  <div className="text-2xl mb-1">{m.emoji}</div>
+                  <p className="text-xs font-medium" style={{ color: m.color }}>{m.label}</p>
+                  <FitValue className={cn('text-lg font-bold tnum mt-1', pnlColor(m.avgPnl))} origin="center">
+                    {formatCurrencyIn('table', m.avgPnl)}
+                  </FitValue>
+                  <p className="text-[10px] text-muted-foreground">{m.count} days</p>
+                </>
+              )
+              return m.tradeIds.length > 0 ? (
+                <button
+                  key={m.mood}
+                  type="button"
+                  onClick={() => drillToTrades({ tradeIds: m.tradeIds })}
+                  title={`Show the ${m.tradeIds.length} trades taken on ${m.label.toLowerCase()} days`}
+                  className="p-3 rounded-md border border-border text-center overflow-hidden min-w-0 cursor-pointer transition-transform hover:-translate-y-0.5"
+                  style={{ background: `${m.color}15` }}
+                >
+                  {body}
+                </button>
+              ) : (
+                <div
+                  key={m.mood}
+                  title={`No trades recorded on ${m.label.toLowerCase()} days yet`}
+                  className="p-3 rounded-md border border-border text-center overflow-hidden min-w-0 cursor-default"
+                  style={{ background: `${m.color}15` }}
+                >
+                  {body}
+                </div>
+              )
+            })}
           </div>
         </Card>
       )}
@@ -1184,7 +1246,7 @@ export function DayPlansPage() {
               return new Date(t.entryTime).toISOString().split('T')[0] === planDate
             })
             const dayPnl = dayTrades.reduce((s: number, t: any) => s + t.pnl, 0)
-            const checklist = p.checklist ? JSON.parse(p.checklist) : []
+            const checklist = parseChecklist(p.checklist)
             const doneCount = checklist.filter((c: any) => c.done).length
             // TP-7-b — the plan-aware chips on the card.
             const rowPlans = parseJsonArray(p.planIds)
@@ -1254,8 +1316,20 @@ export function DayPlansPage() {
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100"
                     onClick={() => openEdit(p)}
+                    aria-label="Edit day plan"
+                    title="Edit day plan"
                   >
                     <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300"
+                    onClick={() => delPlan(p.id)}
+                    aria-label="Delete day plan"
+                    title="Delete day plan"
+                  >
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
 
@@ -1339,8 +1413,20 @@ export function DayPlansPage() {
                 className="mt-1.5"
                 type="date"
                 value={form.date}
+                disabled={!!editing}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
               />
+              {/* SWEEP5 fix (agent 3-a O2): POST /api/day-plans upserts BY DATE
+                  and ignores body.id, so an edit that changed the date used to
+                  silently fork a NEW row for the new day while leaving the old
+                  one in place (toast said "updated"). The date is now fixed in
+                  edit mode — one plan per day; use New Day Plan for another
+                  day. */}
+              {editing ? (
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  One plan per day — the date is fixed on an existing plan. Use “New Day Plan” to plan another day.
+                </p>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-3 gap-3">

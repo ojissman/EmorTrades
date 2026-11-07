@@ -54,6 +54,14 @@ export function MiscNotesPage() {
     tradeId: '',
     tagIds: [] as string[],
   })
+  // SWEEP5 fix (agent 3-a F5): inline tag creation state — the Tags picker
+  // had NO write path anywhere in the app (no /api/note-tags route, no
+  // Settings entry), so the strip below the "Tags" label was eternally
+  // empty. The mini-form follows the mistakes/setups inline-creation idiom.
+  const [newTagOpen, setNewTagOpen] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagColor, setNewTagColor] = useState('#06b6d4')
+  const [creatingTag, setCreatingTag] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['misc-notes'],
@@ -144,6 +152,35 @@ export function MiscNotesPage() {
       setModalOpen(false)
     } catch {
       toast({ title: 'Failed', variant: 'destructive' })
+    }
+  }
+
+  // SWEEP5 — create a tag inline (POST /api/note-tags), then auto-select it
+  // in the current form so the user sees the loop close (create → toggled on).
+  async function createTag() {
+    const name = newTagName.trim()
+    if (!name) {
+      toast({ title: 'Tag name is required', variant: 'destructive' })
+      return
+    }
+    setCreatingTag(true)
+    try {
+      const res = await fetch('/api/note-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color: newTagColor }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+      await queryClient.invalidateQueries({ queryKey: ['misc-notes'] })
+      setForm((f) => ({ ...f, tagIds: [...f.tagIds, body.tag.id] }))
+      setNewTagName('')
+      setNewTagOpen(false)
+      toast({ title: 'Tag created', description: `"${name}" is now selected for this note` })
+    } catch (e) {
+      toast({ title: 'Failed to create tag', description: e instanceof Error ? e.message : undefined, variant: 'destructive' })
+    } finally {
+      setCreatingTag(false)
     }
   }
 
@@ -328,8 +365,56 @@ export function MiscNotesPage() {
               />
             </div>
             <div>
-              <Label>Tags</Label>
+              <div className="flex items-center justify-between">
+                <Label>Tags</Label>
+                <button
+                  type="button"
+                  onClick={() => setNewTagOpen((v) => !v)}
+                  className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5"
+                >
+                  <Plus className="h-3 w-3" aria-hidden />
+                  New tag
+                </button>
+              </div>
+              {newTagOpen ? (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <Input
+                    className="h-8 w-44 text-xs"
+                    placeholder="Tag name"
+                    maxLength={40}
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        createTag()
+                      }
+                    }}
+                  />
+                  <input
+                    type="color"
+                    aria-label="Tag color"
+                    className="h-8 w-9 cursor-pointer rounded-md border border-border bg-transparent p-0.5"
+                    value={newTagColor}
+                    onChange={(e) => setNewTagColor(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    disabled={creatingTag || !newTagName.trim()}
+                    onClick={createTag}
+                  >
+                    {creatingTag ? 'Adding…' : 'Add'}
+                  </Button>
+                </div>
+              ) : null}
               <div className="flex flex-wrap gap-1.5 mt-2">
+                {tags.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No tags yet — create one with “New tag” to organize your notes.
+                  </p>
+                ) : null}
                 {tags.map((tag: any) => {
                   const sel = form.tagIds.includes(tag.id)
                   return (

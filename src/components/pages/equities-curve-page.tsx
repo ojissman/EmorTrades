@@ -640,7 +640,16 @@ export function EquitiesCurvePage() {
               type="button"
               className="block w-full text-left cursor-pointer"
               title="Open this performer's trades"
-              onClick={() => (mode === 'accounts' ? drillToTrades({ accountId: best.key }) : drillToTrades({ setupId: best.key }))}
+              onClick={() =>
+                mode === 'accounts'
+                  ? drillToTrades({ accountId: best.key })
+                  : // SWEEP5 fix (agent 3-b F2): the "No Setup" series key is
+                    // '__none__', which the trades API treats as a literal id
+                    // (matches nothing) — the real no-setup sentinel is 'none'
+                    // (route maps it to setupId: null). Without this, the tile
+                    // drilled to an empty cohort whenever No Setup won.
+                    drillToTrades({ setupId: best.key === '__none__' ? 'none' : best.key })
+              }
             >
               <p className="text-sm font-bold truncate" title={best.label}>{best.label}</p>
               <p
@@ -1123,7 +1132,7 @@ export function EquitiesCurvePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTxModalOpen(false)} disabled={txBusy}>
-              Close modal
+              Cancel
             </Button>
             <Button onClick={saveTx} disabled={txBusy} className="bg-emerald-600 hover:bg-emerald-700">
               {txBusy ? 'Saving…' : editingTx ? 'Save Changes' : 'Add Transaction'}

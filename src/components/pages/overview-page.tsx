@@ -520,7 +520,9 @@ function MultiAllInOneView({ stats, banner, onboarding, equityCurve, equityStart
         <div className="space-y-3">
           <SectionLabel icon={Gauge}>Performance</SectionLabel>
           <Kpi label="Net P&L" icon={DollarSign} value={formatCurrencyIn('kpi', stats.net)} sub={`${stats.total} trades${currencyCompactFor('kpi') ? ` · exact ${formatCurrency(stats.net)}` : ''}`} color={pnlColor(stats.net)} anim={{ value: stats.net, format: (n) => formatCurrencyIn('kpi', n) }} onClick={() => drillToTrades({})} />
-          <WinRateMeter stats={stats} />
+          {/* SWEEP5 — the meter drills like the Win rate Kpi in the Charts+Table
+              preset (the winning-trades cohort). */}
+          <WinRateMeter stats={stats} onClick={() => drillToTrades({ outcome: 'win' })} />
           <div className="grid grid-cols-2 gap-3">
             <Kpi label="Profit factor" icon={Scale} value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : '∞'} sub="gross W ÷ gross L" compact />
             <Kpi label="Expectancy" icon={Sigma} value={formatCurrencyIn('kpi', stats.expectancy)} sub="per trade" color={pnlColor(stats.expectancy)} compact />
