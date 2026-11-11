@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers'
 import { AuthGate } from '@/components/auth/auth-gate'
-import { RitualLockGate } from '@/components/ritual-lock-gate'
 import { FAQS } from '@/config/landing-faqs'
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/server/auth'
 import { faqJsonLd, organizationJsonLd, softwareAppJsonLd, webSiteJsonLd } from '@/lib/seo'
@@ -38,11 +37,11 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* ENFORCE-4: wraps the entire surface (landing + shell). During ritual
-          drift the app is replaced by the lock page — see ritual-lock-gate. */}
-      <RitualLockGate>
-        <AuthGate initial={initial} />
-      </RitualLockGate>
+      {/* ENFORCE-4's preview lock page / warn banner retired at owner request
+          2026-11-11 (task RITUAL-UI-1): process discipline now lives in the
+          owner's Task Template. The ritual itself (sync:prod pull-first,
+          pre-push hook, day:start gate) is unchanged. */}
+      <AuthGate initial={initial} />
     </>
   )
 }
