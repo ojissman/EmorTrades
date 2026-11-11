@@ -52,9 +52,10 @@ If a session inherits a state at all (any session, any day): reconcile from
 **git + worklog.md only** — never from a session handoff/summary. If an open
 cycle is found (unpushed work, drifted state): complete it BEFORE any new
 work — `bun run sync:prod` first, then verify, worklog + AGENTS.md +
-CLAUDE.md updates, commit, push. The **ritual lock page** (ENFORCE-4)
-replaces the app until the missing pull lands; it is by design, not an
-outage — run `bun run sync:prod` and it lifts.
+CLAUDE.md updates, commit, push. The ENFORCE-4 lock page was **retired
+2026-11-11 at owner request** (task RITUAL-UI-1: the owner's Task Template
+now carries the process discipline) — drift is still caught by day:start's
+OPEN CYCLE refusal and the pre-push hook; there is no longer a UI lock.
 
 ## NEW-DAY PROTOCOL (owner-initiated — current standing arrangement)
 
@@ -151,22 +152,18 @@ did not happen: just run `bun run day:start`.
   All three live in the repo, so a cloned sandbox re-arms them automatically. A
   fresh sandbox has no `.sync-state` → it is push-locked until the first real
   `bun run sync:prod`.
-- **Ritual guard / drift lock (ENFORCE-4, 2026-11-01)** — the environment-side
-  detector for the failure mode ENFORCE-1/2/3 could not see: a cycle that
-  skipped its opening pull, or a session that died before pushing (no push
-  happens, so the pre-push hook never fires).
-  - `src/lib/ritual-guard.ts` + public `/api/ritual-state` (no secrets, no
-    DB) + `<RitualLockGate>` wrapping the whole `/` surface.
-  - **DRIFT** = task work exists (changed/untracked files beyond the db
-    sidecars, or commits ahead of origin/main) while the last verified pull
-    (`.sync-state`) predates the last push (origin/main tip) → the app is
-    replaced by a **lock page** (owner-visible in the preview) until
-    `bun run sync:prod` lands. A locked app cannot be verified, so no task
-    can complete while drifted.
-  - **WARN** = commits ahead of origin (open cycle, unpushed work) → amber
-    banner; `day:start` refuses to start a new day on it (OPEN CYCLE refusal).
-  - Fail-open by design: no git metadata (e.g. the deployed production
-    build) → never locks.
+- **Ritual guard / drift lock (ENFORCE-4, 2026-11-01) — UI retired
+  2026-11-11 (task RITUAL-UI-1, owner request)**: the preview lock page,
+  amber WARN banner, `src/lib/ritual-guard.ts`, `/api/ritual-state`, and
+  `<RitualLockGate>` were deleted after the owner moved process discipline
+  into the manual Task Template. The remaining guards are unchanged and
+  still enforce the same rule at the process layer:
+  - **day:start** refuses to start a new day on an open cycle (OPEN CYCLE
+    refusal) and runs the full PULL-FIRST gate.
+  - The **pre-push hook** refuses any push of main without a verified
+    `bun run sync:prod` pull after the previous push (`.sync-state`).
+  - The old DRIFT/WARN semantics are preserved in history (worklog ENFORCE-4
+    entries) and in the git history of the deleted files.
 - **`.sync-state`** (gitignored, local): written ONLY by
   `scripts/sync-prod-db.ts` on complete success (pull + validate + swap +
   strict schema push + integrity verify).

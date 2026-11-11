@@ -79,10 +79,10 @@ at the bottom of this file.
   production user-data history.
 - The drift guard counts ALL sandbox work — app-side db writes from normal
   preview usage and platform Auto-Backup bot commits included, not just
-  task edits. A lock can fire with no task in progress (real incident
-  2026-11-01: an owner preview login + a bot commit locked the app within
-  one 20s poll). That is the system working — never a malfunction, never
-  bypass it; recovery is always the lock page's five steps in order.
+  task edits. **Its UI (lock page + banner) was retired 2026-11-11
+  (RITUAL-UI-1, owner request — the Task Template carries the process
+  now)**; the process guards remain: run `bun run sync:prod` on drift
+  discovery and complete the cycle before starting anything new.
 - Navigation has ONE source: `src/config/navigation.ts` (NAV_ITEMS). Every
   surface — sidebar, rail, mobile More sheet, ⌘K palette, in-page group
   tabs — derives from it; never hardcode nav labels or paths in JSX. When
@@ -190,10 +190,11 @@ at the bottom of this file.
   computation block uses helpers defined in a LATER section
   (fmtKeyShort, wFmt), tsc is silent on some paths and the app dies at
   runtime with "Cannot access before initialization" — declare
-  helpers above their first use. (d) The ENFORCE-4 drift guard locks
-  the preview the moment work exists without this cycle's pull — run
-  sync:prod BEFORE E2E, not just before the push (first real firing:
-  2026-11-02, the lock worked exactly as designed). (e) A view whose
+  helpers above their first use. (d) The ENFORCE-4 drift UI (lock page /
+  banner) was retired 2026-11-11 at owner request — but the pull-first
+  rule it enforced is unchanged: run sync:prod BEFORE E2E, not just
+  before the push (the discipline that avoided the 2026-11-02 first
+  real firing). (e) A view whose
   AI panel is server-grounded on full-period rows needs its OWN
   full-period fetch — the global 180d envelope made the year table
   contradict the year AI (Jan "no trades" vs Jan +$5,484).

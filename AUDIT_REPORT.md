@@ -556,3 +556,13 @@ Owner directive (fifth pass, same words). Full entry + certificate in worklog.md
 **Tests/checks:** lint 0 · tsc 0 (changed-files-strict) · vitest 239/239 · live E2E (crash paths, API roundtrips, drill wirings, mobile 390px ×3, console/page errors 0, dev.log clean) · KPI hand-check exact (369 closed / +$36,253.45 = the user's own-data cohort; the 5-trade raw-delta belongs to another user's account — isolation proven from data) · DB restored to the pulled baseline exactly (0 test residue, sqlite-verified).
 
 **Remaining / needs owner decision:** unchanged carry-overs (MT5 live broker test on the owner's Docker host; challenges/psych-tags/missed-trades/day-tags demo seeding — 0 rows in production so several new drills are compile+affordance-verified only; 51+141 over-exports; Dashboard + User.displayMode orphan models). New tooling follow-up: the fresh-mode tsc any-typing root cause. Journal Linked-Trade searchable picker (LOW). Sessions user-local window entry (enhancement).
+
+---
+
+## Audit addendum — RITUAL-UI-1 (2026-11-11)
+
+**What changed:** the ENFORCE-4 preview drift UI was retired at owner request — `<RitualLockGate>` (full-screen lock page + amber WARN banner + 20s polling), `/api/ritual-state` route, and `src/lib/ritual-guard.ts` were deleted (zero-reference proofs in the worklog; sole mount in `src/app/page.tsx` unmounted). `day:start`'s summary line no longer claims the deleted module is live.
+
+**Why:** the owner now runs process discipline through a manually-maintained Task Template; the in-app lock visuals were redundant for them. **The rituals themselves are unchanged:** PULL-FIRST (`bun run sync:prod`), the pre-push `.sync-state` enforcement, and the day:start gate all remain active — only the in-app presentation layer is gone.
+
+**Verified after removal:** lint 0 · tsc 0 · 239/239 · dev 200 · signed-in shell + signed-out landing + mobile render clean with zero ritual/drift text; `/api/ritual-state` 404; dev.log zero polls + zero errors. Dead code removed: 3 files, 1 route, 0 deps. No new orphans.

@@ -10103,6 +10103,52 @@ Ritual block intact in all 3 files: YES
 Verdict:                            PRODUCTION-READY
 
 
+---
+
+## Task RITUAL-UI-1 — retire the ENFORCE-4 preview drift visuals (lock page + WARN banner) at owner request   [2026-11-11T13:04:30Z]
+
+**Agent:** Z.ai Code (Claude) · **Type:** NEW · **Scope:** NORMAL
+
+**Task (owner's words):** "Please i want you to remove/delete the ritual drift look that is showing on my preview. not the rituals itself but the look/block enforce/enforcer etc. i dont think its important any more since i have already manually created a Task Template for the same reason and goal" — i.e. remove the ENFORCE-4 UI (lock page, amber banner, its polling), keep the rituals themselves (sync:prod pull-first, pre-push hook, day:start gate).
+
+**Work Log:**
+1. BEFORE gate: ritual-block md5 snapshot (all 3 files identical `fa3d2a5bbf40985991ec3da81da4a303`, markers=1 each) · day:start CLEARED TO WORK (pull 12:42:53Z, users=4 trades=386) · open-cycle check: only the DB-sidecar + one Auto-Backup ride-along commit (normal) · baseline lint 0 / tsc 0 / 239/239.
+2. Mapped the full ENFORCE-4 UI chain: `src/components/ritual-lock-gate.tsx` (lock page + banner + 20s polling of `/api/ritual-state`) → `src/app/api/ritual-state/route.ts` (public route, 10s memo) → `src/lib/ritual-guard.ts` (git + .sync-state drift computation). Sole mount: `src/app/page.tsx` wrapping `AuthGate`. Verified nothing else consumes the endpoint (sync:prod health-checks `/`, day:start only prints a string, zero tests reference it).
+3. `src/app/page.tsx`: unmounted `<RitualLockGate>` — `AuthGate` renders directly; left an honest comment (owner request + date + what remains).
+4. Zero-reference proofs (5.3 standard, docs/worklog excluded): `rg "ritual-lock-gate|RitualLockGate"` → self-hits only; `rg "api/ritual-state"` → the chain itself + a `.gitignore` comment (rules stay load-bearing); `rg "ritual-guard|computeRitualState"` → chain + day-start log string. Deleted: `src/components/ritual-lock-gate.tsx`, `src/app/api/ritual-state/` (folder), `src/lib/ritual-guard.ts` · `rm -rf .next/types`.
+5. `scripts/day-start.ts:408`: the summary line claimed "ritual-guard live (ENFORCE-4)" — now reads "drift-lock UI retired 2026-11-11 (owner Task Template)" so the gate never reports a deleted module as live. No behavior change (the string was informational; day:start's real open-cycle refusal logic is untouched and still active).
+6. Docs: AGENTS.md (2 sections) + CLAUDE.md (2 disciplines) updated to record the retirement and what still enforces the rule; all content ABOVE the ritual block. `.gitignore` ENFORCE-4 comment left as history (rules themselves are load-bearing for day-state/platform artifacts).
+
+**Verification:** lint 0 errors · `bunx tsc --noEmit` 0 · tests 239/239 (20 files) · dev 200 throughout (tsc OOM'd it twice — restarted each time per the known sandbox pattern). E2E live-pull browser: `/` signed-in renders the full shell instantly with real data (realized PnL $36,253.45, Overview + Daily Briefing + Behavior Radar over 369 trades), snapshot grep for ritual/drift/ENFORCE/Unpushed/locked = 0 hits; signed-out landing renders clean (Sign in / Start free / hero); mobile-width snapshot clean; `/api/ritual-state` now 404 (route gone); dev.log shows zero ritual-state polls (polling eliminated) and zero errors/warnings (only the system-guard memory banner). Console buffer's 270 stale RSC-fetch errors are pre-change dev-restart artifacts (deduped to a single type, timestamps from the tsc-OOM windows); newest entries are pure HMR/DevTools info. Ritual block: markers=1 in all 3 files, before/after diff identical.
+
+**Cleanup report:** no untracked files, no orphan deps (rg proofs above), /tmp holds only platform infra + this task's ritual.before.* snapshots (kept for the 6.4 proof; .next kept per KEEPER). Junk purged: 0MB (nothing purgeable). Dead code removed: 3 files + 1 route (proofs above).
+
+**Production-readiness certificate:**
+
+```
+PRODUCTION-READINESS CERTIFICATE — RITUAL-UI-1
+Date (UTC, from `date -u`):         2026-11-11T13:04:30Z
+Task started / finished:            2026-11-11T12:48:27Z / 2026-11-11T13:04:30Z
+Last production pull (sync:prod):   2026-11-11T12:42:53Z   users=4 trades=386
+Production URL health:              (not re-curl'd this task; synced via day:start) Preview/dev: 200
+Build: lint 0 errors | tsc 0 errors | tests 239/239 passing
+Pages/flows verified (list):        / signed-in shell (Overview drill, real data), / signed-out landing, mobile width, /api/ritual-state 404
+Console + server-log errors:        0 current / 0 (270 stale pre-change RSC artifacts explained)
+Touched-area audit:                 PASS (mount unmounted, chain dead, day:start line honest, docs updated)
+KPIs hand-checked vs raw DB:        not touched (UI removal only; realized PnL $36,253.45 displayed matches pull)
+Security: every touched handler guarded: N/A (route deleted; no handlers touched remain)
+Dead code removed:                  3 files, 0 deps, 1 route (proofs in worklog)
+Junk purged:                        0 MB (project 1.8G→1.8G, /tmp platform-infra only)
+Orphan DB models needing owner decision: none
+Ritual block intact in all 3 files: YES (md5 identical before/after)
+Verdict:                            PRODUCTION-READY
+```
+
+**Ritual:** pull 12:42:53Z (users=4, trades=386) · entry above block · AGENTS.md + CLAUDE.md updated above block · commit + push last (this commit).
+
+**Needs owner decision / left over:** none.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of
