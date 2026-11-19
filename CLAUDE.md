@@ -495,6 +495,25 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   "Planned" chips until their connector actually ships. Read-only by
   construction — no order endpoints anywhere, ever.
 
+## Task CONNECT-2 — preview-origin 403 + EA compile fix + publish gap (2026-11-19)
+
+- **Preview-origin discipline**: the preview URL rotates every chat
+  session; the auth CSRF gate accepts the preview-chat-* FAMILY derived
+  from the pin (previewOriginFamily in src/lib/server/origin.ts) — no
+  per-session URL editing, ever. Symptom fingerprint: POSTs 403 while GETs
+  200 = origin pins vs the live preview URL.
+- **MQL WebRequest law**: the custom-headers overload is 8 parameters
+  (method, url, headers, timeout, uchar data[], data_size, uchar
+  result[], result_headers) — byte arrays + explicit byte count, UTF-8
+  via StringToCharArray/CharArrayToString with the NUL stripped. The
+  7-parameter string-body form does not exist (v1.0.0's compile failure).
+  The token also rides every JSON body (pair/events/heartbeat) so auth
+  survives header-stripping.
+- **Publish ≠ push**: a pushed commit is NOT on production until the
+  owner clicks Publish (platform generation page). The EA's InpBaseUrl is
+  production, so connection tokens must be created on production's DB —
+  preview-created tokens live only in the workbench mirror.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

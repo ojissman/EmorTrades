@@ -1437,6 +1437,54 @@ additions:
   provider. SQLite → PostgreSQL decision BEFORE broad multi-tenant rollout
   (plan in worklog CONNECT-1 hosting assessment; owner decision).
 
+## Task CONNECT-2 — the owner's first wiring attempt: PREVIEW-2 (rotating preview origin 403), the EA compile fix, and the standing publish gap (2026-11-19)
+
+Owner reports, in order: "it says 'forbidden' when trying to create and
+generate the mt5 and mt4" (the preview's POSTs), then "wrong parameters
+count … cannot convert parameter 'const string&' to 'const uchar&[]' …
+290 … compile failed 2 error" (MetaEditor on EmorTradesAutoSync-MT5.mq5).
+Full entry + certificate in worklog.md. Permanent-record additions:
+
+- PREVIEW-2 (environment law): the platform's preview URL ROTATES every
+  chat session (preview-chat-<chat-id>.space-z.ai). A pinned DEV_ORIGIN is
+  a DEAD URL one session later — the auth CSRF origin gate then 403'd every
+  state-changing route in the live preview while GETs (no Origin header)
+  kept working. `previewOriginFamily()` (src/lib/server/origin.ts) derives
+  the family from any preview-shaped pin and the gate accepts it alongside
+  the exact pins — CSRF-safe because the session cookie is host-scoped to
+  the exact preview host + CHIPS-partitioned, so a different preview host
+  can never attach it. When the preview URL rotates again, NOTHING needs
+  editing: the family regex follows the pin. (If DEV_ORIGIN is ever
+  repointed at a new session, the old session's URL dies with it — that is
+  the platform's own lifecycle, not drift.)
+- EA HTTP LAW (from the first real MetaEditor compile): MQL's WebRequest
+  custom-headers overload is `WebRequest(method, url, headers, timeout,
+  data[], data_size, result[], result_headers)` — EIGHT parameters, request
+  body AND response as BYTE arrays (uchar[] via StringToCharArray /
+  CharArrayToString, CP_UTF8, trailing NUL stripped, ArrayResize to the
+  exact payload). The 7-parameter "string body + string result" overload
+  DOES NOT EXIST — v1.0.0 shipped calling it and never compiled (caught by
+  the owner's MetaEditor exactly as CONNECT-1 §13 predicted: EAs are never
+  compiled in this sandbox). Any future EA edit re-checks this form.
+- TOKEN-IN-BODY redundancy: the connector token rides the JSON body of
+  every EA call (pair/events/heartbeat — `"token":"…"`) in ADDITION to the
+  x-connector-token header, so auth survives header-stripping
+  brokers/proxies; the server has accepted body.token since CONNECT-1
+  (rawTokenFromRequest: header first, body second — same sha256 verify).
+- PUBLISH GAP (standing owner action): production (emortrade.space-z.ai)
+  served pre-CONNECT-1 code at the time of this task — connector routes
+  404, EA downloads 404. A pushed GitHub commit is NOT a production
+  publish: the owner clicks Publish on the platform generation page (the
+  only trigger; build-guarded.sh runs inside it). And the EA's InpBaseUrl
+  is PRODUCTION — tokens must be created on production's DB (the preview
+  DB is the workbench mirror that sync:prod replaces); a token created in
+  the preview can never pair an EA against production.
+- Debug fingerprint for this class of bug: dev.log shows repeated 403s on
+  POST/PATCH/DELETE while every GET is 200 → the origin gate is rejecting
+  the browser's Origin → check the pins vs the CURRENT preview URL first
+  (the family fix should make this class dead; it is kept here for
+  diagnosis of any future variant).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

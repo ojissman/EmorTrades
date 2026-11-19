@@ -42,6 +42,46 @@ export function resolvePinnedOrigin(env: OriginEnv = process.env): string {
   return prod
 }
 
+/**
+ * PREVIEW-2 (2026-11-19) — the platform's preview URL ROTATES every chat
+ * session (preview-chat-<chat-id>.<platform domain>), so a pinned DEV_ORIGIN
+ * is stale — a dead URL — the moment a new session starts. The CSRF origin
+ * gate in auth.ts compared the browser's live Origin against the exact pins
+ * and answered 403 "Cross-origin request rejected" for EVERY state-changing
+ * route (POST/PATCH/DELETE) in the live preview, while same-origin GETs (no
+ * Origin header) kept working — exactly the "forbidden when creating the
+ * MT5/MT4 connection" report. The fix: derive the preview FAMILY from any
+ * preview-shaped pin — its registrable domain behind the preview-chat-
+ * prefix — and accept it alongside the exact pins.
+ *
+ *   pin https://preview-chat-<old-session>.space-z.ai
+ *   →   ^https://preview-chat-[a-z0-9-]+\.space-z\.ai$
+ *
+ * Still CSRF-safe: the session cookie is host-scoped to the EXACT preview
+ * host (and CHIPS-partitioned, PREVIEW-1), so a different preview host can
+ * never attach this user's cookie — the family pass only ever fires for
+ * the host the browser is actually on, which is the one serving the app.
+ * Foreign domains and non-preview hosts stay blocked.
+ *
+ * Returns null when no pin carries the preview pattern (family acceptance
+ * disarmed; exact pins + localhost still apply).
+ */
+export function previewOriginFamily(pins: readonly string[]): RegExp | null {
+  for (const pin of pins) {
+    let host: string
+    try {
+      host = new URL(pin).hostname
+    } catch {
+      continue // not a URL — not a preview pin
+    }
+    const m = /^preview-chat-[a-z0-9-]+\.([a-z0-9.-]+)$/.exec(host)
+    if (!m) continue
+    const root = m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // escape regex metacharacters
+    return new RegExp(`^https://preview-chat-[a-z0-9-]+\\.${root}$`)
+  }
+  return null
+}
+
 export function originFromReq(req: Request): string {
   const pinned = resolvePinnedOrigin()
   if (pinned) return pinned

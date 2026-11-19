@@ -3,7 +3,7 @@ import { cookies, headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { Prisma, User } from '@prisma/client'
 import { db } from '@/lib/db'
-import { resolvePinnedOrigin } from './origin'
+import { previewOriginFamily, resolvePinnedOrigin } from './origin'
 
 /**
  * ============================================================================
@@ -171,7 +171,9 @@ export function withClearedSession(res: NextResponse): NextResponse {
  *
  *   when a valid session cookie is presented AND the request carries an Origin
  *   header, that origin must be one the app is legitimately served from —
- *   PUBLIC_ORIGIN (production), DEV_ORIGIN (the preview sandbox), or a local
+ *   PUBLIC_ORIGIN (production), DEV_ORIGIN (the preview sandbox), the
+ *   preview-chat-* family of the pin's domain (PREVIEW-2: the preview URL
+ *   rotates every chat session, so the pin itself goes stale), or a local
  *   dev host. Anything else (a malicious site forging a cross-site POST with
  *   the user's attached cookie) is rejected with 403.
  *
@@ -180,6 +182,10 @@ export function withClearedSession(res: NextResponse): NextResponse {
  *   already possess the cookie or the export token to do anything).
  * · Unpinned deployments (no PUBLIC_ORIGIN/DEV_ORIGIN configured) keep the
  *   historical behaviour — the gate only arms when at least one pin exists.
+ * · The preview family pass is cookie-scoping-safe (PREVIEW-2): a different
+ *   preview host can never attach this user's host-scoped, CHIPS-partitioned
+ *   session cookie, so widening acceptance inside the platform's own preview
+ *   family never widens the CSRF surface.
  */
 const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
 
@@ -194,6 +200,11 @@ async function crossOriginBlocked(): Promise<boolean> {
     if (!origin) return false
     const normalized = origin.trim().replace(/\/+$/, '')
     if (LOCAL_ORIGIN_RE.test(normalized)) return false
+    // PREVIEW-2: the preview URL rotates every chat session, so the pinned
+    // DEV_ORIGIN is a dead URL the moment a session starts — the live
+    // browser Origin failed the exact-pin test and every state-changing
+    // route answered 403. Accept the pin's preview family.
+    if (previewOriginFamily(pins)?.test(normalized)) return false
     return !pins.includes(normalized)
   } catch {
     // No request context (unit tests / non-HTTP callers) — fail open.

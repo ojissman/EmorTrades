@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT4.mq4 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.0 · CONNECT-1 · READ-ONLY by construction               |
+//| Version 1.0.1 · CONNECT-2 · READ-ONLY by construction               |
 //|                                                                      |
 //| The MetaTrader 4 sibling of EmorTradesAutoSync-MT5.mq5 — the same    |
 //| universal connector contract (pair / events / heartbeat over HTTPS),|
@@ -34,7 +34,7 @@
 //|   · Slippage/tick-level data is not exposed by MT4.                 |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 #property description "EmorTrades read-only trading sync connector (MetaTrader 4)."
 
@@ -47,7 +47,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.0"
+#define EA_VERSION          "1.0.1"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -312,16 +312,28 @@ void LoadState()
   }
 
 //+------------------------------------------------------------------+
-//| HTTP (MQL4 WebRequest takes char arrays)                          |
+//| HTTP (WebRequest — CONNECT-2: the real custom-headers overload    |
+//| is the 8-parameter form with byte arrays and an explicit size:    |
+//|   WebRequest(method, url, headers, timeout,                       |
+//|              data[], data_size, result[], result_headers)         |
+//| v1.0.0's 7-parameter call did not compile. The token also rides   |
+//| the JSON body of every call (pair/events/heartbeat), so auth      |
+//| survives header-stripping brokers/proxies even if the header      |
+//| channel degrades.                                                 |
 //+------------------------------------------------------------------+
 int HttpPost(const string path, const string body, string &response)
   {
-   uchar dataArr[]; uchar resultArr[]; string resultHeaders = "";
-   StringToCharArray(body, dataArr, 0, StringLen(body));
-   ArrayResize(dataArr, ArraySize(dataArr) - 1);            // strip the NUL terminator
    string headers = "Content-Type: application/json\r\n"
                     "x-connector-token: " + g_token + "\r\n";
-   int status = WebRequest("POST", InpBaseUrl + path, headers, HTTP_TIMEOUT_MS, dataArr, resultArr, resultHeaders);
+   uchar  dataArr[];                            // request body bytes (UTF-8)
+   uchar  resultArr[];                           // response body bytes
+   string resultHeaders = "";
+   int     bytes = StringToCharArray(body, dataArr, 0, -1, CP_UTF8);
+   if(bytes > 0 && dataArr[bytes - 1] == 0) bytes--;    // strip the trailing NUL
+   ArrayResize(dataArr, bytes);                         // exactly the payload
+   ResetLastError();
+   int status = WebRequest("POST", InpBaseUrl + path, headers, HTTP_TIMEOUT_MS,
+                           dataArr, bytes, resultArr, resultHeaders);
    if(status == -1)
       Print("EmorTradesAutoSync: WebRequest failed (", GetLastError(),
             ") — check Tools→Options→Expert Advisors→Allow WebRequest for ", InpBaseUrl);
@@ -495,7 +507,7 @@ bool FlushQueue(const string phase)
    string lines[];
    int    n = ReadQueue(lines, MAX_EVENTS_BATCH);
    if(n == 0) return true;
-   string body = "{\"phase\":\"" + phase + "\",\"queueDepth\":" + IntegerToString(QueueDepth()) + ",\"events\":[";
+   string body = "{\"token\":" + JStr(g_token) + ",\"phase\":\"" + phase + "\",\"queueDepth\":" + IntegerToString(QueueDepth()) + ",\"events\":[";
    for(int i = 0; i < n; i++)
      {
       if(i > 0) body += ",";
@@ -544,11 +556,11 @@ int CountMatches(const string &lines[], const string &acks[], int ackCount)
 void DoHeartbeat()
   {
    g_beatCount++;
-   string body = StringFormat("{\"status\":\"%s\",\"queueDepth\":%s,\"eaVersion\":%s}",
-                              g_lastStatus, JInt(QueueDepth()), JStr(EA_VERSION));
+   string body = StringFormat("{\"token\":%s,\"status\":\"%s\",\"queueDepth\":%s,\"eaVersion\":%s}",
+                              JStr(g_token), g_lastStatus, JInt(QueueDepth()), JStr(EA_VERSION));
    if(g_beatCount % 10 == 0)
-      body = StringFormat("{\"status\":\"%s\",\"queueDepth\":%s,\"eaVersion\":%s,\"account\":%s}",
-                          g_lastStatus, JInt(QueueDepth()), JStr(EA_VERSION), AccountJson(true));
+      body = StringFormat("{\"token\":%s,\"status\":\"%s\",\"queueDepth\":%s,\"eaVersion\":%s,\"account\":%s}",
+                          JStr(g_token), g_lastStatus, JInt(QueueDepth()), JStr(EA_VERSION), AccountJson(true));
    string resp = "";
    int st = HttpPost("/api/connector/v1/heartbeat", body, resp);
    if(st == 200)
