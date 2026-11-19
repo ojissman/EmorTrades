@@ -594,3 +594,15 @@ Owner directive (fifth pass, same words). Full entry + certificate in worklog.md
 **Gates:** lint 0 · tsc 0 · tests 272/272 (8 new) · dev 200 · browser + wire E2E clean, DB restored to the exact pulled baseline (the owner's single live connection row preserved).
 
 **Remaining / owner decisions:** unchanged from CONNECT-2 (orphan models, PG migration timing, legacy env keys); the owner's MetaEditor F7 compile of v1.0.2 remains the final acceptance step, and the next Publish is needed for production's /downloads/ to hand out v1.0.2 (the preview serves it immediately).
+
+## Audit addendum — CONNECT-4 (2026-11-19)
+
+**Scope (NORMAL, touched area):** both EA sources + the connection card + the EA-source regression suite. Zero connector-server changes (the contract was re-proven untouched, not assumed).
+
+**Notable finding + fix:** the owner's first live attach compiled clean (v1.0.2) but never paired — 10 minutes on "status: starting". Pulled-DB evidence: 3 connection rows (16:21/17:04/17:07), all `connecting`, `lastHeartbeatAt=null`, `connectorSyncLog` total = 0 — no pair call ever completed; the EA's own state machine only stays "starting" when WebRequest never returns an HTTP answer. The failure was terminal-side (almost certainly err 4014: the URL absent from Tools → Options → Expert Advisors → "Allow WebRequest for listed URL" — the AutoTrading toggle the owner tried does not gate WebRequest), and v1.0.2 hid the reason in the Experts log while the chart panel stayed mute, with a 600 s back-off ceiling stretching retries to once per 10 minutes. Fix: MT5 EA v1.0.3 + MT4 EA v1.0.2 make the panel self-diagnosing (last HTTP status / decoded err + exact remedy, server URL, token fingerprint, attempts, retry countdown; 60 s unpaired cap; token trim), and the journal's connection card now carries the allow-list hint on every unpaired row. Recorded as EA HTTP LAW v3 (silent-failure law) in AGENTS.md.
+
+**Regression guard extended:** tests/ea-source.test.ts (272 → 285) keeps the CONNECT-3 overload pins unchanged (the WebRequest call shapes are untouched — proof the wire didn't move) and adds 13 diagnosability pins: StatusText diagnostics lines, post-call capture ordering, the 4014 decode with the server URL riding the remedy, the exact 60 s unpaired cap line, the token trim pair, fingerprint + attempt counters, and MT4's 4060 alias.
+
+**Gates:** lint 0 · tsc 0 · tests 285/285 · dev 200 · wire E2E (pair → heartbeat with eaVersion 1.0.3 in DB → exact-baseline cleanup, the owner's 3 rows preserved) · browser E2E (hint on all 3 cards desktop + mobile, downloads byte-identical, dialog open/cancel zero mutation) · console 0 / dev.log 0.
+
+**Remaining / owner decisions:** the terminal-side allow-list step is the owner's hands-on action (the EA now states it on the panel when blocked); re-download after the next Publish + F7 recompile; optionally delete the two spare connection rows; the true terminal error code is now observable on the panel if it is ever NOT 4014 — send it and it gets fixed precisely. Standing items unchanged (orphan models, PG migration timing, legacy env keys).

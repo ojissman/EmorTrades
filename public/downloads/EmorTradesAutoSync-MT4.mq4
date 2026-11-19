@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT4.mq4 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.1 · CONNECT-2 · READ-ONLY by construction               |
+//| Version 1.0.2 · CONNECT-4 · READ-ONLY by construction               |
 //|                                                                      |
 //| The MetaTrader 4 sibling of EmorTradesAutoSync-MT5.mq5 — the same    |
 //| universal connector contract (pair / events / heartbeat over HTTPS),|
@@ -23,6 +23,9 @@
 //|   5. IMPORTANT (history recovery): in the MT4 "Account History"      |
 //|      tab, right-click → All History — MT4 only exposes what is       |
 //|      displayed there, and the connector recovers exactly that.       |
+//|   6. The chart top-left shows the live sync status — including a     |
+//|      "last:" diagnostics line. If it shows err 4014/4060, step 3     |
+//|      was not done yet (the terminal is blocking the URL).            |
 //|                                                                      |
 //| MT4 SEMANTICS (documented honestly)                                 |
 //|   · A full close keeps the original ticket; a PARTIAL close splits:  |
@@ -34,7 +37,7 @@
 //|   · Slippage/tick-level data is not exposed by MT4.                 |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 #property description "EmorTrades read-only trading sync connector (MetaTrader 4)."
 
@@ -47,7 +50,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.1"
+#define EA_VERSION          "1.0.2"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -72,6 +75,11 @@ int      g_failStreak      = 0;
 string   g_lastStatus      = "starting";
 string   g_sentSpecs       = "|";
 int      g_beatCount       = 0;
+//── CONNECT-4: panel diagnostics — a failed request must never be silent
+int      g_pairAttempts   = 0;        // pairing attempts made this attach
+int      g_lastHttp       = 0;        // last WebRequest HTTP status (0 = none yet)
+int      g_lastErrCode    = 0;        // GetLastError() when the last status was -1
+string   g_lastErrHint    = "";       // decoded one-line remedy
 
 // diff cache (ticket → last-sent state hash)
 int      g_keys[];
@@ -321,6 +329,28 @@ void LoadState()
 //| survives header-stripping brokers/proxies even if the header      |
 //| channel degrades.                                                 |
 //+------------------------------------------------------------------+
+//| CONNECT-4 diagnostics — the panel must never go silent. The       |
+//| owner's first live attach (2026-11-19, MT5) sat on "starting"    |
+//| for 10 minutes because WebRequest was terminal-blocked (the URL  |
+//| was not in the allowed list) and the reason lived only in the   |
+//| Experts log. These helpers put it on the chart panel instead.   |
+//+------------------------------------------------------------------+
+string ErrHint(const int err)
+  {
+   if(err == 4014 || err == 4060)   // both are the "function not allowed" family
+      return "terminal blocked WebRequest — Tools → Options → Expert Advisors → tick \"Allow WebRequest for listed URL\", add " + InpBaseUrl + ", click OK";
+   return "transport failed — see the Experts tab (Toolbox) for the full message; also check internet / proxy / VPN";
+  }
+
+string TokenFingerprint()
+  {
+   int len = StringLen(g_token);
+   if(len == 0) return "(empty — paste it in the EA inputs)";
+   if(StringFind(g_token, "emorta_") != 0) return "MALFORMED — expected emorta_…";
+   if(len >= 12) return "emorta_…" + StringSubstr(g_token, len - 4);
+   return "emorta_…";
+  }
+
 int HttpPost(const string path, const string body, string &response)
   {
    string headers = "Content-Type: application/json\r\n"
@@ -334,6 +364,9 @@ int HttpPost(const string path, const string body, string &response)
    ResetLastError();
    int status = WebRequest("POST", InpBaseUrl + path, headers, HTTP_TIMEOUT_MS,
                            dataArr, bytes, resultArr, resultHeaders);
+   g_lastHttp    = status;                   // CONNECT-4: panel diagnostics
+   g_lastErrCode = (status == -1) ? GetLastError() : 0;
+   g_lastErrHint = (status == -1) ? ErrHint(g_lastErrCode) : "";
    if(status == -1)
       Print("EmorTradesAutoSync: WebRequest failed (", GetLastError(),
             ") — check Tools→Options→Expert Advisors→Allow WebRequest for ", InpBaseUrl);
@@ -469,6 +502,7 @@ string SymbolSpecJson(const string sym)
 //+------------------------------------------------------------------+
 bool DoPair()
   {
+   g_pairAttempts++;                         // CONNECT-4: visible pairing effort
    string body = StringFormat("{\"token\":%s,\"platform\":\"mt4\","
                               "\"terminal\":{\"version\":%s,\"build\":%s,\"company\":%s},"
                               "\"account\":{\"login\":%s,\"server\":%s,\"company\":%s,\"name\":%s,"
@@ -752,7 +786,8 @@ int BackoffSeconds()
   {
    int s = 5;
    for(int i = 1; i < g_failStreak && i < 12; i++) s *= 2;
-   if(s > 600) s = 600;
+   int cap = (g_paired || g_stopped) ? 600 : 60;   // CONNECT-4: unpaired retries stay visible (≤ 60 s)
+   if(s > cap) s = cap;
    return s;
   }
 
@@ -761,10 +796,21 @@ string StatusText()
    if(g_token == "")
       return "EmorTrades AutoSync (MT4) — waiting: enter your EmorTrades connection token in the EA inputs.\n"
              "Read-only connector: it never trades.";
-   return StringFormat("EmorTrades AutoSync %s (MT4) · read-only\nstatus: %s · queued: %d · checkpoint: %s\ndesired: %s",
+   string last;
+   if(g_lastHttp == 0)      last = "none yet (starting up)";
+   else if(g_lastHttp > 0) last = StringFormat("HTTP %d", g_lastHttp);
+   else                    last = StringFormat("HTTP -1 (err %d) — %s", g_lastErrCode, g_lastErrHint);
+   string pairing = "";
+   if(!g_paired && !g_stopped)
+     {
+      int retryIn = (g_backoffUntil > TimeCurrent()) ? (int)(g_backoffUntil - TimeCurrent()) : 0;
+      pairing = StringFormat(" · attempts: %d · retry in %d s", g_pairAttempts, retryIn);
+     }
+   return StringFormat("EmorTrades AutoSync %s (MT4) · read-only\nstatus: %s · queued: %d · checkpoint: %s\ndesired: %s\nserver: %s · token: %s\nlast: %s%s",
                        EA_VERSION, g_lastStatus, QueueDepth(),
                        (g_checkpointMs > 0 ? TimeToString((datetime)(g_checkpointMs / 1000), TIME_DATE | TIME_SECONDS) : "none"),
-                       (g_stopped ? "disconnect (server)" : "sync"));
+                       (g_stopped ? "disconnect (server)" : "sync"),
+                       InpBaseUrl, TokenFingerprint(), last, pairing);
   }
 
 //+------------------------------------------------------------------+
@@ -773,6 +819,8 @@ string StatusText()
 int OnInit()
   {
    g_token = InpToken;
+   StringTrimLeft(g_token);    // CONNECT-4: paste hygiene — a stray space or
+   StringTrimRight(g_token);   // newline would otherwise fail every call silently
    if(StringLen(g_token) > 0 && StringFind(g_token, "emorta_") != 0)
       Print("EmorTradesAutoSync: the token does not look like an EmorTrades connection token (expected emorta_...) — paste it exactly as shown in Settings → Connections");
    LoadState();

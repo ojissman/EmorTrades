@@ -196,6 +196,14 @@ export function statusMeta(s: string): { label: string; className: string } {
 }
 
 /**
+ * The connector server URL — the one string the EA files, the install steps
+ * and the connection-card hint all reference (CONNECT-4: the owner's first
+ * live attach failed on exactly this URL not being in the terminal's
+ * WebRequest allow-list, invisibly).
+ */
+export const CONNECTOR_SERVER_URL = 'https://emortrade.space-z.ai'
+
+/**
  * Platform-specific install instructions for the create-success step —
  * verbatim from the CONNECT-1 brief (they mirror the EA file headers in
  * public/downloads, which document the same WebRequest URL and read-only

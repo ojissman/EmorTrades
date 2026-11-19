@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT5.mq5 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.2 · CONNECT-3 · READ-ONLY by construction               |
+//| Version 1.0.3 · CONNECT-4 · READ-ONLY by construction               |
 //|                                                                      |
 //| WHAT THIS IS                                                         |
 //|   A read-only synchronization Expert Advisor. It watches YOUR MT5    |
@@ -25,8 +25,10 @@
 //|        https://emortrade.space-z.ai                                  |
 //|   4. Drag the EA onto any chart. In the inputs paste your             |
 //|      EmorTrades connection token (EmorToken).                        |
-//|   5. The chart top-left shows the live sync status. Trades appear     |
-//|      in EmorTrades under the linked Trading Account.                 |
+//|   5. The chart top-left shows the live sync status — including a     |
+//|      "last:" diagnostics line. If it shows err 4014, step 3 was not |
+//|      done yet (the terminal is blocking the URL). Trades appear in  |
+//|      EmorTrades under the linked Trading Account.                   |
 //|                                                                      |
 //| RECOVERY GUARANTEE                                                   |
 //|   Every event is written to a durable local queue BEFORE it is sent, |
@@ -37,7 +39,7 @@
 //|   dedup makes re-sends harmless).                                    |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.02"
+#property version   "1.03"
 #property description "EmorTrades read-only trading sync connector (MetaTrader 5)."
 
 //── inputs ────────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.2"
+#define EA_VERSION          "1.0.3"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -74,6 +76,11 @@ int      g_failStreak     = 0;
 string   g_lastStatus     = "starting";
 string   g_sentSpecs      = "|";
 int      g_beatCount      = 0;
+//── CONNECT-4: panel diagnostics — a failed request must never be silent
+int      g_pairAttempts  = 0;        // pairing attempts made this attach
+int      g_lastHttp      = 0;        // last WebRequest HTTP status (0 = none yet)
+int      g_lastErrCode   = 0;        // GetLastError() when the last status was -1
+string   g_lastErrHint   = "";       // decoded one-line remedy
 
 //+------------------------------------------------------------------+
 //| JSON helpers (hand-rolled, allocation-light)                      |
@@ -299,6 +306,28 @@ void LoadState()
 //| heartbeat), so auth does not depend on custom headers surviving   |
 //| brokers/proxies.                                                  |
 //+------------------------------------------------------------------+
+//| CONNECT-4 diagnostics — the panel must never go silent. The       |
+//| owner's first live attach (2026-11-19) sat on "status: starting" |
+//| for 10 minutes because WebRequest was terminal-blocked (the URL  |
+//| was not in the allowed list, err 4014) and the reason lived      |
+//| only in the Experts log. These helpers put it on the panel.      |
+//+------------------------------------------------------------------+
+string ErrHint(const int err)
+  {
+   if(err == 4014)
+      return "terminal blocked WebRequest — Tools → Options → Expert Advisors → tick \"Allow WebRequest for listed URL\", add " + InpBaseUrl + ", click OK";
+   return "transport failed — see the Experts tab (Toolbox) for the full message; also check internet / proxy / VPN";
+  }
+
+string TokenFingerprint()
+  {
+   int len = StringLen(g_token);
+   if(len == 0) return "(empty — paste it in the EA inputs)";
+   if(StringFind(g_token, "emorta_") != 0) return "MALFORMED — expected emorta_…";
+   if(len >= 12) return "emorta_…" + StringSubstr(g_token, len - 4);
+   return "emorta_…";
+  }
+
 int HttpPost(const string path, const string body, string &response)
   {
    string headers = "Content-Type: application/json\r\n"
@@ -313,6 +342,9 @@ int HttpPost(const string path, const string body, string &response)
    ResetLastError();
    int    status = WebRequest("POST", InpBaseUrl + path, headers, HTTP_TIMEOUT_MS,
                               dataArr, resultArr, resultHeaders);
+   g_lastHttp    = status;                   // CONNECT-4: panel diagnostics
+   g_lastErrCode = (status == -1) ? GetLastError() : 0;
+   g_lastErrHint = (status == -1) ? ErrHint(g_lastErrCode) : "";
    if(status == -1)
       Print("EmorTradesAutoSync: WebRequest failed (", GetLastError(),
             ") — check Tools→Options→Expert Advisors→Allow WebRequest for ", InpBaseUrl);
@@ -487,6 +519,7 @@ string SymbolSpecJson(const string sym)
 //+------------------------------------------------------------------+
 bool DoPair()
   {
+   g_pairAttempts++;                         // CONNECT-4: visible pairing effort
    string body = StringFormat("{\"token\":%s,\"platform\":\"mt5\","
                               "\"terminal\":{\"version\":%s,\"build\":%s,\"company\":%s},"
                               "\"account\":{\"login\":%s,\"server\":%s,\"company\":%s,\"name\":%s,"
@@ -825,7 +858,8 @@ int BackoffSeconds()
   {
    int s = 5;
    for(int i = 1; i < g_failStreak && i < 12; i++) s *= 2;
-   if(s > 600) s = 600;
+   int cap = (g_paired || g_stopped) ? 600 : 60;   // CONNECT-4: unpaired retries stay visible (≤ 60 s)
+   if(s > cap) s = cap;
    return s;
   }
 
@@ -834,10 +868,21 @@ string StatusText()
    if(g_token == "")
       return "EmorTrades AutoSync — waiting: enter your EmorTrades connection token in the EA inputs.\n"
              "Read-only connector: it never trades.";
-   return StringFormat("EmorTrades AutoSync %s · %s\nstatus: %s · queued: %d · checkpoint: %s\ndesired: %s",
+   string last;
+   if(g_lastHttp == 0)      last = "none yet (starting up)";
+   else if(g_lastHttp > 0) last = StringFormat("HTTP %d", g_lastHttp);
+   else                    last = StringFormat("HTTP -1 (err %d) — %s", g_lastErrCode, g_lastErrHint);
+   string pairing = "";
+   if(!g_paired && !g_stopped)
+     {
+      int retryIn = (g_backoffUntil > TimeCurrent()) ? (int)(g_backoffUntil - TimeCurrent()) : 0;
+      pairing = StringFormat(" · attempts: %d · retry in %d s", g_pairAttempts, retryIn);
+     }
+   return StringFormat("EmorTrades AutoSync %s · %s\nstatus: %s · queued: %d · checkpoint: %s\ndesired: %s\nserver: %s · token: %s\nlast: %s%s",
                        EA_VERSION, "read-only", g_lastStatus, QueueDepth(),
                        (g_checkpointMs > 0 ? TimeToString((datetime)(g_checkpointMs / 1000), TIME_DATE | TIME_SECONDS) : "none"),
-                       (g_stopped ? "disconnect (server)" : "sync"));
+                       (g_stopped ? "disconnect (server)" : "sync"),
+                       InpBaseUrl, TokenFingerprint(), last, pairing);
   }
 
 //+------------------------------------------------------------------+
@@ -846,6 +891,8 @@ string StatusText()
 int OnInit()
   {
    g_token = InpToken;
+   StringTrimLeft(g_token);    // CONNECT-4: paste hygiene — a stray space or
+   StringTrimRight(g_token);   // newline would otherwise fail every call silently
    if(StringLen(g_token) > 0 && StringFind(g_token, "emorta_") != 0)
       Print("EmorTradesAutoSync: the token does not look like an EmorTrades connection token (expected emorta_...) — paste it exactly as shown in Settings → Connections");
    LoadState();

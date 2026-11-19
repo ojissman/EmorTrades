@@ -538,6 +538,28 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   token riding the body, the connector protocol survives total
   custom-header loss.
 
+## Task CONNECT-4 — the silent EA panel hid err 4014 behind "status: starting" (2026-11-19)
+
+- **EA silent-failure law (v3):** a compiled EA that runs is not a working
+  EA. The owner's first live attach sat on "status: starting" for 10
+  minutes — WebRequest was terminal-blocked (err 4014: the server URL was
+  not in Tools → Options → Expert Advisors → "Allow WebRequest for listed
+  URL"; the AutoTrading button does NOT gate WebRequest) and the reason
+  lived only in the Experts log. From MT5 EA v1.0.3 / MT4 EA v1.0.2: the
+  chart panel shows the last HTTP status (or -1 + decoded err with its
+  remedy), the server URL, a token fingerprint, attempts and the retry
+  countdown; unpaired retries cap at 60 s; the pasted token is trimmed.
+- **Never-connect triage (DB-first):** `connectorSyncLog`=0 + connection
+  status `connecting` = no HTTP answer ever reached the server (terminal
+  block — allow-list first suspect); log entries + `auth_error` = token;
+  pair ok + heartbeat stalled = post-pair transport. The connection card
+  renders the allow-list hint on every unpaired row.
+- **Pinned:** tests/ea-source.test.ts now pins the overload shapes AND the
+  diagnosability contract (diagnostics lines, post-call capture ordering,
+  4014 decode with the URL riding the remedy, the 60 s unpaired cap, the
+  token trim, fingerprints, attempt counters) — any EA edit must keep both
+  contracts or the suite fails.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

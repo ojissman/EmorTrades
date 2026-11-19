@@ -29,7 +29,7 @@ import { useToast } from '@/hooks/use-toast'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { drillToTrades } from '@/lib/drill'
-import { PLATFORM_TAG, heartbeatAgo, statusMeta, type ConnectionRow } from './types'
+import { PLATFORM_TAG, CONNECTOR_SERVER_URL, heartbeatAgo, statusMeta, type ConnectionRow } from './types'
 
 export function ConnectionCard({
   c,
@@ -104,6 +104,14 @@ export function ConnectionCard({
               ? `${c.login} @ ${c.server ?? c.broker ?? '—'}${c.server && c.broker ? ` — ${c.broker}` : ''}`
               : 'Waiting for the EA to pair — login, broker and server arrive on its first connect.'}
           </p>
+          {!c.login && (
+            <p className="text-[11px] mt-1 leading-snug text-amber-600 dark:text-amber-400">
+              No EA contact yet — in MetaTrader open Tools → Options → Expert Advisors, tick “Allow
+              WebRequest for listed URL” and add {CONNECTOR_SERVER_URL}. The EA’s chart panel “last:”
+              line shows the exact reason (err 4014 = the URL is still blocked). Retries run at worst
+              every 60 s.
+            </p>
+          )}
         </div>
         <Badge variant="outline" className={cn('shrink-0 text-[10px]', meta.className)}>
           {meta.label}

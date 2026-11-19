@@ -1535,6 +1535,43 @@ Full entry + certificate in worklog.md. Permanent-record additions:
   after this push — until then production's /downloads/ still hands out
   v1.0.1 (which fails to compile); the preview serves v1.0.2 immediately.
 
+### CONNECT-4 (2026-11-19T17:38Z) — the silent-failure law: a compiled EA that runs is not a working EA
+
+The owner's first live attach: v1.0.2 compiled (F7 clean), attached, token
+pasted — then sat on "status: starting" for 10 minutes. Production DB
+evidence: 3 connection rows created while hunting (16:21/17:04/17:07), all
+`connecting`, `lastHeartbeatAt=null`, `connectorSyncLog` total = 0 — **no
+pair call ever completed**; the panel stays "starting" only when WebRequest
+never returns an HTTP answer (401 would show auth_error, 200 connected).
+Cause (terminal-side, unobservable from this sandbox — no MetaTrader here):
+the URL allow-list, err 4014. The AutoTrading button does NOT gate
+WebRequest — toggling it did nothing. v1.0.2 printed the remedy only to the
+Experts log, and the 600 s back-off ceiling hid retries.
+
+- **EA HTTP LAW v3 (the silent-failure law):** the EA chart panel must make
+  every request failure self-diagnosing — last HTTP status (or `-1` + the
+  decoded `GetLastError()` with its remedy), the server URL, a token
+  fingerprint (never the secret), the pairing attempt count and the retry
+  countdown. err 4014 decodes to the exact allow-list remedy ("Tools →
+  Options → Expert Advisors → tick Allow WebRequest for listed URL, add
+  <InpBaseUrl>, click OK"); MT4 additionally decodes 4060. Unpaired retries
+  cap at 60 s (600 s only post-pair). The pasted token is trimmed
+  (StringTrimLeft/Right) — a stray space would otherwise 401 every call.
+  Pinned by tests/ea-source.test.ts (CONNECT-4 cases); hiding request
+  failures from the panel is a regression.
+- **Diagnosis discipline (repeatable):** when an EA "never connects",
+  read the pulled DB first — `connectorSyncLog` count and the connection
+  row's status/heartbeat partition the failure space: log=0 + status
+  `connecting` = no HTTP answer at all (terminal block: allow-list /
+  network); log entries + `auth_error` = token problem; pair success +
+  heartbeat stalled = post-pair transport. The journal-side card now
+  carries the allow-list hint on every unpaired row (CONNECTOR_SERVER_URL
+  in connections/types.ts is the single source).
+- EA versions now: MT5 `EmorTradesAutoSync-MT5.mq5` **v1.0.3**, MT4
+  `EmorTradesAutoSync-MT4.mq4` **v1.0.2** (triplet discipline unchanged).
+  Publish state: production serves v1.0.2/v1.0.1 EAs until the owner's
+  next Publish; the preview serves the new ones immediately.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

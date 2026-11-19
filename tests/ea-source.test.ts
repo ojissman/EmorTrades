@@ -1,8 +1,9 @@
 /**
- * CONNECT-3 tests (Task CONNECT-3) — the EA source regression guard.
+ * EA source regression guards — CONNECT-3 + CONNECT-4.
  *
- * The owner's 2026 MetaEditor build offers exactly TWO WebRequest
- * overloads (from its own compiler error report, 2026-11-19):
+ * CONNECT-3 (the overload pin): the owner's 2026 MetaEditor build offers
+ * exactly TWO WebRequest overloads (from its own compiler error report,
+ * 2026-11-19):
  *
  *   int WebRequest(const string,const string,const string,const string,
  *                  int,const uchar&[],int,uchar&[],string&)   // 9 params (cookie+referer+data_size)
@@ -11,12 +12,19 @@
  *
  * The classic 8-parameter form (with data_size) does NOT exist in that
  * build — v1.0.1 used it and failed to compile ("wrong parameters count",
- * twice, at the HttpPost call). v1.0.2 pins the MT5 call to the 7-param
+ * twice, at the HttpPost call). v1.0.2+ pins the MT5 call to the 7-param
  * overload; MT4 keeps the 8-param form, which is MQL4's documented
  * signature (MT4's frozen compiler still wants exactly that).
  *
- * These tests pin the exact call shapes in both EA files so no future edit
- * can silently drift back into a non-compiling overload.
+ * CONNECT-4 (the diagnosability pin): the owner's first live attach
+ * (2026-11-19) sat on "status: starting" for 10 minutes because WebRequest
+ * was terminal-blocked (the URL was not in Tools→Options→Expert
+ * Advisors→"Allow WebRequest for listed URL") and the failure reason
+ * lived only in the Experts log — invisible on the chart panel. v1.0.3
+ * (MT5) / v1.0.2 (MT4) must keep the panel self-diagnosing: last HTTP
+ * status + decoded err (4014 = allow-list) + server URL + token
+ * fingerprint + attempts/retry countdown, a ≤60 s retry cap while
+ * unpaired, and token paste-trimming. These tests pin all of it.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -98,10 +106,10 @@ describe('CONNECT-3: MT5 EA uses the 7-parameter WebRequest overload', () => {
     expect(call).toBeGreaterThan(resize)
   })
 
-  it('keeps the version triplet consistent (1.0.2 / "1.02" / "1.0.2")', () => {
-    expect(mt5).toMatch(/Version 1\.0\.2 · CONNECT-3/)
-    expect(mt5).toMatch(/#property version   "1\.02"/)
-    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.2"/)
+  it('keeps the version triplet consistent (1.0.3 / "1.03" / "1.0.3")', () => {
+    expect(mt5).toMatch(/Version 1\.0\.3 · CONNECT-4/)
+    expect(mt5).toMatch(/#property version   "1\.03"/)
+    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.3"/)
   })
 })
 
@@ -120,14 +128,63 @@ describe('CONNECT-3: MT4 EA keeps MQL4’s documented 8-parameter form', () => {
       'HTTP_TIMEOUT_MS', // 4  int             timeout
       'dataArr', // 5  const uchar&[]  body bytes
       'bytes', // 6  int             data_size
-      'resultArr', // 7  uchar&[]        response bytes
-      'resultHeaders', // 8  string&         response headers
+      'resultArr', // 7  uchar&[]       response bytes
+      'resultHeaders', // 8  string&        response headers
     ])
   })
 
-  it('keeps the version triplet consistent (1.0.1 / "1.01" / "1.0.1")', () => {
-    expect(mt4).toMatch(/Version 1\.0\.1 · CONNECT-2/)
-    expect(mt4).toMatch(/#property version   "1\.01"/)
-    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.1"/)
+  it('keeps the version triplet consistent (1.0.2 / "1.02" / "1.0.2")', () => {
+    expect(mt4).toMatch(/Version 1\.0\.2 · CONNECT-4/)
+    expect(mt4).toMatch(/#property version   "1\.02"/)
+    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.2"/)
+  })
+})
+
+describe('CONNECT-4: both EAs surface pairing failures on the chart panel (never silent)', () => {
+  for (const [name, src] of [
+    ['MT5', mt5],
+    ['MT4', mt4],
+  ] as const) {
+    describe(name, () => {
+      it('StatusText renders the diagnostics lines: server, token, last, attempts/retry', () => {
+        expect(src).toContain('server: %s · token: %s')
+        expect(src).toContain('last: %s%s')
+        expect(src).toContain('attempts: %d · retry in %d s')
+      })
+
+      it('HttpPost records the last HTTP status + GetLastError into panel globals right after the call', () => {
+        const call = src.indexOf('WebRequest("POST"')
+        const recHttp = src.indexOf('g_lastHttp    = status;')
+        const recErr = src.indexOf('g_lastErrCode = (status == -1) ? GetLastError() : 0;')
+        expect(call).toBeGreaterThan(-1)
+        expect(recHttp).toBeGreaterThan(call)
+        expect(recErr).toBeGreaterThan(recHttp)
+      })
+
+      it('decodes err 4014 to the exact terminal remedy (the allow-list, with the server URL riding along)', () => {
+        expect(src).toContain('err == 4014')
+        expect(src).toMatch(/Allow WebRequest for listed URL/)
+        // the remedy must embed InpBaseUrl so the panel shows the exact URL to allow
+        expect(src).toMatch(/add " \+ InpBaseUrl \+ ", click OK/)
+      })
+
+      it('caps the retry back-off at 60 s while unpaired (600 s only after pairing)', () => {
+        expect(src).toContain('int cap = (g_paired || g_stopped) ? 600 : 60;')
+      })
+
+      it('trims the pasted token (a stray space/newline would otherwise fail every call)', () => {
+        expect(src).toContain('StringTrimLeft(g_token);')
+        expect(src).toContain('StringTrimRight(g_token);')
+      })
+
+      it('shows a token fingerprint (never the full secret) and counts pairing attempts', () => {
+        expect(src).toContain('string TokenFingerprint()')
+        expect(src).toContain('g_pairAttempts++;')
+      })
+    })
+  }
+
+  it('MT4 additionally decodes 4060 (MQL4’s “function not allowed” family) to the same remedy', () => {
+    expect(mt4).toContain('err == 4014 || err == 4060')
   })
 })
