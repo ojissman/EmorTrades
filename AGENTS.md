@@ -1466,6 +1466,10 @@ Full entry + certificate in worklog.md. Permanent-record additions:
   DOES NOT EXIST — v1.0.0 shipped calling it and never compiled (caught by
   the owner's MetaEditor exactly as CONNECT-1 §13 predicted: EAs are never
   compiled in this sandbox). Any future EA edit re-checks this form.
+  **[SUPERSEDED 2026-11-19 by CONNECT-3 below — the owner's 2026 MetaEditor
+  build REMOVED this 8-param overload; the byte-array/NUL/UTF-8 discipline
+  still stands, but the CALL SHAPE law changed. Read the CONNECT-3 EA law
+  FIRST.]**
 - TOKEN-IN-BODY redundancy: the connector token rides the JSON body of
   every EA call (pair/events/heartbeat — `"token":"…"`) in ADDITION to the
   x-connector-token header, so auth survives header-stripping
@@ -1484,6 +1488,52 @@ Full entry + certificate in worklog.md. Permanent-record additions:
   the browser's Origin → check the pins vs the CURRENT preview URL first
   (the family fix should make this class dead; it is kept here for
   diagnosis of any future variant).
+
+## Task CONNECT-3 — the second EA compile failure: the 2026 MetaEditor builds removed the 8-param WebRequest overload (2026-11-19)
+
+Owner report: v1.0.1 (the CONNECT-2 "canonical 8-parameter form") failed the
+same way — "wrong parameters count 306 20 (×2) · could be one of 2
+function(s): 9-param (cookie/referer) · 7-param (no data_size) · 2 errors".
+Full entry + certificate in worklog.md. Permanent-record additions:
+
+- **EA HTTP LAW v2 (supersedes CONNECT-2's 8-param law):** the owner's 2026
+  MetaEditor build offers exactly TWO WebRequest overloads —
+  `WebRequest(method, url, cookie, referer, timeout, data[], data_size,
+  result[], result_headers)` (9 params) and `WebRequest(method, url, headers,
+  timeout, data[], result[], result_headers)` (7 params, data_size REMOVED).
+  The classic 8-param form does not exist in new MQL5 builds. MT5 EA
+  (EmorTradesAutoSync-MT5.mq5) calls the 7-param form; MT4 EA keeps the
+  8-param form (MQL4's documented signature — MT4's compiler is frozen).
+  THE COMPILER'S OWN ERROR OUTPUT IS THE GROUND TRUTH, over any
+  documentation, over anything this repo's agents remember: MetaQuotes
+  changes built-in signatures between builds. When an EA compile fails,
+  paste the "could be one of N function(s)" block — it enumerates the exact
+  available overloads.
+- **The 7-param byte discipline:** with no data_size argument the overload
+  sends the WHOLE array, so the payload array MUST be ArrayResize'd to the
+  exact UTF-8 byte count (StringToCharArray → strip trailing NUL →
+  ArrayResize) — CONNECT-2's discipline carried over unchanged; wire bytes
+  are identical to the 8-param form's.
+- **Regression pin:** tests/ea-source.test.ts parses the actual
+  `WebRequest("POST"` call out of BOTH EA source files (paren-depth scanner)
+  and pins the exact argument lists (7 for MT5, 8 for MT4) + the version
+  triplets. Any EA edit that touches the WebRequest call or the version
+  must update those pins DELIBERATELY in the same commit — the test failure
+  is the designed tripwire against silent overload drift.
+- **EA version triplet discipline:** banner comment (`Version X.Y.Z ·
+  TASK-ID`), `#property version "X.YZ"`, `#define EA_VERSION "X.Y.Z"` —
+  bump all three together, in the same edit.
+- **Header-loss robustness PROVEN (not assumed):** a JSON POST with NO
+  Content-Type header parses fine on dev AND production (Next 16
+  req.json() ignores MIME — verified empirically 2026-11-19) → the
+  connector protocol survives complete custom-header loss; combined with
+  CONNECT-2's token-in-body, the EA's auth has no single point of failure
+  on the header channel.
+- Publish state as of this task: the owner PUBLISHED after CONNECT-2
+  (production serves connector routes + v1.0.1 EAs as of
+  2026-11-19T16:2x). EA v1.0.2 reaches production with the NEXT publish
+  after this push — until then production's /downloads/ still hands out
+  v1.0.1 (which fails to compile); the preview serves v1.0.2 immediately.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

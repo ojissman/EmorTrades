@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT5.mq5 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.1 · CONNECT-2 · READ-ONLY by construction               |
+//| Version 1.0.2 · CONNECT-3 · READ-ONLY by construction               |
 //|                                                                      |
 //| WHAT THIS IS                                                         |
 //|   A read-only synchronization Expert Advisor. It watches YOUR MT5    |
@@ -37,7 +37,7 @@
 //|   dedup makes re-sends harmless).                                    |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.01"
+#property version   "1.02"
 #property description "EmorTrades read-only trading sync connector (MetaTrader 5)."
 
 //── inputs ────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.1"
+#define EA_VERSION          "1.0.2"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -282,15 +282,22 @@ void LoadState()
 //+------------------------------------------------------------------+
 //| HTTP (WebRequest — the ONLY network surface, POST + JSON)          |
 //|                                                                    |
-//| CONNECT-2 (v1.0.1): the v1.0.0 file never compiled — it called a  |
-//| 7-parameter WebRequest overload that does not exist. The real     |
-//| custom-headers overload is the 8-parameter form:                  |
-//|   WebRequest(method, url, headers, timeout,                       |
-//|              data[], data_size, result[], result_headers)         |
-//| where the request body AND the response are BYTE ARRAYS (uchar[]) |
-//| with an explicit byte count — not strings. The token also rides    |
-//| the JSON body of every call (pair/events/heartbeat), so auth does |
-//| not depend on custom headers surviving brokers/proxies.            |
+//| CONNECT-3 (v1.0.2): the owner's 2026 MetaEditor build no longer    |
+//| offers the classic 8-parameter overload (the one with data_size) — |
+//| its compiler lists exactly TWO WebRequest forms:                   |
+//|   WebRequest(method, url, cookie, referer, timeout, data[],        |
+//|             data_size, result[], result_headers)   (9 params)      |
+//|   WebRequest(method, url, headers, timeout, data[],                |
+//|             result[], result_headers)              (7 params)     |
+//| This file uses the 7-parameter form: custom headers survive       |
+//| (Content-Type + token header), and the byte count is guaranteed   |
+//| by ArrayResize — the whole array IS exactly the UTF-8 payload,    |
+//| so the removed data_size argument carries no information.          |
+//| History: v1.0.0 called a 7-param form with a STRING body (never   |
+//| compiled); v1.0.1 used the 8-param form the new builds removed.   |
+//| The token also rides the JSON body of every call (pair/events/    |
+//| heartbeat), so auth does not depend on custom headers surviving   |
+//| brokers/proxies.                                                  |
 //+------------------------------------------------------------------+
 int HttpPost(const string path, const string body, string &response)
   {
@@ -301,10 +308,11 @@ int HttpPost(const string path, const string body, string &response)
    string resultHeaders = "";
    int     bytes = StringToCharArray(body, dataArr, 0, -1, CP_UTF8);
    if(bytes > 0 && dataArr[bytes - 1] == 0) bytes--;    // strip the trailing NUL
-   ArrayResize(dataArr, bytes);                         // exactly the payload
+   ArrayResize(dataArr, bytes);          // exactly the payload — the 7-param
+                                         // overload sends the WHOLE array
    ResetLastError();
    int    status = WebRequest("POST", InpBaseUrl + path, headers, HTTP_TIMEOUT_MS,
-                              dataArr, bytes, resultArr, resultHeaders);
+                              dataArr, resultArr, resultHeaders);
    if(status == -1)
       Print("EmorTradesAutoSync: WebRequest failed (", GetLastError(),
             ") — check Tools→Options→Expert Advisors→Allow WebRequest for ", InpBaseUrl);

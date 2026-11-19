@@ -580,3 +580,17 @@ Owner directive (fifth pass, same words). Full entry + certificate in worklog.md
 **Dead code removed (proofs in worklog):** mt5-link/ folder (8 files), mt5-page.tsx, 5 /api/mt5 routes, lib/mt5/ingest.ts (ported, tests ported). Retained with reason: lib/mt5/{crypto,connector-auth,normalize}.ts. CSV import regression passed on the live pipeline. E2E residue purged to the exact pulled baseline (users=4, trades=386, connections=0).
 
 **Remaining / owner decisions:** owner compiles the EAs in MetaEditor + demo-account acceptance test (sandbox cannot run terminals — never claimed); Mt5Connection/Mt5SyncLog orphan models (drop deferred); PostgreSQL migration timing (plan recorded in the worklog entry); legacy MT5 env keys removable at the next secrets rotation.
+
+## Audit addendum — CONNECT-3 (2026-11-19)
+
+**Scope (NORMAL, touched area):** the MT5 EA source + its download path + the connector wire. Zero server-side changes were needed; that was proven, not assumed.
+
+**Notable finding + fix:** the owner's 2026 MetaEditor build no longer offers the classic 8-parameter WebRequest overload — its compiler lists exactly two forms: the 9-param (cookie/referer) and a 7-param one with data_size REMOVED. CONNECT-2's "canonical" 8-param call therefore failed to compile exactly as reported ("wrong parameters count" ×2 at line 306). Fix: MT5 EA v1.0.2 calls the 7-param overload (headers preserved, array sized to the exact UTF-8 payload so the whole-array send is byte-identical to the old wire). MT4 EA unchanged (MQL4's documented 8-param form is correct for MT4's frozen compiler). Compiler error output was treated as ground truth over documentation — recorded as a standing law in AGENTS.md (EA HTTP LAW v2).
+
+**Regression guard added:** tests/ea-source.test.ts (8 cases) extracts the real WebRequest call from both EA files with a paren-depth scanner and pins the exact argument lists, the absence of a data_size argument on MT5, the exact-resize discipline ordering, and both version triplets.
+
+**Robustness proven:** JSON POSTs without any Content-Type parse fine on dev AND production (req.json() ignores MIME) — combined with the token-in-body redundancy, the connector protocol survives total custom-header loss.
+
+**Gates:** lint 0 · tsc 0 · tests 272/272 (8 new) · dev 200 · browser + wire E2E clean, DB restored to the exact pulled baseline (the owner's single live connection row preserved).
+
+**Remaining / owner decisions:** unchanged from CONNECT-2 (orphan models, PG migration timing, legacy env keys); the owner's MetaEditor F7 compile of v1.0.2 remains the final acceptance step, and the next Publish is needed for production's /downloads/ to hand out v1.0.2 (the preview serves it immediately).

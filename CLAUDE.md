@@ -508,11 +508,35 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   via StringToCharArray/CharArrayToString with the NUL stripped. The
   7-parameter string-body form does not exist (v1.0.0's compile failure).
   The token also rides every JSON body (pair/events/heartbeat) so auth
-  survives header-stripping.
+  survives header-stripping. **[SUPERSEDED 2026-11-19 by CONNECT-3 — the
+  owner's 2026 MetaEditor removed the 8-param form; MT5 now calls the
+  7-param overload (no data_size, whole-array send with exact
+  ArrayResize), MT4 keeps the 8-param MQL4 form. The compiler's own
+  "could be one of N function(s)" error output is the ground truth.
+  tests/ea-source.test.ts pins both call shapes.]**
 - **Publish ≠ push**: a pushed commit is NOT on production until the
   owner clicks Publish (platform generation page). The EA's InpBaseUrl is
   production, so connection tokens must be created on production's DB —
   preview-created tokens live only in the workbench mirror.
+
+## Task CONNECT-3 — the 2026 MetaEditor builds removed the 8-param WebRequest overload (2026-11-19)
+
+- **MQL WebRequest law v2**: the owner's 2026 MetaEditor offers only a
+  9-param (cookie/referer) and a 7-param (headers, NO data_size) overload
+  — the classic 8-param form is gone from new MQL5 builds. The MT5 EA
+  (v1.0.2) calls the 7-param form with the array ArrayResize'd to the
+  exact UTF-8 payload (whole-array send); the MT4 EA keeps MQL4's
+  documented 8-param form. Compiler error output beats documentation —
+  always write EA calls against the owner's actual "could be one of N
+  function(s)" listing.
+- **Pinned**: tests/ea-source.test.ts extracts and pins the exact
+  WebRequest argument lists in both EA files + the version triplets — any
+  EA HTTP/version edit must update the pins deliberately in the same
+  commit.
+- **Header-loss robustness proven**: JSON POSTs without any Content-Type
+  parse fine on dev and production (req.json() ignores MIME) — with the
+  token riding the body, the connector protocol survives total
+  custom-header loss.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
