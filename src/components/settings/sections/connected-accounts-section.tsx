@@ -2,259 +2,273 @@
 
 /**
  * ============================================================================
- * Task 22-d — `Connected Accounts` as a REAL broker data directory.
+ * CONNECT-1 — `Connections` settings section (the real connector hub).
  * ============================================================================
- * The old fake Connect/Disconnect + localStorage badges are gone (the user
- * called the section "fancy display" — Task 22-a follow-up). What remains is
- * honest: a directory of the brokers EmorTrades imports from, where every
- * tile shows REAL stats computed from the app's own data:
+ * Replaces the Task 22-d broker directory: auto-syncing brokers via a
+ * downloadable, read-only EA is now REAL. The hub is fully wired to the
+ * session-authenticated /api/connections* routes:
  *
- *   accounts   → /api/accounts, matched by broker alias (same source as the
- *                Trading Accounts section)
- *   trades/last→ /api/trades?limit=5000, attributed through
- *                accountId → account.broker; "last activity" is the newest
- *                entryTime among that broker's trades
+ *   list      → GET /api/connections (polled every 10 s — status, heartbeat,
+ *               queue depth, linked journal account update live)
+ *   create    → POST /api/connections → one-time raw token + EA download +
+ *               platform install guide (NewConnectionDialog)
+ *   sync      → POST /api/connections/{id}/sync (Sync now)
+ *   rotate    → POST /api/connections/{id}/token (same one-time reveal)
+ *   disconnect→ DELETE /api/connections/{id} (revokes tokens, KEEPS history)
+ *   detail    → GET /api/connections/{id} (SyncHistoryDialog)
  *
- * and two REAL actions: "Import trades" (every tile, incl. CSV Upload — the
- * only way trades enter this local build) and "Add account" (deep link to
- * the Trading Accounts section's add dialog with the broker preselected).
- *
- * Auto-syncing to brokers is NOT available in this local build — the section
- * says so instead of faking a connection.
+ * Platform tiles are honest: only MT5/MT4 are connectable (their EA files
+ * ship in public/downloads/); cTrader, Binance, Interactive Brokers and
+ * Tradovate are static "Planned" chips — never fake buttons. The "Import a
+ * CSV instead" action deep-links to the import wizard through the app-store
+ * navigate idiom. The old mt5-page (login/password connector) is untouched —
+ * its removal is a later phase.
  */
 
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, CircleDashed, FileSpreadsheet, Landmark, Plus, Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CircleAlert, FileSpreadsheet, Monitor, Plus, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionCard } from '@/components/settings/section-card'
-import { formatDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/app-store'
+import { NewConnectionDialog } from '@/components/settings/connections/new-connection-dialog'
+import { ConnectionCard } from '@/components/settings/connections/connection-card'
+import { SyncHistoryDialog } from '@/components/settings/connections/sync-history-dialog'
+import { DisconnectDialog, RotateTokenDialog } from '@/components/settings/connections/connection-action-dialogs'
+import { PLATFORM_LABEL, PLATFORM_TAG, type ConnectionRow, type ConnectorPlatform } from '@/components/settings/connections/types'
 
-type BrokerTile = {
-  id: string
-  name: string
-  note?: string
-  csv?: boolean
-  /** lowercase-normalized aliases used to match real Account.broker values */
-  aliases: string[]
-  /**
-   * Exact broker value in the Trading Accounts add form (Task 22-d list
-   * extension). Absent on the CSV Upload tile — "any broker" has no form
-   * equivalent, so that tile only offers the import CTA.
-   */
-  formBroker?: string
-}
-
-const BROKERS: BrokerTile[] = [
-  { id: 'ibkr', name: 'IBKR', note: 'Interactive Brokers', aliases: ['ibkr', 'interactivebrokers', 'ib'], formBroker: 'Interactive Brokers' },
-  { id: 'td-ameritrade', name: 'TD Ameritrade', note: 'thinkorswim', aliases: ['tdameritrade', 'thinkorswim', 'ameritrade'], formBroker: 'TD Ameritrade' },
-  { id: 'schwab', name: 'Schwab', note: 'Charles Schwab', aliases: ['schwab', 'charlesschwab'], formBroker: 'Charles Schwab' },
-  { id: 'etrade', name: 'E*TRADE', aliases: ['etrade'], formBroker: 'E*TRADE' },
-  { id: 'tradestation', name: 'TradeStation', aliases: ['tradestation'], formBroker: 'TradeStation' },
-  { id: 'webull', name: 'Webull', aliases: ['webull'], formBroker: 'Webull' },
-  { id: 'robinhood', name: 'Robinhood', aliases: ['robinhood'], formBroker: 'Robinhood' },
-  { id: 'alpaca', name: 'Alpaca', aliases: ['alpaca'], formBroker: 'Alpaca' },
-  { id: 'tradier', name: 'Tradier', aliases: ['tradier'], formBroker: 'Tradier' },
-  { id: 'binance', name: 'Binance', aliases: ['binance'], formBroker: 'Binance' },
-  { id: 'coinbase', name: 'Coinbase', aliases: ['coinbase'], formBroker: 'Coinbase' },
-  { id: 'kraken', name: 'Kraken', aliases: ['kraken'], formBroker: 'Kraken' },
-  { id: 'csv-upload', name: 'CSV Upload', note: 'Manual entry — any broker', csv: true, aliases: ['manual', 'csv'] },
-]
-
-const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
-
-/** Real per-tile stats derived from the app's accounts + trades. */
-type BrokerStats = {
-  /** trading accounts whose broker matches this tile */
-  accounts: number
-  /** trades attributed to those accounts */
-  trades: number
-  /** newest entryTime among those trades (epoch ms) — null = no trades */
-  lastEntryMs: number | null
-}
-
-const EMPTY_STATS: BrokerStats = { accounts: 0, trades: 0, lastEntryMs: null }
+/** Future platforms — static, non-clickable, honestly labeled "Planned". */
+const PLANNED_PLATFORMS = ['cTrader', 'Binance', 'Interactive Brokers', 'Tradovate']
 
 export function ConnectedAccountsSection() {
   const navigate = useAppStore((s) => s.navigate)
+  const qc = useQueryClient()
 
-  // Real trading accounts — same ['accounts'] cache the app shell and the
-  // Trading Accounts section read (stats stay in sync everywhere).
-  const { data: accountsData, isLoading: accountsLoading, isError: accountsError } = useQuery({
-    queryKey: ['accounts'],
+  // ── Live connections (10 s poll — near-real-time EA monitoring) ──
+  const { data, isLoading, error } = useQuery<{ connections: ConnectionRow[] }>({
+    queryKey: ['connections'],
     queryFn: async () => {
-      const res = await fetch('/api/accounts')
-      if (!res.ok) throw new Error('Failed to load accounts')
+      const res = await fetch('/api/connections')
+      if (!res.ok) throw new Error(`Failed to load connections (${res.status})`)
       return res.json()
     },
+    refetchInterval: 10_000,
   })
 
-  // Real trades — one page of up to 5000 rows (the import wizard's ['trades']
-  // invalidations refresh these counts after every import). Trades whose
-  // account was deleted or whose broker matches no tile count toward nothing
-  // — no tile claims data it doesn't own.
-  const { data: tradesData, isLoading: tradesLoading, isError: tradesError } = useQuery({
-    queryKey: ['trades'],
-    queryFn: async () => {
-      const res = await fetch('/api/trades?limit=5000')
-      if (!res.ok) throw new Error('Failed to load trades')
-      return res.json()
-    },
-  })
+  const connections = data?.connections ?? []
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['connections'] })
 
-  const stats = useMemo(() => {
-    const accounts: { id: string; broker?: string | null }[] = accountsData?.accounts ?? []
-    const trades: { id: string; accountId?: string | null; entryTime?: string | null }[] = tradesData?.trades ?? []
+  // ── Dialog targets (the mt5-page target idiom) ──
+  const [connectPlatform, setConnectPlatform] = useState<ConnectorPlatform | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<ConnectionRow | null>(null)
+  const [rotateTarget, setRotateTarget] = useState<ConnectionRow | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<ConnectionRow | null>(null)
 
-    // accountId → tile id, through the same alias matching the account
-    // counts use (accounts on unlisted brokers — e.g. Fidelity — stay off
-    // this directory rather than being shoehorned onto a wrong tile).
-    const tileByAccount = new Map<string, string>()
-    for (const acc of accounts) {
-      const n = normalize(String(acc.broker ?? ''))
-      if (!n) continue
-      const tile = BROKERS.find((b) => n === normalize(b.name) || b.aliases.includes(n))
-      if (tile) tileByAccount.set(acc.id, tile.id)
-    }
-
-    const out: Record<string, BrokerStats> = {}
-    for (const b of BROKERS) out[b.id] = { ...EMPTY_STATS }
-    for (const acc of accounts) {
-      const tileId = tileByAccount.get(acc.id)
-      if (tileId) out[tileId].accounts += 1
-    }
-    for (const t of trades) {
-      const tileId = t.accountId ? tileByAccount.get(t.accountId) : undefined
-      if (!tileId) continue
-      const s = out[tileId]
-      s.trades += 1
-      const ms = t.entryTime ? new Date(t.entryTime).getTime() : NaN
-      if (!Number.isNaN(ms) && (s.lastEntryMs === null || ms > s.lastEntryMs)) s.lastEntryMs = ms
-    }
-    return out
-  }, [accountsData, tradesData])
+  const listDescription = isLoading
+    ? 'Loading your connections…'
+    : error
+      ? 'Could not load your connections.'
+      : `${connections.length} connection${connections.length === 1 ? '' : 's'} · status refreshes every 10 seconds`
 
   return (
     <div className="space-y-4" data-testid="settings-connected-accounts">
+      {/* ── Header: title + honest subtitle + CSV escape hatch ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            Connections
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            Connect your MetaTrader terminal with the read-only EmorTrades connector — trades sync automatically.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/trades-import')}
+          title="Open the CSV import wizard"
+          data-testid="connections-import-csv"
+        >
+          <FileSpreadsheet className="h-3.5 w-3.5" aria-hidden />
+          Import a CSV instead
+        </Button>
+      </div>
+
+      {/* ── Connect a platform — real tiles for mt5/mt4 only ── */}
       <SectionCard
-        title="Connected Accounts"
-        description="Your broker directory with real usage stats — each tile shows the trading accounts you've added for that broker, how many trades they hold and when you were last active. Auto-syncing to brokers is not available in this local build: bring trades in via the CSV import wizard."
+        title="Connect a platform"
+        description="Install the EmorTrades EA in your terminal and paste a one-time token — history imports on first connect and new trades sync automatically."
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="connected-broker-grid">
-          {BROKERS.map((broker) => {
-            const s = stats[broker.id] ?? EMPTY_STATS
-            const inUse = s.accounts > 0
-            const lastDate = s.lastEntryMs !== null ? new Date(s.lastEntryMs) : null
-            const formBroker = broker.formBroker
-            return (
-              <div
-                key={broker.id}
-                data-testid={`broker-tile-${broker.id}`}
-                className={cn(
-                  'flex flex-col gap-2 rounded-lg border p-3 transition-colors',
-                  inUse
-                    ? 'border-emerald-500/30 bg-emerald-500/[0.04]'
-                    : 'border-[var(--border-strong)] bg-[var(--bg-inset)]'
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {broker.csv ? (
-                      <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-400" />
-                    ) : (
-                      <Landmark className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        {broker.name}
-                      </p>
-                      {broker.note && (
-                        <p className="truncate text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                          {broker.note}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {accountsLoading ? (
-                    <Skeleton className="h-5 w-24 shrink-0 rounded-full" />
-                  ) : accountsError ? (
-                    <Badge className="border-[var(--border-strong)] bg-transparent text-[var(--text-secondary)]">
-                      Stats unavailable
-                    </Badge>
-                  ) : inUse ? (
-                    <Badge className="border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" />
-                      In use · {s.accounts} account{s.accounts === 1 ? '' : 's'}
-                    </Badge>
-                  ) : (
-                    <Badge className="border-[var(--border-strong)] bg-transparent text-[var(--text-secondary)]">
-                      <CircleDashed className="h-3 w-3" />
-                      No accounts yet
-                    </Badge>
-                  )}
-                </div>
-
-                {tradesLoading ? (
-                  <Skeleton className="h-3.5 w-44" />
-                ) : tradesError ? (
-                  <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                    Trades: — · Last: —
-                  </p>
-                ) : (
-                  <p
-                    className="flex flex-wrap items-center gap-1.5 text-[11px] tnum"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    <span>
-                      Trades:{' '}
-                      <span
-                        className="font-semibold"
-                        style={{ color: s.trades > 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}
-                      >
-                        {s.trades}
-                      </span>
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span>Last: {formatDate(lastDate)}</span>
-                  </p>
-                )}
-
-                {/* Real actions — the only two things this build can actually do */}
-                <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
-                  <Button
-                    size="sm"
-                    onClick={() => navigate('/trades-import')}
-                    title="Open the CSV import wizard"
-                    data-testid={`broker-import-${broker.id}`}
-                    className="bg-[var(--shell-accent)] text-white hover:bg-[var(--shell-accent-hover)]"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    Import trades
-                  </Button>
-                  {formBroker && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        navigate(`/settings?section=trading-accounts&broker=${encodeURIComponent(formBroker)}`)
-                      }
-                      title={`Add a ${broker.name} account`}
-                      data-testid={`broker-add-account-${broker.id}`}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add account
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {(['mt5', 'mt4'] as const).map((p) => (
+            <PlatformTile key={p} platform={p} onConnect={() => setConnectPlatform(p)} />
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Planned:
+          </span>
+          {PLANNED_PLATFORMS.map((name) => (
+            <span
+              key={name}
+              title="Not yet available"
+              aria-label={`${name} — planned, not yet available`}
+              data-testid={`planned-platform-${name.toLowerCase().replace(/\s+/g, '-')}`}
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] opacity-60 cursor-default"
+              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              <Monitor className="h-3 w-3" aria-hidden />
+              {name}
+              <Badge variant="outline" className="text-[9px]">
+                Planned
+              </Badge>
+            </span>
+          ))}
         </div>
       </SectionCard>
+
+      {/* ── Your connections — live list ── */}
+      <SectionCard title="Your connections" description={listDescription}>
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-40 rounded-lg" />
+            <Skeleton className="h-40 rounded-lg" />
+          </div>
+        ) : error ? (
+          <div
+            className="flex items-start gap-2.5 rounded-lg border border-red-500/30 p-4"
+            style={{ background: 'var(--bg-inset)' }}
+          >
+            <CircleAlert className="h-4 w-4 text-red-500 mt-0.5 shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Could not load your connections</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {error instanceof Error ? error.message : 'Unknown error'}
+              </p>
+              <Button variant="outline" size="sm" className="mt-2.5" onClick={invalidate}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : connections.length === 0 ? (
+          <div
+            className="rounded-lg border p-6 text-center"
+            style={{ borderColor: 'var(--border-strong)', background: 'var(--bg-inset)' }}
+            data-testid="connections-empty"
+          >
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              No connections yet
+            </p>
+            <p className="text-xs mt-1 max-w-sm mx-auto" style={{ color: 'var(--text-secondary)' }}>
+              Connect your MetaTrader terminal — the read-only EA imports your history and keeps trades in sync,
+              automatically.
+            </p>
+            <Button
+              size="sm"
+              className="mt-4 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => setConnectPlatform('mt5')}
+              data-testid="connections-empty-cta"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+              Connect MetaTrader 5
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {connections.map((c) => (
+              <ConnectionCard
+                key={c.id}
+                c={c}
+                onHistory={() => setHistoryTarget(c)}
+                onRotate={() => setRotateTarget(c)}
+                onRemove={() => setRemoveTarget(c)}
+              />
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Dialogs ── */}
+      <NewConnectionDialog
+        platform={connectPlatform}
+        onOpenChange={(o) => {
+          if (!o) setConnectPlatform(null)
+        }}
+        onCreated={invalidate}
+      />
+      <SyncHistoryDialog
+        target={historyTarget}
+        onOpenChange={(o) => {
+          if (!o) setHistoryTarget(null)
+        }}
+      />
+      <RotateTokenDialog
+        target={rotateTarget}
+        onOpenChange={(o) => {
+          if (!o) setRotateTarget(null)
+        }}
+        onRotated={invalidate}
+      />
+      <DisconnectDialog
+        target={removeTarget}
+        onOpenChange={(o) => {
+          if (!o) setRemoveTarget(null)
+        }}
+        onDisconnected={() => {
+          setRemoveTarget(null)
+          invalidate()
+        }}
+      />
+    </div>
+  )
+}
+
+/**
+ * One connectable platform tile — MT5/MT4 only. The honest claims mirror the
+ * EA file headers in public/downloads (read-only by construction, never
+ * trades, AutoTrading not required, runs on Windows or Mac/Linux via Wine).
+ */
+function PlatformTile({ platform, onConnect }: { platform: ConnectorPlatform; onConnect: () => void }) {
+  return (
+    <div
+      className="rounded-lg border p-4 flex flex-col gap-2.5"
+      style={{ borderColor: 'var(--border-strong)', background: 'var(--bg-inset)' }}
+      data-testid={`connect-platform-${platform}`}
+    >
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-[10px] font-semibold">
+          {PLATFORM_TAG[platform]}
+        </Badge>
+        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {PLATFORM_LABEL[platform]}
+        </span>
+      </div>
+      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        Install the read-only EA in your terminal and paste the connection token — history imports on first connect,
+        new trades land in your journal automatically.
+      </p>
+      <p className="text-[11px] flex flex-wrap items-center gap-x-1.5 gap-y-1" style={{ color: 'var(--text-secondary)' }}>
+        <span>Read-only EA</span>
+        <span aria-hidden>·</span>
+        <span>never trades</span>
+        <span aria-hidden>·</span>
+        <span>AutoTrading not required</span>
+        <span aria-hidden>·</span>
+        <span>Windows, or Mac/Linux via Wine</span>
+      </p>
+      <div className="mt-auto pt-1">
+        <Button
+          onClick={onConnect}
+          className="bg-emerald-600 hover:bg-emerald-700"
+          data-testid={`connect-${platform}`}
+        >
+          <Plus className="h-4 w-4 mr-1.5" aria-hidden />
+          Connect {PLATFORM_LABEL[platform]}
+        </Button>
+      </div>
     </div>
   )
 }

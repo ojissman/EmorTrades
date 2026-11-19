@@ -401,18 +401,21 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   implicit lib-level auth gives 500-not-401 — gate at the route.
 
 
-## Task MT5LINK — open-source MT5 integration (2026-11-06)
+## Task MT5LINK — open-source MT5 integration (2026-11-06; superseded 2026-11-19 by CONNECT-1)
 
 - **Z.ai Space cannot run MT5 terminals** (probe-verified: no Docker, no
-  Wine, no sudo, 4GB shared). MT5 integration = journal-side control plane
-  + the self-hosted mt5-link service on the owner's Docker host. Never
-  design terminal execution into the journal app.
-- **MT5 credentials**: AES-256-GCM at rest (MT5_CREDENTIAL_KEY), decrypted
-  only in the token-gated /api/mt5/connector/pending, never logged, never
-  in session responses. New keys (MT5_CREDENTIAL_KEY,
-  MT5_CONNECTOR_TOKEN) are REQUIRED_KEYS in BOTH day-start.ts and
-  secrets-backup.ts — keep them mirrored — and ride the encrypted backup
-  (13 keys).
+  Wine, no sudo, 4GB shared). MT5 integration = journal-side control plane;
+  since CONNECT-1 the terminals side ships as the downloadable
+  EmorTradesAutoSync EAs running in the USER's own terminal (the
+  self-hosted mt5-link Docker service was removed with its 5 routes — the
+  reusable crypto/auth/normalize libs were retained). Never design terminal
+  execution into the journal app.
+- **MT5 credentials** (legacy path, retained infra): AES-256-GCM at rest
+  (MT5_CREDENTIAL_KEY) — the EA flow stores NO passwords; crypto.ts is
+  kept as tested infra for future credential-based platforms (cTrader
+  OAuth). MT5_CREDENTIAL_KEY + MT5_CONNECTOR_TOKEN remain REQUIRED_KEYS in
+  BOTH day-start.ts and secrets-backup.ts (legacy-retained; removing them
+  = a secrets rotation + owner sign-off).
 - **No order endpoints exist for MT5 — ever.** Read-only by construction
   (connector calls only gateway read routes + engages the kill-switch).
 - **Ingest is idempotent by key, not by care**: deal ticket uniqueness
@@ -473,6 +476,24 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   instance of a shared stat/card primitive with vs without onClick — the
   gaps cluster where prior sweeps' exclusion lists ended (Overview's copy of
   the AI-suite chips was the highest-traffic one).
+
+## Task CONNECT-1 — the downloadable-connector platform (2026-11-19)
+
+- **Connector discipline**: one universal event contract
+  (/api/connector/v1/*) for every platform; per-connection revocable
+  tokens (sha256 at rest, timing-safe); ack-only-after-apply; the DEAL
+  INGEST always gets a COMPLETE position deal set per batch (the E2E
+  caught a per-event regression that mis-allocated commissions — golden
+  tests + live curl E2E exist for exactly this).
+- **Identity discipline**: connections are keyed platform+server+login
+  per USER; disconnected rows still own the identity (reconnect revives
+  them — never duplicate accounts); journal accounts resolve by
+  externalAccountKey → pre-linked → auto-create.
+- **EA honesty**: connectors are real versioned source files in
+  public/downloads/; MetaEditor is Windows-only so EAs are NEVER claimed
+  compiled from this sandbox; future platforms stay non-clickable
+  "Planned" chips until their connector actually ships. Read-only by
+  construction — no order endpoints anywhere, ever.
 
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 

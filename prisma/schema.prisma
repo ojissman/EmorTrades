@@ -90,6 +90,9 @@ model User {
   blogPosts       BlogPost[]
   // ── MT5-LINK: live MetaTrader 5 sync connections ──────────────────────
   mt5Connections  Mt5Connection[]
+  // ── CONNECT-1: universal downloadable-connector platform (EA push) ──────
+  platformConnections PlatformConnection[]
+  connectorTokens     ConnectorToken[]
 }
 
 model UserSettings {
@@ -131,6 +134,11 @@ model Account {
   // MT5-LINK: backrelation for the auto-created accounts of live-sync
   // connections.
   mt5Connections  Mt5Connection[]
+  // CONNECT-1: normalized external identity ("mt5:<server>:<login>") of the
+  // platform connection that owns this account — the key that prevents a
+  // duplicate journal account when the same broker account reconnects.
+  externalAccountKey String?
+  platformConnections PlatformConnection[]
   // Soft delete
   deletedAt       DateTime?
   createdAt       DateTime @default(now())
@@ -159,6 +167,8 @@ model Execution {
   // MT5-LINK: deal ticket when this fill mirrors an MT5 deal (dedup key for
   // re-reported history; null for manual/imported executions).
   externalTicket String?
+  // CONNECT-1: owning downloadable-connector connection (EA-synced fills).
+  platformConnectionId String?
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -169,6 +179,7 @@ model Execution {
   trade       Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 
   @@index([userId, externalTicket])
+  @@index([userId, platformConnectionId])
   @@unique([userId, externalTicket])
 }
 
@@ -270,13 +281,22 @@ model Trade {
   externalTicket  String?
   positionTicket  String?
   mt5Connection   Mt5Connection? @relation("Mt5ConnectionTrades", fields: [mt5ConnectionId], references: [id], onDelete: SetNull)
+  // ── CONNECT-1 provenance (downloadable-connector sync) ─────────────────
+  // Same semantics as the MT5-LINK fields above, but owned by a
+  // PlatformConnection (EA push flow): externalTicket = deal ticket for
+  // close-segment rows / "pos:<ticket>" for live open rows; null for
+  // manual/CSV trades (SQLite NULLs are distinct → unaffected).
+  platformConnectionId String?
+  platformConnection    PlatformConnection? @relation("PlatformConnectionTrades", fields: [platformConnectionId], references: [id], onDelete: SetNull)
 
   @@index([userId, tradingPlanId])
   @@index([userId, systemId])
   @@index([userId, setupId])
   @@index([userId, adherenceStatus])
   @@index([userId, mt5ConnectionId])
+  @@index([userId, platformConnectionId])
   @@unique([mt5ConnectionId, externalTicket])
+  @@unique([platformConnectionId, externalTicket])
 }
 
 // Task 179 — options/multi-leg support. A Trade keeps its denormalized
@@ -1195,7 +1215,219 @@ model Mt5SyncLog {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN-2 — Trading Journal Administration Platform
+// CONNECT-1 — Universal downloadable-connector platform (owner task, 2026-11-19)
+//
+// Replaces the website-side login/password flow (Method A façade) and the
+// mt5-link Docker-gateway experience with downloadable platform connectors
+// (MQL5/MQL4 Expert Advisors running inside the user's own terminal). The EA
+// pushes events over authenticated HTTPS; the journal ingests them into the
+// SAME Trade/Execution journal the CSV import writes to, with identical
+// idempotency semantics. ALL models are additive (strict db push safe).
+//
+// Platform-independent contract: PlatformConnection.platform ('mt5' | 'mt4'
+// today; cTrader/Binance/IB/Tradovate/NinjaTrader later via the same
+// /api/connector/v1/* protocol). Per-platform adapters (the EAs) normalize to
+// one event schema: deal | order | position | account | symbol_spec.
+//
+// READ-ONLY by construction: no endpoint anywhere in this chain can place,
+// modify or close a trade — the EA has no trading surface and the ingest only
+// writes journal rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One external platform account connected by a downloadable connector. */
+model PlatformConnection {
+  id              String    @id @default(cuid())
+  userId          String
+  platform        String    // 'mt5' | 'mt4' (future: ctrader, binance, ib, tradovate, ninjatrader)
+  label           String
+  // EA-reported identity (set at first pair; the reconnect key). Empty until
+  // the EA pairs (the row is created from the UI first).
+  login           String    @default("")
+  broker          String?   // broker company
+  server          String?
+  // Normalized identity "<platform>:<server|broker>:<login>" — prevents a
+  // duplicate connection for the same external account WITHIN one user's
+  // journal (find-or-create key at pair time). Per-user: two different
+  // users may legitimately connect the same broker account — isolation is
+  // by user, never global.
+  externalKey     String?
+  // connecting|connected|syncing|complete|offline|reconnecting|recovering|auth_error|sync_error|disconnected
+  status          String    @default("connecting")
+  desired         String    @default("sync")   // sync | disconnect
+  lastError       String?
+  // Auto-created or user-linked journal Account receiving synced trades.
+  accountId       String?
+  // Monitoring (EA-reported + server-acknowledged).
+  eaVersion       String?
+  lastHeartbeatAt DateTime?
+  lastSyncAt      DateTime?
+  // Newest platform event time acknowledged by the server (the checkpoint the
+  // EA re-anchors to after a restart / outage).
+  lastEventAt     DateTime?
+  eventsSynced    Int       @default(0)
+  eventsRecovered Int       @default(0)
+  // Server→EA recovery nudge (heartbeat carries desired; EA re-runs the
+  // overlapping history lookback when it sees syncRequestedAt advance).
+  syncRequestedAt DateTime?
+  // Last EA-reported local pending-queue depth (its durable backlog).
+  queueDepth      Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  tokens          ConnectorToken[]
+  syncLogs        ConnectorSyncLog[]
+  rawEvents       RawConnectorEvent[]
+  orders          SyncOrder[]
+  positions       SyncPosition[]
+  snapshots       AccountSnapshot[]
+  trades          Trade[]   @relation("PlatformConnectionTrades")
+
+  @@unique([userId, externalKey])
+  @@index([userId])
+  @@index([userId, platform])
+  @@index([userId, status])
+}
+
+/** Individually scoped, revocable EA credential. Raw token shown ONCE at
+ * creation/rotation; only its sha256 hash is stored. */
+model ConnectorToken {
+  id           String   @id @default(cuid())
+  userId       String
+  connectionId String?
+  platform     String
+  tokenHash    String   @unique // sha256 hex of the raw token
+  prefix       String   // first 12 chars of the raw token (display only)
+  status       String   @default("active") // active | revoked
+  lastUsedAt   DateTime?
+  lastIp       String?
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+  connection   PlatformConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([connectionId])
+}
+
+/** Raw platform payloads exactly as received (size-capped) — audit trail +
+ * future reprocessing. Dedup key = (connectionId, EA-stable eventId). */
+model RawConnectorEvent {
+  id           String   @id @default(cuid())
+  connectionId String
+  eventId      String
+  type         String   // pair|deal|order|position|account|heartbeat|symbol_spec
+  seq          Int?     // EA batch sequence
+  payload      String   // sanitized JSON (≤16KB per event)
+  eventTime    DateTime? // platform-reported event time (UTC)
+  status       String   @default("processed") // processed|duplicate|failed
+  receivedAt   DateTime @default(now())
+  processedAt  DateTime?
+  error        String?
+  connection   PlatformConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, eventId])
+  @@index([connectionId, receivedAt])
+}
+
+/** Live platform order state (pending orders: limits/stops/stop-limits and
+ * their lifecycle). Latest-state upsert keyed by the platform order ticket;
+ * every mutation also lands in RawConnectorEvent. */
+model SyncOrder {
+  id              String   @id @default(cuid())
+  connectionId    String
+  externalId      String   // platform order ticket
+  kind            String   // buy_limit|sell_limit|buy_stop|sell_stop|buy_stop_limit|sell_stop_limit|market
+  state           String   @default("pending") // pending|partial|filled|canceled|expired|rejected
+  symbol          String
+  side            String   // buy|sell
+  requestedVolume Float
+  filledVolume    Float    @default(0)
+  price           Float?
+  priceFill       Float?
+  sl              Float?
+  tp              Float?
+  timePlaced      DateTime
+  timeDone        DateTime?
+  timeExpiration  DateTime?
+  comment         String?
+  current         String?  // latest raw order record (JSON) — full audit
+  connection      PlatformConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId, state])
+}
+
+/** Live platform position state (current volume/SL/TP etc). Journal-facing
+ * trade rows remain the analytics projection; this is the platform truth. */
+model SyncPosition {
+  id              String   @id @default(cuid())
+  connectionId    String
+  positionId      String
+  symbol          String
+  side            String   // long|short
+  volumeInitial   Float
+  volumeCurrent   Float
+  priceOpen       Float?
+  sl              Float?
+  tp              Float?
+  timeOpen        DateTime
+  state           String   @default("open") // open|closed
+  timeClose       DateTime?
+  closePrice      Float?
+  realizedPnl     Float?
+  comment         String?
+  current         String?
+  connection      PlatformConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, positionId])
+  @@index([connectionId, state])
+}
+
+/** Periodic account snapshots pushed by the connector (balance/equity/margin
+ * over time — the equity-curve evidence trail). */
+model AccountSnapshot {
+  id           String   @id @default(cuid())
+  connectionId String
+  balance      Float?
+  equity       Float?
+  usedMargin   Float?
+  freeMargin   Float?
+  marginLevel  Float?
+  floatingPnl  Float?
+  currency     String?
+  leverage     Int?
+  recordedAt   DateTime
+  connection   PlatformConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, recordedAt])
+}
+
+/** Per-connection synchronization history (batch-level counters). */
+model ConnectorSyncLog {
+  id                String   @id @default(cuid())
+  connectionId      String
+  kind              String   @default("events") // pair|events|recovery|heartbeat|error|disconnect
+  status            String   @default("ok") // ok|error
+  eventsIn          Int      @default(0)
+  duplicates        Int      @default(0)
+  tradesCreated     Int      @default(0)
+  tradesUpdated     Int      @default(0)
+  executionsCreated Int     @default(0)
+  ordersUpserted    Int      @default(0)
+  positionsUpserted Int      @default(0)
+  recovered         Int      @default(0)
+  error             String?
+  detail            String?  // compact JSON
+  startedAt         DateTime @default(now())
+  finishedAt        DateTime @default(now())
+  connection        PlatformConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, startedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // All models are ADDITIVE (strict db push safe, zero data loss). AuthLog stays
 // the auth-event log; AdminActionLog below audits administrative operations.
 // ─────────────────────────────────────────────────────────────────────────────

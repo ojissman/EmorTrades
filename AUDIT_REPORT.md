@@ -566,3 +566,17 @@ Owner directive (fifth pass, same words). Full entry + certificate in worklog.md
 **Why:** the owner now runs process discipline through a manually-maintained Task Template; the in-app lock visuals were redundant for them. **The rituals themselves are unchanged:** PULL-FIRST (`bun run sync:prod`), the pre-push `.sync-state` enforcement, and the day:start gate all remain active — only the in-app presentation layer is gone.
 
 **Verified after removal:** lint 0 · tsc 0 · 239/239 · dev 200 · signed-in shell + signed-out landing + mobile render clean with zero ritual/drift text; `/api/ritual-state` 404; dev.log zero polls + zero errors. Dead code removed: 3 files, 1 route, 0 deps. No new orphans.
+
+---
+
+## Audit addendum — CONNECT-1 (2026-11-19)
+
+**Scope:** the whole trading-account connection architecture (FULL-SWEEP): the website-side "broker directory" façade (Method A) was removed and replaced by the real downloadable-connector platform; the MT5LINK Docker-gateway experience was superseded by in-terminal Expert Advisors.
+
+**Built (all end-to-end, tested):** universal connector contract (`/api/connector/v1/pair|events|heartbeat|state`, token auth 120/min per token, strict whole-batch validation, future-cap, s/ms auto-detect) · 7 additive Prisma models (PlatformConnection, ConnectorToken, RawConnectorEvent, SyncOrder, SyncPosition, AccountSnapshot, ConnectorSyncLog + provenance columns on Trade/Execution/Account) · the MT5LINK golden deal engine ported to PlatformConnection provenance (24 new tests incl. identity, idempotency, isolation) · the Connections hub UI (one-time token reveal, EA download, install steps, full status vocabulary, sync history, rotate, disconnect-keeps-history) · MQL5 + MQL4 EA sources in public/downloads/ (durable write-ahead queue, checkpoint-anchored overlapping recovery, event-driven capture, read-only).
+
+**Issues found and fixed during verification (6 real):** per-event ingest broke the complete-position contract (mis-allocated commissions/degraded entries); checkpoint regression on out-of-order batches; pair collision on identity owned by a disconnected row; supersede revoked the pairing token before rebinding; missing deal future-cap; globally-unique externalKey blocked two users sharing one broker account.
+
+**Dead code removed (proofs in worklog):** mt5-link/ folder (8 files), mt5-page.tsx, 5 /api/mt5 routes, lib/mt5/ingest.ts (ported, tests ported). Retained with reason: lib/mt5/{crypto,connector-auth,normalize}.ts. CSV import regression passed on the live pipeline. E2E residue purged to the exact pulled baseline (users=4, trades=386, connections=0).
+
+**Remaining / owner decisions:** owner compiles the EAs in MetaEditor + demo-account acceptance test (sandbox cannot run terminals — never claimed); Mt5Connection/Mt5SyncLog orphan models (drop deferred); PostgreSQL migration timing (plan recorded in the worklog entry); legacy MT5 env keys removable at the next secrets rotation.

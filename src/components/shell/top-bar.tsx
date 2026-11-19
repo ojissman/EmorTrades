@@ -83,7 +83,7 @@ const ADD_IMPORT_ITEMS: { label: string; icon: React.ComponentType<{ className?:
 /** Fix 5.2 — Functions popup: three stacked sections, verbatim labels. */
 type FnItem = { label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; route?: string; toggle?: 'hide-search'; special?: 'reset-filters' | 'start-tour' }
 const FUNCTIONS_SECTION: FnItem[] = [
-  { label: 'Sync Accounts', icon: RefreshCw, route: '/settings?section=connected-accounts' },
+  { label: 'Connections', icon: RefreshCw, route: '/settings?section=connected-accounts' },
   { label: 'Show Chat', icon: MessageSquare, route: '/ai-suite?tab=qa' },
   { label: 'Hide Search', icon: EyeOff, toggle: 'hide-search' },
   { label: 'Reset Filters', icon: FilterX, special: 'reset-filters' },

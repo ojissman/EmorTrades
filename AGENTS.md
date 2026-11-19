@@ -1379,6 +1379,64 @@ worklog.md; addendum in AUDIT_REPORT.md. Permanent-record additions:
   tooltip-promise scan + hover-without-handler scan + badge-inertness scan.
   The findings cluster exactly where prior sweeps' exclusion lists ended.
 
+## Task CONNECT-1 — the downloadable-connector platform: MT5/MT4 EAs replace the website-side connection flow (2026-11-19)
+
+Owner directive: universal, real-time, multi-platform trading sync via
+DOWNLOADABLE connectors (Expert Advisors in the user's own terminal) —
+replacing the website-side login/password experience and the self-hosted
+mt5-link Docker gateway, while preserving the whole app, CSV import, journal
+and analytics. Full entry + certificate in worklog.md. Permanent-record
+additions:
+
+- THE CONNECTOR CONTRACT (read before touching connector code): one
+  platform-independent event protocol at /api/connector/v1/* (pair →
+  events → heartbeat; GET state for resume). Events: deal | order |
+  position | account | symbol_spec | connection; every event carries an
+  EA-stable id; the server dedups by (connectionId, eventId) and ACKS ONLY
+  AFTER APPLYING — re-delivery is a counted duplicate, never a double-write.
+  The EA maintains a durable write-ahead queue (MQL5/MQL4\Files) and
+  re-anchors recovery to the server checkpoint (lastEventAt) with a 24h
+  overlap. THE DEAL INGEST CONTRACT IS THE MT5LINK GOLDEN RULE: one batch
+  ingests the COMPLETE deal set of a position (IN + OUTs together) — never
+  per-event (that mis-allocates commissions and degrades entries; the E2E
+  caught exactly this regression — see worklog CONNECT-1 §10).
+- IDENTITY LAW: a connection is keyed by platform + broker/server + login
+  (PlatformConnection.externalKey, unique per USER not globally). A
+  disconnected row still owns the identity — reconnecting REVIVES it (never
+  duplicates); a redundant UI-created row is superseded honestly. Journal
+  accounts resolve by Account.externalAccountKey → pre-linked → auto-create
+  "MT5 <login>". Raw payloads are preserved (RawConnectorEvent, ≤16KB) for
+  audit/reprocessing.
+- SECURITY LAW (unchanged teeth): per-connection tokens (emorta_ + 43
+  base62, sha256-at-rest, timing-safe compare, 120/min per-token bucket),
+  revocation on disconnect, rotation endpoint, HTTPS-only, strict whole-batch
+  validation with future-cap, replay-proof by idempotency. Read-only by
+  construction: no order endpoints exist anywhere; the EAs contain zero
+  trading calls.
+- WHAT WAS REMOVED vs RETAINED: removed mt5-link/ (Docker gateway service),
+  mt5-page.tsx (login/password UI), the 5 /api/mt5/* routes, and
+  lib/mt5/ingest.ts (engine moved to src/lib/connector/ingest.ts with the
+  same semantics + PlatformConnection provenance). RETAINED: lib/mt5/
+  {crypto, connector-auth, normalize}.ts (normalize IS the engine; crypto +
+  auth are tested security infra for future credential-based platforms,
+  e.g. a cTrader OAuth connector). The old Mt5Connection/Mt5SyncLog models
+  stay in the schema (additive-first; zero production rows; owner-decision
+  list). MT5_CREDENTIAL_KEY/MT5_CONNECTOR_TOKEN env keys are legacy-retained
+  (still REQUIRED_KEYS + encrypted backup — removing them needs a secrets
+  rotation with owner sign-off).
+- EA DISTRIBUTION LAW: connectors ship as real, versioned source files in
+  public/downloads/ (EmorTradesAutoSync-MT5.mq5 / -MT4.mq4) — never fake
+  buttons for platforms whose connector does not exist (the hub shows
+  cTrader/Binance/IB/Tradovate as non-clickable "Planned"). MetaEditor is
+  Windows-only: EAs are NOT compiled in this sandbox and must NEVER be
+  claimed as compiled — the owner compiles (F7) and runs the demo-account
+  acceptance test. MT4 specifics (partial close = new ticket, All-History
+  tab requirement) are documented inside the .mq4 and the install guide.
+- FUTURE PLATFORMS: add a platform string ('ctrader'…) + its EA/adapter
+  normalizing to the SAME event schema — no new journal data models per
+  provider. SQLite → PostgreSQL decision BEFORE broad multi-tenant rollout
+  (plan in worklog CONNECT-1 hosting assessment; owner decision).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

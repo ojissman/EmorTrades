@@ -57,7 +57,7 @@ import { DataBackupsSection } from '@/components/settings/sections/data-backups-
 const SECTIONS = [
   { id: 'email-settings', label: 'Email Settings', icon: Mail },
   { id: 'change-password', label: 'Change Password', icon: KeyRound },
-  { id: 'connected-accounts', label: 'Connected Accounts', icon: Link2 },
+  { id: 'connected-accounts', label: 'Connections', icon: Link2 },
   { id: 'account-sharing', label: 'Account Sharing', icon: Users },
   { id: 'global-account-settings', label: 'Global Account Settings', icon: SlidersHorizontal },
   { id: 'trading-accounts', label: 'Trading Accounts', icon: Landmark },

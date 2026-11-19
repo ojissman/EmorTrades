@@ -1,20 +1,19 @@
 /**
- * MT5-LINK tests (Task MT5LINK) — the four risk cores of the integration:
+ * MT5-LINK retained-infra tests — the shared security/normalization core
+ * that CONNECT-1 reused for the downloadable-connector platform:
  *
- *   crypto          AES-256-GCM roundtrip + tamper detection + key gate.
- *   connector-auth  timing-safe token gate + brute-force rate limiter.
- *   normalize       partial-close math with hand-computed golden numbers,
- *                   balance-deal filtering, weighted multi-fill entries.
- *   ingest          idempotency on the real DB (re-report = zero writes),
- *                   open-row upserts, full-close retirement with the
- *                   manual-annotation move, execution dedup.
+ *   crypto          AES-256-GCM roundtrip + tamper detection + key gate
+ *                   (kept for future credential-based platforms, e.g. a
+ *                   cTrader OAuth connector storing refresh tokens).
+ *   connector-auth  timing-safe token gate + brute-force rate limiter
+ *                   (the idiom src/lib/connector/auth.ts mirrors).
+ *   normalize       partial-close math with hand-computed golden numbers —
+ *                   THE normalization engine, now imported by
+ *                   src/lib/connector/ingest.ts (its DB-write half moved
+ *                   there with the PlatformConnection provenance; the
+ *                   golden DB tests live in tests/connector.test.ts).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { execSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import type { PrismaClient } from '@prisma/client'
 
 import { encryptSecret, decryptSecret, hasCredentialKey } from '../src/lib/mt5/crypto'
 import { connectorTokenOk, hasConnectorToken, rateLimitConnector } from '../src/lib/mt5/connector-auth'
@@ -187,131 +186,5 @@ describe('mt5 normalize — partial closes, weighted entries, filters', () => {
     expect(plans[0].degraded).toBe(true)
     expect(plans[0].segments[0].pnl).toBeCloseTo(12, 2)
     expect(plans[0].segments[0].entryPrice).toBeCloseTo(99, 8)
-  })
-})
-
-// ── ingest: idempotency + full-close retirement on a real DB ─────────────────
-
-describe('mt5 ingest — idempotent DB writes', () => {
-  let dir: string
-  let db: PrismaClient
-  let ingest: typeof import('../src/lib/mt5/ingest')
-  let userId: string
-  let accountId: string
-  let connId: string
-
-  beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), 'mt5-link-'))
-    process.env.DATABASE_URL = `file:${join(dir, 'test.db')}`
-    process.env.AUTH_SECRET = 'test-secret-for-vitest-only'
-    execSync('bunx prisma db push --skip-generate --schema prisma/schema.prisma', {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
-      stdio: 'pipe',
-    })
-    const dbMod = await import('@/lib/db')
-    db = dbMod.db
-    ingest = await import('@/lib/mt5/ingest')
-    const user = await db.user.create({ data: { email: 'mt5@test.local', passwordHash: 'x', name: 'MT5 Test' } })
-    userId = user.id
-    const account = await db.account.create({ data: { userId, name: 'MT5 123', type: 'forex', currency: 'USD' } })
-    accountId = account.id
-    const conn = await db.mt5Connection.create({
-      data: { userId, label: 'MT5 123', login: 123, brokerServer: 'Test-MT5', encryptedPassword: 'v1.a.b.c', accountId },
-    })
-    connId = conn.id
-  })
-
-  afterAll(async () => {
-    await db?.$disconnect()
-    rmSync(dir, { recursive: true, force: true })
-  })
-
-  const connRef = () => ({ id: connId, userId, accountId })
-
-  it('imports a fully-closed position as 2 segment trades + 3 atomic executions', async () => {
-    const r = await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 111, positionTicket: 7001, entry: 'in', volume: 1, price: 100, commission: -2, time: t0 }),
-      deal({ ticket: 112, positionTicket: 7001, entry: 'out', volume: 0.4, price: 110, commission: -1, swap: -0.5, profit: 40, side: 'sell', time: t0 + 3600 }),
-      deal({ ticket: 113, positionTicket: 7001, entry: 'out', volume: 0.6, price: 120, commission: -1.5, swap: -0.8, profit: 60, side: 'sell', time: t0 + 7200 }),
-    ])
-    expect(r.tradesCreated).toBe(2)
-    expect(r.duplicatesSkipped).toBe(0)
-
-    const trades = await db.trade.findMany({ where: { mt5ConnectionId: connId }, orderBy: { exitTime: 'asc' } })
-    expect(trades).toHaveLength(2)
-    expect(trades.every((t) => t.status === 'closed' && t.source === 'mt5')).toBe(true)
-    expect(trades[0].externalTicket).toBe('112')
-    expect(trades[0].positionTicket).toBe('7001')
-    expect(trades[0].pnl).toBeCloseTo(37.7, 2)
-    expect(trades[1].pnl).toBeCloseTo(56.5, 2)
-    // Execution-first: one row per deal (1 IN + 2 OUT)
-    const execs = await db.execution.findMany({ where: { userId } })
-    expect(execs).toHaveLength(3)
-    expect(new Set(execs.map((e) => e.externalTicket))).toEqual(new Set(['111', '112', '113']))
-  })
-
-  it('RE-REPORT of the same deals writes nothing (pure idempotency)', async () => {
-    const before = await db.trade.count({ where: { mt5ConnectionId: connId } })
-    const r = await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 111, positionTicket: 7001, entry: 'in', volume: 1, price: 100, commission: -2, time: t0 }),
-      deal({ ticket: 112, positionTicket: 7001, entry: 'out', volume: 0.4, price: 110, commission: -1, swap: -0.5, profit: 40, side: 'sell', time: t0 + 3600 }),
-      deal({ ticket: 113, positionTicket: 7001, entry: 'out', volume: 0.6, price: 120, commission: -1.5, swap: -0.8, profit: 60, side: 'sell', time: t0 + 7200 }),
-    ])
-    expect(r.tradesCreated).toBe(0)
-    expect(r.duplicatesSkipped).toBe(2)
-    expect(await db.trade.count({ where: { mt5ConnectionId: connId } })).toBe(before)
-    expect(await db.execution.count({ where: { userId } })).toBe(3) // no duplicate fills either
-  })
-
-  it('open position → one open row; partial close shrinks it; full close retires it and MOVES manual notes to the last segment', async () => {
-    // 1) Open 1.0 lot.
-    let r = await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 211, positionTicket: 7002, entry: 'in', volume: 1, price: 50, time: t0 }),
-    ])
-    expect(r.tradesCreated).toBe(1)
-    let open = await db.trade.findFirstOrThrow({ where: { mt5ConnectionId: connId, externalTicket: 'pos:7002' } })
-    expect(open.status).toBe('open')
-    expect(open.quantity).toBeCloseTo(1, 4)
-
-    // 2) The user journals the open position (manual annotation — must survive).
-    await db.trade.update({ where: { id: open.id }, data: { notes: ' scaling plan: hold runner to 1.2750' } })
-
-    // 3) Partial close 0.4 → segment + shrunken open row (notes preserved).
-    r = await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 211, positionTicket: 7002, entry: 'in', volume: 1, price: 50, time: t0 }),
-      deal({ ticket: 212, positionTicket: 7002, entry: 'out', volume: 0.4, price: 52, profit: 8, side: 'sell', time: t0 + 600 }),
-    ])
-    expect(r.tradesCreated).toBe(1) // the segment
-    open = await db.trade.findFirstOrThrow({ where: { mt5ConnectionId: connId, externalTicket: 'pos:7002' } })
-    expect(open.quantity).toBeCloseTo(0.6, 4)
-    expect(open.notes).toBe(' scaling plan: hold runner to 1.2750')
-
-    // 4) Full close → open row retired, notes moved to the LAST segment.
-    r = await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 211, positionTicket: 7002, entry: 'in', volume: 1, price: 50, time: t0 }),
-      deal({ ticket: 212, positionTicket: 7002, entry: 'out', volume: 0.4, price: 52, profit: 8, side: 'sell', time: t0 + 600 }),
-      deal({ ticket: 213, positionTicket: 7002, entry: 'out', volume: 0.6, price: 55, profit: 15, side: 'sell', time: t0 + 1200 }),
-    ])
-    expect(await db.trade.count({ where: { mt5ConnectionId: connId, externalTicket: 'pos:7002' } })).toBe(0)
-    const lastSeg = await db.trade.findFirstOrThrow({ where: { mt5ConnectionId: connId, externalTicket: '213' } })
-    expect(lastSeg.notes).toBe(' scaling plan: hold runner to 1.2750')
-    // The IN execution followed the retirement onto the first segment.
-    const inExec = await db.execution.findFirstOrThrow({ where: { userId, externalTicket: '211' } })
-    const firstSeg = await db.trade.findFirstOrThrow({ where: { mt5ConnectionId: connId, externalTicket: '212' } })
-    expect(inExec.tradeId).toBe(firstSeg.id)
-  })
-
-  it('manual trades are never touched (null externalTicket rows stay put)', async () => {
-    const manual = await db.trade.create({
-      data: { userId, accountId, symbol: 'AAPL', side: 'long', quantity: 10, entryPrice: 100, entryTime: new Date(), status: 'open' },
-    })
-    await ingest.ingestDeals(connRef(), [
-      deal({ ticket: 311, positionTicket: 7003, entry: 'in', volume: 1, price: 50, time: t0 }),
-    ])
-    const still = await db.trade.findUniqueOrThrow({ where: { id: manual.id } })
-    expect(still.mt5ConnectionId).toBeNull()
-    expect(still.externalTicket).toBeNull()
-    expect(still.symbol).toBe('AAPL')
   })
 })
