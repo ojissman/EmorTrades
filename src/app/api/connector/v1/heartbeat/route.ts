@@ -8,6 +8,7 @@ import {
   unauthorizedConnector,
 } from '@/lib/connector/auth'
 import { validateHeartbeat } from '@/lib/connector/protocol'
+import { resolveTokenBinding } from '@/lib/connector/pair'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,8 +54,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Token is not paired — call /api/connector/v1/pair first' }, { status: 409 })
     }
 
+    // CONNECT-6 ghost re-bind: a token still pointed at a RETIRED row (rotated
+    // on a dead card after supersession) is moved to the live owner row for
+    // the same account — the beat then lands where the traffic belongs.
+    // Identity: the ghost's externalKey breadcrumb, else the EA-reported
+    // account login (rides every ~10th beat — a legacy ghost with no
+    // breadcrumb heals within that window). Best-effort: any failure keeps
+    // the legacy behavior (beat written to the token's own row).
+    const binding = await resolveTokenBinding(auth.tokenRow, beat.account?.login)
+
     const connection = await db.platformConnection.findFirst({
-      where: { id: auth.tokenRow.connectionId, userId: auth.tokenRow.userId },
+      where: { id: binding.connectionId || auth.tokenRow.connectionId!, userId: auth.tokenRow.userId },
       select: { id: true, desired: true, lastEventAt: true, syncRequestedAt: true },
     })
     if (!connection) return unauthorizedConnector()

@@ -59,6 +59,7 @@ export async function GET() {
         broker: c.broker,
         server: c.server,
         status: c.status,
+        desired: c.desired,
         lastError: c.lastError,
         account: c.account && !c.account.deletedAt
           ? { id: c.account.id, name: c.account.name, currency: c.account.currency }

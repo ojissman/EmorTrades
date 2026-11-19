@@ -106,10 +106,10 @@ describe('CONNECT-3: MT5 EA uses the 7-parameter WebRequest overload', () => {
     expect(call).toBeGreaterThan(resize)
   })
 
-  it('keeps the version triplet consistent (1.0.4 / "1.04" / "1.0.4")', () => {
-    expect(mt5).toMatch(/Version 1\.0\.4 · CONNECT-5/)
-    expect(mt5).toMatch(/#property version   "1\.04"/)
-    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.4"/)
+  it('keeps the version triplet consistent (1.0.5 / "1.05" / "1.0.5")', () => {
+    expect(mt5).toMatch(/Version 1\.0\.5 · CONNECT-6/)
+    expect(mt5).toMatch(/#property version   "1\.05"/)
+    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.5"/)
   })
 })
 
@@ -133,10 +133,10 @@ describe('CONNECT-3: MT4 EA keeps MQL4’s documented 8-parameter form', () => {
     ])
   })
 
-  it('keeps the version triplet consistent (1.0.3 / "1.03" / "1.0.3")', () => {
-    expect(mt4).toMatch(/Version 1\.0\.3 · CONNECT-5/)
-    expect(mt4).toMatch(/#property version   "1\.03"/)
-    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.3"/)
+  it('keeps the version triplet consistent (1.0.4 / "1.04" / "1.0.4")', () => {
+    expect(mt4).toMatch(/Version 1\.0\.4 · CONNECT-6/)
+    expect(mt4).toMatch(/#property version   "1\.04"/)
+    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.4"/)
   })
 })
 
@@ -233,4 +233,41 @@ describe('CONNECT-5: the sync pipeline cannot silently die (the live incident pi
     expect(mt5).toContain('if(g_stopped) return; // the beat may have carried a disconnect request')
     expect(mt4).toContain('if(g_stopped) return; // the beat may have carried a disconnect request')
   })
+})
+
+describe('CONNECT-6: a 409 never kills the EA (stale binding ≠ server disconnect)', () => {
+  // The owner's terminal wedged for good: a token rotated on a retired
+  // (superseded) card stayed bound to that dead row, every flush 422/409'd,
+  // and v1.0.4's FlushQueue treated ANY 409 as a server-requested disconnect
+  // → g_stopped → never flushed again, silent forever. But a REAL disconnect
+  // revokes the token (hard 401); a 409 can only mean a stale binding. The
+  // EA must re-pair instead of dying, and a beat that says desired=sync must
+  // clear a stale stop (the server re-bound the token to the live row).
+
+  for (const [name, src] of [
+    ['MT5', mt5],
+    ['MT4', mt4],
+  ] as const) {
+    describe(name, () => {
+      it('FlushQueue treats 409 as a stale binding: drops g_paired for a re-pair (never g_stopped)', () => {
+        const flush = src.slice(src.indexOf('bool FlushQueue'), src.indexOf('int CountMatches'))
+        expect(flush).not.toContain('g_stopped = true')
+        expect(flush).toContain('else if(st == 409)')
+        expect(flush).toContain('g_paired = false;')
+      })
+
+      it('DoHeartbeat treats a beat 409 as a stale binding too (re-pair, not death)', () => {
+        const beat = src.slice(src.indexOf('void DoHeartbeat'), src.indexOf('void DoRecovery'))
+        expect(beat).toContain('else if(st == 409)')
+        expect(beat).toContain('g_paired = false;')
+      })
+
+      it('a beat answer of desired=sync clears a stale stop (the server re-linked the account)', () => {
+        const beat = src.slice(src.indexOf('void DoHeartbeat'), src.indexOf('void DoRecovery'))
+        expect(beat).toContain('else if(g_stopped && StringLen(desired) > 0)')
+        expect(beat).toContain('g_stopped = false;')
+        expect(beat).toContain('resuming sync')
+      })
+    })
+  }
 })

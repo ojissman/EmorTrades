@@ -174,12 +174,22 @@ export async function pairConnection(
     // The user created a NEW connection row in the UI while an old row for
     // the same account existed — the old row wins (it owns the history).
     // The redundant row is honestly retired, never silently deleted.
+    // CONNECT-6: the retired row carries the account identity FACTS
+    // (login/server/broker — NOT externalKey: the (userId, externalKey)
+    // unique constraint makes the owner row's only holder of that key). A
+    // token still bound to it (rotated on the dead card AFTER retirement —
+    // the exact trap that wedged the owner's terminal) can then be re-bound
+    // to the live row by the heartbeat/events routes, which recompute the
+    // external key from these facts, instead of 409-ing forever.
     await db.platformConnection.update({
       where: { id: bound.id },
       data: {
         status: 'disconnected',
         desired: 'disconnect',
         lastError: 'superseded — the existing connection for this account was revived',
+        login: pair.account.login,
+        broker: pair.account.company ?? null,
+        server: pair.account.server ?? null,
       },
     })
     // rebind THIS token to the owning row FIRST (so the revoke sweep below
@@ -255,4 +265,90 @@ export async function pairConnection(
     isNewConnection,
     isNewAccount: account.created,
   }
+}
+
+// ── CONNECT-6 ghost-token re-binding ────────────────────────────────────────
+
+/** A connection row that was retired by a later pair (superseded) or
+ *  disconnected, but a token minted for it is still ACTIVE — the EA holding
+ *  that token keeps heartbeating/flushing into a dead row (409 on events,
+ *  silent status confusion on beats). The live owner row for the SAME
+ *  account is where its traffic belongs. */
+export interface TokenBindingResolution {
+  /** The connection row the token's requests should be processed against. */
+  connectionId: string
+  /** True when the token was re-bound away from a dead/ghost row. */
+  rebound: boolean
+  /** Set when the dead row carries no identity and the caller gave none
+   *  (legacy ghosts created before CONNECT-6 breadcrumbs). */
+  unresolved: boolean
+}
+
+/**
+ * Resolve where a token's request belongs. If the token's bound row is a
+ * ghost (retired/superseded, desired=disconnect) and a distinct OWNER row
+ * for the same external account exists, re-bind the token to the owner and
+ * return the owner — the EA's next beat/flush then lands on the live row.
+ *
+ * Identity sources, in order:
+ *   1. the ghost row's identity FACTS (login/server/broker — the CONNECT-6
+ *      breadcrumb written at pair-time retirement) recomputed into the
+ *      external key with the exact pair-time normalization;
+ *   2. the EA-reported account login (rides the heartbeat every 10th beat)
+ *      matched by (userId, platform, login) among non-ghost rows — the
+ *      legacy-ghost path (pre-CONNECT-6 rows retired with no facts).
+ *
+ * A token bound to a row the user GENUINELY disconnected (Disconnect… → all
+ * its tokens revoked) never reaches this code — it 401s first. A ghost row
+ * whose owner is also disconnected still re-binds: the beat then truthfully
+ * reports desired=disconnect and the EA stays stopped. No history is ever
+ * touched by this resolution — it is pure binding bookkeeping.
+ */
+export async function resolveTokenBinding(
+  tokenRow: { id: string; userId: string; connectionId: string | null; platform: string },
+  accountLogin?: string,
+): Promise<TokenBindingResolution> {
+  const ghostId = tokenRow.connectionId
+  if (!ghostId) return { connectionId: '', rebound: false, unresolved: true }
+
+  const ghost = await db.platformConnection.findFirst({
+    where: { id: ghostId, userId: tokenRow.userId },
+    select: { id: true, desired: true, status: true, login: true, server: true, broker: true },
+  })
+  // No row / ownership mismatch → the caller's own not-found handling applies.
+  if (!ghost) return { connectionId: ghostId, rebound: false, unresolved: true }
+
+  const retired = ghost.desired === 'disconnect' && (ghost.status === 'disconnected' || ghost.status === 'offline')
+  if (!retired) return { connectionId: ghost.id, rebound: false, unresolved: false }
+
+  // Owner by the ghost's identity facts (the CONNECT-6 breadcrumb) → external key
+  let owner: { id: string } | null = null
+  if (ghost.login && ghost.login.trim()) {
+    const key = externalKeyOf(tokenRow.platform, ghost.server ?? undefined, ghost.broker ?? undefined, ghost.login)
+    owner = await db.platformConnection.findFirst({
+      where: { userId: tokenRow.userId, externalKey: key, id: { not: ghost.id } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    })
+  }
+  // …or by EA-reported login (legacy ghost rows retired before CONNECT-6
+  // carry no identity facts at all).
+  if (!owner && accountLogin && accountLogin.trim()) {
+    owner = await db.platformConnection.findFirst({
+      where: {
+        userId: tokenRow.userId,
+        platform: tokenRow.platform,
+        login: accountLogin.trim(),
+        id: { not: ghost.id },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    })
+  }
+  if (!owner) return { connectionId: ghost.id, rebound: false, unresolved: true }
+
+  await db.connectorToken
+    .update({ where: { id: tokenRow.id }, data: { connectionId: owner.id } })
+    .catch(() => {})
+  return { connectionId: owner.id, rebound: true, unresolved: false }
 }

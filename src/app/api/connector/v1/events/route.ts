@@ -7,8 +7,9 @@ import {
   resolveConnectorAuth,
   unauthorizedConnector,
 } from '@/lib/connector/auth'
-import { validateEventBatch, type ValidatedEvent } from '@/lib/connector/protocol'
+import { validateEventBatchDetailed, type ValidatedEvent } from '@/lib/connector/protocol'
 import { connectionStatusPatch, ingestEvents } from '@/lib/connector/ingest'
+import { resolveTokenBinding } from '@/lib/connector/pair'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,9 +74,13 @@ export async function POST(req: NextRequest) {
 
     // The connection this token belongs to (bound tokens only — an unbound
     // token must pair first; there is nothing to ingest into yet).
-    const connection = auth.tokenRow.connectionId
+    // CONNECT-6: a token still bound to a RETIRED row (rotated on a dead
+    // card after its supersession) is re-bound to the live owner row here —
+    // its flushes then flow instead of 409-ing against the ghost forever.
+    const binding = await resolveTokenBinding(auth.tokenRow)
+    const connection = binding.connectionId
       ? await db.platformConnection.findUnique({
-          where: { id: auth.tokenRow.connectionId },
+          where: { id: binding.connectionId },
           select: { id: true, userId: true, accountId: true, platform: true, desired: true, lastEventAt: true },
         })
       : null
@@ -86,21 +91,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Connection is disconnected' }, { status: 409 })
     }
 
-    const batch = validateEventBatch(body)
-    if (!batch) {
+    const detail = validateEventBatchDetailed(body)
+    const batch = detail.batch
+    if (!detail.ok || !batch) {
       const eventsIn = Array.isArray((body as Record<string, unknown>)?.events)
         ? (body as { events: unknown[] }).events.length
         : 0
       const at = new Date()
-      // never-silent law: the refusal lands on the connection card (red
-      // lastError line) and in its sync-history dialog, best-effort
+      // never-silent law ×2: the refusal lands on the connection card (red
+      // lastError line) and in its sync-history dialog — and CONNECT-6 makes
+      // it NAME the poisoned event (index + id + type + reason) so the next
+      // unknown defect is diagnosable from the card in one shot.
+      const reason = (detail.reason || 'unclassified batch defect').slice(0, 300)
       await db.platformConnection
         .update({
           where: { id: connection.id },
           data: {
             status: 'sync_error',
-            lastError:
-              'Event batch rejected (422): every event needs a stable id, a known type and a valid payload — nothing was applied. The EA keeps its queue and retries; if this persists re-download the current EA from Settings → Connections.',
+            lastError: `Event batch rejected (422): ${reason}. Nothing was applied — the EA keeps its queue and retries; if this persists re-download the current EA from Settings → Connections.`,
             updatedAt: at,
           },
         })
@@ -113,14 +121,14 @@ export async function POST(req: NextRequest) {
             status: 'error',
             eventsIn,
             error: 'invalid event batch (422) — nothing applied',
-            detail: JSON.stringify({ phase: 'rejected' }),
+            detail: JSON.stringify({ phase: 'rejected', reason }),
             startedAt: at,
             finishedAt: at,
           },
         })
         .catch(() => {})
       return NextResponse.json(
-        { error: 'Invalid event batch (each event needs a stable id, a known type and a valid payload)' },
+        { error: 'Invalid event batch (each event needs a stable id, a known type and a valid payload)', status_detail: reason },
         { status: 422 },
       )
     }

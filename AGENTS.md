@@ -1615,6 +1615,69 @@ writes that field) → **no heartbeat ever succeeded either**. Card
   within-batch dedup drain the queue; the heartbeat ordering fix is
   v1.0.4-only but only matters while flushes fail).
 
+### CONNECT-6 (2026-11-19T19:21Z) — the opaque-id law: an event id is a dedup key, not a nameplate; and a retired row must never own a live EA
+
+CONNECT-5 shipped and the owner re-attached EA v1.0.4 — still "Never
+synced · 0 events", queue growing 4.7k→5.8k, constant 422s, plus a
+7-connection attempt-storm (one live row, one legacy ghost row still
+receiving the live EA's heartbeats, five retired). Two independent
+defects, both command-proven from the pulled production DB:
+
+- **The dot (the 422):** the owner's terminal trades **"USTEC.V"**;
+  the EA builds each symbol's spec event id as `"ss_" + the raw symbol`
+  → `ss_USTEC.V` — and the old `EVENT_ID_RE` `[A-Za-z0-9_:-]`
+  **rejects the dot**, so EVERY 200-event batch 422'd wholesale, the
+  durable queue never drained, and every re-attach re-appended more
+  (proven empirically: a batch with `ss_USTEC.V` → REJECT; the same
+  events without the spec → PASS). **The id charset is now opaque**
+  (`eventIdOk`: 1-64 chars, no control chars/spaces/quotes — dots, #,
+  +, =, unicode all pass; the id is only the (connectionId, eventId)
+  dedup key, the server never parses it). `validateEventBatchDetailed`
+  returns the first failure WITH its reason — the events route writes
+  it into the card's lastError, the sync-log detail, and the response
+  `status_detail`, so the next unknown poison names itself in one
+  shot (never-silent law ×2; a healthy flush still clears the line).
+- **The wedge (the silent death):** the owner clicked "Rotate token"
+  on an ALREADY-retired (superseded) card; the EA (already paired via
+  its state file) never re-paired, so the new token stayed bound to
+  the dead row — beats landed there, flushes 409'd, and v1.0.4's
+  FlushQueue treated ANY 409 as a server-requested disconnect →
+  `g_stopped` forever, queue frozen at 5852, silent. Two-sided fix:
+  **server** — `resolveTokenBinding` (pair.ts) re-binds a retired-row
+  token to the live owner row on the heartbeat/events routes (by the
+  ghost's identity FACTS stamped at pair-time retirement —
+  login/server/broker recomputed into the external key, NOT
+  `externalKey` itself: the (userId, externalKey) unique constraint
+  makes the owner its only holder — a live 500 proved it; or, for
+  legacy ghosts with no facts, by the EA-reported login riding every
+  10th beat — ≤10 min to heal). **EA v1.0.5 / v1.0.4** — a 409 is a
+  stale binding, never a disconnect (a real disconnect revokes the
+  token → 401): FlushQueue/DoHeartbeat drop `g_paired` to re-pair, and
+  a beat answering desired=sync CLEARS a stale `g_stopped` (guarded
+  on a non-empty desired) — a re-bound EA un-wedges itself with zero
+  user action.
+- **Hub UI guard:** the list payload carries `desired`; retired cards
+  lose the trap actions (no "Sync now", no "Rotate token" — the exact
+  button that minted the wedge), keep "Sync history" + "Remove row"
+  + an honest retired note; the list sorts live rows first,
+  waiting-to-pair second, retired last (createdAt-desc had the newest
+  ghost pinned above the real live card during the attempt-storm).
+- All pinned: tests/connector.test.ts (dotted-id acceptance,
+  structurally-bad ids, detailed reasons) + tests/ea-source.test.ts
+  (409-never-stops + un-stop pins, triplets MT5 1.0.5 / MT4 1.0.4).
+  Wire E2E 28/28 — the owner's exact poisoned batch (ss_USTEC.V +
+  0/0 order + dup id) → 200 with exact journal math; ghost re-bind
+  (legacy + breadcrumb paths); diagnosable 422; exact-baseline
+  cleanup (owner rows byte-identical).
+- **Migration note for the owner's live EA:** after Publish, the
+  ss_USTEC.V batches pass with NO re-download (the queue drains and
+  the journal fills on the next flush of any token bound to the live
+  row); the wedged instance (beating the retired row) re-binds ≤10
+  min via the heartbeat, but fully resumes flushing only after one
+  re-attach or the v1.0.5 download — re-downloading EA v1.0.5 is the
+  cleanest single post-Publish action.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

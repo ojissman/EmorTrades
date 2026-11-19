@@ -585,6 +585,50 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   self-heals (queue drains within a minute) — no re-download required;
   v1.0.4 is the corrected download for new attaches.
 
+## Task CONNECT-6 — the still-never-synced incident: the ss_USTEC.V dot in the spec id + the rotate-on-a-dead-card wedge (2026-11-19)
+
+- **Opaque-id law:** an event id is an OPAQUE dedup key
+  ((connectionId, eventId) — the server never parses it). The EA builds
+  spec ids as `"ss_" + the raw broker symbol`, and real symbols carry
+  separators — the owner trades "USTEC.V" — so the old
+  `[A-Za-z0-9_:-]` whitelist rejected the dot and every 200-event
+  batch 422'd wholesale (queue 4.7k→5.8k, "0 events synced" forever;
+  proven empirically: a batch with `ss_USTEC.V` → REJECT, without it
+  → PASS). Charset now: 1-64 chars, no control chars/spaces/quotes
+  (`eventIdOk`); dots/#/+/=/unicode pass, structural garbage still
+  rejects. `validateEventBatchDetailed` returns the first failure with
+  its reason (event #N + id + type + why) and the events route writes
+  it into the card lastError + sync-log detail + response
+  `status_detail` — the next unknown poison names itself in one shot.
+- **Retired-row law:** a token rotated on a retired (superseded) card
+  binds the EA to a dead row — beats land there, flushes 409, and the
+  old EA treated ANY 409 as a server disconnect → `g_stopped` forever
+  (the owner's terminal sat queue-frozen at 5852, silent). Server:
+  `resolveTokenBinding` (pair.ts) re-binds retired-row tokens to the
+  live owner row on the heartbeat/events routes — by the ghost's
+  identity FACTS stamped at pair-time retirement (login/server/broker
+  recomputed into the external key; NOT externalKey itself — the
+  (userId, externalKey) unique constraint makes the owner its only
+  holder, proven by a live 500) or by the EA-reported login riding
+  every 10th beat (legacy ghosts, ≤10 min). EA v1.0.5 (MT5) / v1.0.4
+  (MT4): a 409 is a stale binding, never a disconnect (a real
+  disconnect revokes the token → 401) — FlushQueue/DoHeartbeat drop
+  `g_paired` to re-pair, and a beat answering desired=sync clears a
+  stale `g_stopped` (guarded on non-empty desired).
+- **Hub guard:** the connections list carries `desired`; retired cards
+  lose the trap actions (no Sync now / Rotate token — Rotate on a
+  dead row is what minted the wedge), keep Sync history + Remove row
+  + an honest note; the list sorts live first, retired last.
+- Pinned by tests/connector.test.ts (dotted ids pass, structural ids
+  reject, detailed reasons) + tests/ea-source.test.ts (409-never-stops
+  + un-stop + triplets MT5 1.0.5 / MT4 1.0.4). Wire E2E 28/28 (the
+  owner's exact poisoned batch → 200 with exact journal math; ghost
+  re-bind legacy + breadcrumb; diagnosable 422; exact-baseline
+  cleanup). After Publish: no EA re-download needed for the 422 fix;
+  the wedged instance fully resumes with one re-attach or the v1.0.5
+  download.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

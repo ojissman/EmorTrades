@@ -53,6 +53,13 @@ export function ConnectionCard({
   // "sync requested" indicator — the nudge is newer than the last completed sync.
   const syncRequested =
     !!c.syncRequestedAt && (!c.lastSyncAt || new Date(c.syncRequestedAt) > new Date(c.lastSyncAt))
+  // CONNECT-6: retired rows (superseded by a later pair, or user-disconnected)
+  // must NOT offer the trap actions — a token rotated on a dead row binds the
+  // EA to a ghost and wedges its flushes (the exact 7-connection mess this
+  // card list is recovering from). "Sync now" on a dead row nudges a row no
+  // EA beats to — useless noise. "Rotate token" here is actively harmful.
+  const retired = c.desired === 'disconnect'
+  const superseded = !!c.lastError && c.lastError.startsWith('superseded')
 
   async function syncNow() {
     if (syncing) return
@@ -180,19 +187,22 @@ export function ConnectionCard({
         </p>
       )}
 
-      {/* Actions — every button hits a real endpoint */}
+      {/* Actions — every button hits a real endpoint; retired rows keep only
+          history + disconnect (their sync/rotate would be a trap) */}
       <div className="flex flex-wrap gap-1.5 pt-0.5">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={syncNow}
-          disabled={syncing}
-          title="Ask the EA to re-run a full history reconciliation"
-          data-testid={`connection-sync-${c.id}`}
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} aria-hidden />
-          Sync now
-        </Button>
+        {!retired && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncNow}
+            disabled={syncing}
+            title="Ask the EA to re-run a full history reconciliation"
+            data-testid={`connection-sync-${c.id}`}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin')} aria-hidden />
+            Sync now
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -204,17 +214,19 @@ export function ConnectionCard({
           <History className="h-3.5 w-3.5" aria-hidden />
           Sync history
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRotate}
-          title="Issue a new one-time token — the old EA session dies"
-          data-testid={`connection-rotate-${c.id}`}
-        >
-          <KeyRound className="h-3.5 w-3.5" aria-hidden />
-          Rotate token
-        </Button>
-        {linked && (
+        {!retired && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRotate}
+            title="Issue a new one-time token — the old EA session dies"
+            data-testid={`connection-rotate-${c.id}`}
+          >
+            <KeyRound className="h-3.5 w-3.5" aria-hidden />
+            Rotate token
+          </Button>
+        )}
+        {linked && !retired && (
           <Button
             variant="outline"
             size="sm"
@@ -231,13 +243,20 @@ export function ConnectionCard({
           size="sm"
           className="text-red-600 hover:text-red-700 dark:text-red-400 ml-auto"
           onClick={onRemove}
-          title="Disconnect the EA and revoke its token — trades and history are kept"
+          title={retired ? 'Remove this retired row (history is kept)' : 'Disconnect the EA and revoke its token — trades and history are kept'}
           data-testid={`connection-disconnect-${c.id}`}
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden />
-          Disconnect…
+          {retired ? 'Remove row' : 'Disconnect…'}
         </Button>
       </div>
+      {retired && (
+        <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
+          {superseded
+            ? 'Retired connection — the active card for this account owns the EA sync. Remove this row whenever you like; the synced history stays.'
+            : 'Disconnected — tokens revoked, journal history kept. Remove this row whenever you like.'}
+        </p>
+      )}
     </div>
   )
 }

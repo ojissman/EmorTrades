@@ -62,6 +62,11 @@ export interface ConnectionRow {
   broker: string | null
   server: string | null
   status: ConnectionStatus
+  /** The server's desired lifecycle: 'sync' (live) or 'disconnect'
+   *  (retired — superseded by a later pair, or user-disconnected). CONNECT-6:
+   *  retired cards must not offer the trap actions (a token rotated on a
+   *  dead row binds the EA to a ghost and wedges its flushes). */
+  desired: 'sync' | 'disconnect'
   lastError: string | null
   account: ConnectionAccountRef | null
   lastHeartbeatAt: string | null

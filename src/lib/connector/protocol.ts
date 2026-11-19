@@ -12,6 +12,9 @@
  * Validation is strict, per-event, and runs BEFORE any DB write: a batch is
  * accepted whole (422 otherwise) so a malformed event can never half-apply.
  * Every payload is capped (≤16KB serialized) so raw storage cannot balloon.
+ * Event ids are OPAQUE dedup keys: 1-64 chars, no control chars / spaces /
+ * quotes — broker symbols ride inside them ("ss_USTEC.V"), so the charset
+ * accepts any printable (CONNECT-6).
  *
  * Timestamps: platform fields accept epoch seconds OR milliseconds OR an ISO
  * string (auto-detected); they are normalized to UTC Dates. The server also
@@ -28,7 +31,21 @@ export type ConnectorEventType = (typeof EVENT_TYPES)[number]
 export const MAX_EVENTS_PER_BATCH = 200
 export const MAX_EVENT_JSON_BYTES = 16_384
 const FUTURE_MS = 10 * 60 * 1000
-const EVENT_ID_RE = /^[A-Za-z0-9_:-]{1,64}$/
+
+// ── event id charset ──────────────────────────────────────────────────────
+// CONNECT-6: the EA builds spec ids as "ss_" + the RAW broker symbol, and
+// real symbols carry suffix separators — the owner's terminal trades
+// "USTEC.V" — so every batch carrying that spec 422'd wholesale (queue never
+// drained, "Never synced" for hours). The id is an OPAQUE dedup key
+// ((connectionId, eventId)) — the server never parses it — so the charset is
+// now "anything a JSON string can carry safely": 1-64 chars, no control
+// chars, no spaces, no quotes/backslash (log hygiene). Dots, #, +, =, ~,
+// unicode — all fine. Length + emptiness still reject.
+const EVENT_ID_BAD_RE = /[\u0000-\u0020\u007F"'\\]/
+
+function eventIdOk(id: string): boolean {
+  return id.length >= 1 && id.length <= 64 && !EVENT_ID_BAD_RE.test(id)
+}
 
 // ── payload types (post-validation, normalized) ─────────────────────────────
 
@@ -399,7 +416,7 @@ export function validateEventBatch(body: unknown): ValidatedBatch | null {
     if (typeof raw !== 'object' || raw === null) return null
     const e = raw as Record<string, unknown>
     const id = str(e.id, 64)
-    if (!id || !EVENT_ID_RE.test(id)) return null
+    if (!id || !eventIdOk(id)) return null
     if (seen.has(id)) {
       duplicates++
       continue
@@ -422,6 +439,70 @@ export function validateEventBatch(body: unknown): ValidatedBatch | null {
     events.push({ id, type, seq, time, payload })
   }
   return { phase, batchSeq, queueDepth, events, duplicates }
+}
+
+// ── detailed validation (CONNECT-6 never-silent law) ───────────────────────
+
+export interface BatchValidationResult {
+  ok: boolean
+  batch?: ValidatedBatch
+  /** Human-readable first failure — names the poisoned event so the next
+   *  unknown defect shows up on the connection card / sync history in one
+   *  shot instead of another silent 422 storm. */
+  reason?: string
+}
+
+/** Validate a batch and, on failure, say WHICH event failed and WHY. */
+export function validateEventBatchDetailed(body: unknown): BatchValidationResult {
+  if (typeof body !== 'object' || body === null) return { ok: false, reason: 'body is not a JSON object' }
+  const o = body as Record<string, unknown>
+  const rawEvents = o.events
+  if (!Array.isArray(rawEvents)) return { ok: false, reason: 'missing events array' }
+  if (rawEvents.length === 0) return { ok: false, reason: 'events array is empty' }
+  if (rawEvents.length > MAX_EVENTS_PER_BATCH) {
+    return { ok: false, reason: `events array has ${rawEvents.length} entries (max ${MAX_EVENTS_PER_BATCH})` }
+  }
+  const batch = validateEventBatch(body)
+  if (batch) return { ok: true, batch }
+  // A defect exists — find the first offending event for the report.
+  for (let i = 0; i < rawEvents.length; i++) {
+    const raw = rawEvents[i]
+    if (typeof raw !== 'object' || raw === null) {
+      return { ok: false, reason: `event #${i + 1}: not an object` }
+    }
+    const e = raw as Record<string, unknown>
+    if (typeof e.id !== 'string') {
+      return { ok: false, reason: `event #${i + 1}: id must be a JSON string (got ${typeof e.id})` }
+    }
+    if (e.id.trim().length > 64) {
+      return { ok: false, reason: `event #${i + 1}: id longer than 64 chars (${e.id.trim().length})` }
+    }
+    const id = str(e.id, 64)
+    if (!id) return { ok: false, reason: `event #${i + 1}: missing or empty id` }
+    if (!eventIdOk(id)) {
+      return { ok: false, reason: `event #${i + 1} (id ${JSON.stringify(e.id)}, type ${JSON.stringify(e.type)}): id must be 1-64 chars without spaces/quotes` }
+    }
+    const type = enumOf(e.type, EVENT_TYPES)
+    if (!type) {
+      return { ok: false, reason: `event #${i + 1} (id ${JSON.stringify(id)}): unknown type ${JSON.stringify(e.type)}` }
+    }
+    let payloadOk = false
+    switch (type) {
+      case 'deal': payloadOk = !!validateDeal(e.payload); break
+      case 'order': payloadOk = !!validateOrder(e.payload); break
+      case 'position': payloadOk = !!validatePosition(e.payload); break
+      case 'account': payloadOk = !!validateAccount(e.payload); break
+      case 'symbol_spec': payloadOk = !!validateSymbolSpec(e.payload); break
+      case 'connection': payloadOk = !!validateConnection(e.payload); break
+    }
+    if (!payloadOk) {
+      return {
+        ok: false,
+        reason: `event #${i + 1} (id ${JSON.stringify(id)}, type ${type}): payload failed validation (required fields missing / out of range)`,
+      }
+    }
+  }
+  return { ok: false, reason: 'unclassified batch defect' }
 }
 
 // ── pair validation ─────────────────────────────────────────────────────────

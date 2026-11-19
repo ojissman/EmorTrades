@@ -30,6 +30,7 @@ import {
 } from '../src/lib/connector/tokens'
 import {
   validateEventBatch,
+  validateEventBatchDetailed,
   validatePairBody,
   externalKeyOf,
   type ValidatedBatch,
@@ -230,6 +231,58 @@ describe('connector protocol — the universal event contract', () => {
   it('external identity key is platform:server:login (case-normalized)', () => {
     expect(externalKeyOf('mt5', 'ICMarkets-Live07', undefined, '123456')).toBe('mt5:icmarkets-live07:123456')
     expect(externalKeyOf('mt4', undefined, 'Exness', '99')).toBe('mt4:exness:99')
+  })
+
+  // ── CONNECT-6: ids are OPAQUE dedup keys — broker symbols ride inside them ──
+
+  it('accepts ids carrying broker symbol separators (the live 422 poison: "ss_USTEC.V" rejected every batch)', () => {
+    // The owner's terminal trades USTEC.V (MetaQuotes-Demo, 2026-11-19): the
+    // spec event id is "ss_" + the raw symbol, and the old [A-Za-z0-9_:-]
+    // whitelist rejected the dot — a whole 200-event batch 422'd, the durable
+    // queue never drained, "Never synced · 0 events" for hours.
+    const specP = {
+      symbol: 'USTEC.V', digits: 2, contractSize: 1, tickSize: 0.01, tickValue: 0.01,
+      volumeMin: 0.1, volumeMax: 500, volumeStep: 0.1, calcMode: 32,
+      currencyBase: 'USD', currencyProfit: 'USD',
+    }
+    const out = validateEventBatch({
+      events: [ev('d1', 'deal', dealP({ symbol: 'USTEC.V' })), ev('ss_USTEC.V', 'symbol_spec', specP)],
+    })
+    expect(out).not.toBeNull()
+    expect(out!.events.map((e) => e.id)).toEqual(['d1', 'ss_USTEC.V'])
+    expect((out!.events[1].payload as { symbol: string }).symbol).toBe('USTEC.V')
+  })
+
+  it('still rejects structurally-bad ids (empty, whitespace/control chars, quotes, >64 chars)', () => {
+    expect(validateEventBatch({ events: [ev('bad id!', 'deal', dealP({}))] })).toBeNull() // space + !
+    expect(validateEventBatch({ events: [ev('line\nbreak', 'deal', dealP({}))] })).toBeNull()
+    expect(validateEventBatch({ events: [ev('quo"te', 'deal', dealP({}))] })).toBeNull()
+    expect(validateEventBatch({ events: [ev('', 'deal', dealP({}))] })).toBeNull()
+    expect(validateEventBatch({ events: [ev('x'.repeat(65), 'deal', dealP({}))] })).toBeNull()
+    // hashes/plus/equals (other brokers' suffix conventions) are fine
+    expect(validateEventBatch({ events: [ev('ss_XAUUSD#', 'symbol_spec', { symbol: 'XAUUSD#', tick: 1 })] })).not.toBeNull()
+    expect(validateEventBatch({ events: [ev('ss_A+X=Y', 'symbol_spec', { symbol: 'A+X=Y', tick: 1 })] })).not.toBeNull()
+  })
+
+  it('validateEventBatchDetailed names the poisoned event (never-silent 422s)', () => {
+    const ok = validateEventBatchDetailed({ events: [ev('d1', 'deal', dealP({}))] })
+    expect(ok.ok).toBe(true)
+    expect(ok.batch!.events).toHaveLength(1)
+
+    const idPoison = validateEventBatchDetailed({ events: [ev('d1', 'deal', dealP({})), ev('bad id!', 'deal', dealP({}))] })
+    expect(idPoison.ok).toBe(false)
+    expect(idPoison.reason).toContain('#2')
+    expect(idPoison.reason).toContain('bad id!')
+
+    const typePoison = validateEventBatchDetailed({ events: [ev('d1', 'warp', dealP({}))] })
+    expect(typePoison.reason).toContain('unknown type')
+
+    const payloadPoison = validateEventBatchDetailed({ events: [ev('d1', 'deal', dealP({ volume: 0 }))] })
+    expect(payloadPoison.reason).toContain('payload failed validation')
+
+    const sizePoison = validateEventBatchDetailed({ events: Array.from({ length: 201 }, (_, i) => ev(`d${i}`, 'deal', dealP({}))) })
+    expect(sizePoison.reason).toContain('201 entries')
+    expect(sizePoison.reason).toContain('max 200')
   })
 
   it('pair body validation requires platform + login', () => {

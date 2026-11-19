@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT5.mq5 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.4 · CONNECT-5 · READ-ONLY by construction               |
+//| Version 1.0.5 · CONNECT-6 · READ-ONLY by construction               |
 //|                                                                      |
 //| WHAT THIS IS                                                         |
 //|   A read-only synchronization Expert Advisor. It watches YOUR MT5    |
@@ -39,7 +39,7 @@
 //|   dedup makes re-sends harmless).                                    |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.04"
+#property version   "1.05"
 #property description "EmorTrades read-only trading sync connector (MetaTrader 5)."
 
 //── inputs ────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.4"
+#define EA_VERSION          "1.0.5"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -595,7 +595,17 @@ bool FlushQueue(const string phase)
    if(st != 200)
      {
       if(st == 401) g_lastStatus = "auth_error";
-      else if(st == 409) g_stopped = true;
+      // CONNECT-6: 409 here is a STALE TOKEN BINDING (the token's connection
+      // row was superseded/retired — e.g. rotated on a dead card), NOT a
+      // server-requested disconnect: a real disconnect revokes the token
+      // and arrives as 401. Drop the pairing so the next timer tick re-pairs
+      // (pair re-binds the token to the live row and revives the account).
+      else if(st == 409)
+        {
+         if(g_paired) Print("EmorTradesAutoSync: stale token binding (HTTP 409) — re-pairing next tick");
+         g_paired = false;
+         g_lastStatus = "reconnecting";
+        }
       Print("EmorTradesAutoSync: flush failed (HTTP ", st, ") — ", n, " event(s) stay queued");
       return false;
      }
@@ -651,6 +661,16 @@ void DoHeartbeat()
          g_stopped = true;
          g_lastStatus = "offline";
         }
+      // CONNECT-6: the server may have re-bound this token to the live row
+      // for the account (a heartbeat-side repair of a superseded binding) —
+      // a real desired=sync clears any stale stop so flushing resumes.
+      // (Guard: only when the beat actually carried a desired value.)
+      else if(g_stopped && StringLen(desired) > 0)
+        {
+         g_stopped = false;
+         g_lastStatus = "reconnecting";
+         Print("EmorTradesAutoSync: server re-linked this account — resuming sync");
+        }
       long sr = ParseIsoMs(FieldStr(resp, "syncRequestedAt"));
       if(sr > 0 && sr > g_lastSyncReqSeen)
         {
@@ -660,6 +680,13 @@ void DoHeartbeat()
      }
    else if(st == 401)
       g_lastStatus = "auth_error";
+   // CONNECT-6: 409 on the beat = stale/unbound token binding — re-pair on
+   // the next tick instead of dying silently (a real disconnect is a 401).
+   else if(st == 409)
+     {
+      g_paired = false;
+      g_lastStatus = "reconnecting";
+     }
   }
 
 //+------------------------------------------------------------------+

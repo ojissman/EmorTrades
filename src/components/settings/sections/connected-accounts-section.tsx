@@ -60,6 +60,15 @@ export function ConnectedAccountsSection() {
   const connections = data?.connections ?? []
   const invalidate = () => qc.invalidateQueries({ queryKey: ['connections'] })
 
+  // CONNECT-6: live rows first, retired rows last. The API returns createdAt
+  // desc, so after the owner's 7-connection attempt-storm the NEWEST row (a
+  // superseded ghost still heartbeating) pinned the top of the list and the
+  // actually-live card (created first, owns the journal account) sat at the
+  // bottom — exactly backwards for the user trying to figure out which row
+  // to act on. Rank: live (desired=sync, EA paired) < waiting-to-pair <
+  // retired; stable within each rank by list order.
+  const ranked = [...connections].sort((a, b) => rankOf(a) - rankOf(b))
+
   // ── Dialog targets (the mt5-page target idiom) ──
   const [connectPlatform, setConnectPlatform] = useState<ConnectorPlatform | null>(null)
   const [historyTarget, setHistoryTarget] = useState<ConnectionRow | null>(null)
@@ -178,7 +187,7 @@ export function ConnectedAccountsSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {connections.map((c) => (
+            {ranked.map((c) => (
               <ConnectionCard
                 key={c.id}
                 c={c}
@@ -224,6 +233,15 @@ export function ConnectedAccountsSection() {
       />
     </div>
   )
+}
+
+/** Live-row-first ranking for the connection list (CONNECT-6):
+ *  0 = live (paired, desired=sync) · 1 = waiting for the EA's first pair ·
+ *  2 = retired/superseded/disconnected. */
+function rankOf(c: ConnectionRow): number {
+  if (c.desired === 'disconnect') return 2 // retired/superseded — last
+  if (!c.login) return 1 // created, waiting for the EA's first pair
+  return 0 // live: paired, syncing
 }
 
 /**
