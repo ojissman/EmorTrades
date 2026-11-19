@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT4.mq4 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.2 · CONNECT-4 · READ-ONLY by construction               |
+//| Version 1.0.3 · CONNECT-5 · READ-ONLY by construction               |
 //|                                                                      |
 //| The MetaTrader 4 sibling of EmorTradesAutoSync-MT5.mq5 — the same    |
 //| universal connector contract (pair / events / heartbeat over HTTPS),|
@@ -37,7 +37,7 @@
 //|   · Slippage/tick-level data is not exposed by MT4.                 |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 #property description "EmorTrades read-only trading sync connector (MetaTrader 4)."
 
@@ -50,7 +50,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.2"
+#define EA_VERSION          "1.0.3"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -754,6 +754,18 @@ void OnTimer()
       return;
      }
 
+   // CONNECT-5: the heartbeat rides FIRST — a failing flush used to return
+   // before it, so a poisoned queue starved the control channel (the server
+   // saw no beats: no eaVersion, no queue depth, and the "Sync now" nudge
+   // that rides the beat response never reached the EA). The beat must flow
+   // even while event flushes keep failing.
+   if(TimeCurrent() - g_lastHeartbeat >= HEARTBEAT_S)
+     {
+      g_lastHeartbeat = TimeCurrent();
+      DoHeartbeat();
+     }
+   if(g_stopped) return; // the beat may have carried a disconnect request
+
    if(!FlushQueue("live"))
      {
       g_failStreak++;
@@ -767,12 +779,6 @@ void OnTimer()
       ScanLiveState(false);
       Enqueue("as" + LongToString(g_seq), "account", (long)TimeCurrent() * 1000, AccountJson(true));
       FlushQueue("live");
-     }
-
-   if(TimeCurrent() - g_lastHeartbeat >= HEARTBEAT_S)
-     {
-      g_lastHeartbeat = TimeCurrent();
-      DoHeartbeat();
      }
 
    if(TimeCurrent() - g_lastReconcile >= RECONCILE_S)

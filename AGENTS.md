@@ -1572,6 +1572,49 @@ Experts log, and the 600 s back-off ceiling hid retries.
   Publish state: production serves v1.0.2/v1.0.1 EAs until the owner's
   next Publish; the preview serves the new ones immediately.
 
+### CONNECT-5 (2026-11-19T18:26Z) — the whole-batch 422 law: a batch is only as valid as its most ordinary event, and a refusal must never be silent
+
+The owner's EA v1.0.3 paired (twice — 17:52/17:53, token rotated
+between), then synced NOTHING for ~90 minutes while they opened new
+trades and clicked Sync now. Pulled-DB partition: pair logs ok, but
+`rawConnectorEvent`=0, zero 'events' sync logs, `eaVersion=null`, and
+`lastHeartbeatAt` == the pair stamp to the millisecond (the PAIR route
+writes that field) → **no heartbeat ever succeeded either**. Card
+"Connected / Never synced / Queue 0" was frozen on pair-route writes.
+
+- **Root causes (all command-proven, sandbox + production):** (1) MT5's
+  `ORDER_VOLUME_CURRENT` is the REMAINING volume — 0 for every
+  fully-filled order; v1.0.3's order builders sent it as BOTH
+  `requestedVolume` and `filledVolume`, and `validateOrder` required
+  requestedVolume ≥ 1e-9 → every real history batch 422'd wholesale;
+  (2) re-attach re-runs `DoRecovery` re-APPENDING ids to the never-drained
+  durable queue → within-batch duplicate ids → a second permanent 422;
+  (3) the 422 left zero server-side trace (validation ran before auth);
+  (4) the EA's OnTimer ran the flush BEFORE the heartbeat and returned on
+  flush failure → the control channel starved (the Sync-now nudge rides
+  the beat response — it never reached the EA).
+- **Server contract law (v2):** `validateOrder` accepts
+  requestedVolume 0 (normalizing 0+known-fill → fill; 0/0 stored as-is —
+  order rows are a display-level mirror, deals carry the math);
+  `validateEventBatch` DEDUPS repeated ids within a batch (first
+  occurrence wins, repeats counted in `batch.duplicates`) — a re-send is
+  a duplicate, never an error (the documented recovery guarantee, now
+  actually true); the events route authenticates BEFORE validating and a
+  422 now writes `lastError` + `status sync_error` + a kind-'events'
+  error sync log, while a healthy flush clears it; `eventsSynced` counts
+  genuinely-new events (acked minus cross-batch re-sends).
+- **EA timer law:** OnTimer sends the heartbeat BEFORE the flush (+ a
+  `g_stopped` re-check after the beat) — a failing flush must never
+  starve the control channel. MT5 order builders read
+  ORDER_VOLUME_INITIAL for requested and INITIAL−CURRENT (floored 0) for
+  filled. EA versions now: MT5 **v1.0.4**, MT4 **v1.0.3** (MT4's volumes
+  were already correct — OrderLots()). All pinned by
+  tests/ea-source.test.ts (CONNECT-5 cases) + tests/connector.test.ts.
+- **Migration note for the owner's live EA:** no re-download required —
+  after Publish, their existing v1.0.3 self-heals (tolerated volumes +
+  within-batch dedup drain the queue; the heartbeat ordering fix is
+  v1.0.4-only but only matters while flushes fail).
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

@@ -560,6 +560,31 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   token trim, fingerprints, attempt counters) — any EA edit must keep both
   contracts or the suite fails.
 
+## Task CONNECT-5 — the paired-but-never-synced incident: two whole-batch 422s + a starved heartbeat (2026-11-19)
+
+- **Whole-batch 422 law:** a batch is only as valid as its most ordinary
+  event. MT5's `ORDER_VOLUME_CURRENT` (remaining volume) reads 0 for
+  every fully-filled order; the v1.0.3 EA sent it as BOTH volume fields
+  and the validator required requestedVolume ≥ 1e-9 — every real history
+  batch was rejected wholesale, the durable queue never drained, and the
+  heartbeat (which ran after the flush) starved. Server now: requested
+  Volume 0 tolerated (0+fill → fill; 0/0 stored as-is), within-batch
+  repeated ids DEDUPED (re-sends are duplicates, never errors), the
+  events route authenticates first and a 422 writes `lastError` +
+  `sync_error` + an error sync log (never silent), healthy flushes clear
+  it. EA law: OnTimer sends the heartbeat BEFORE the flush; MT5 order
+  builders read ORDER_VOLUME_INITIAL / INITIAL−CURRENT. EA versions: MT5
+  v1.0.4, MT4 v1.0.3. Pinned by tests/connector.test.ts +
+  tests/ea-source.test.ts (CONNECT-5 cases).
+- **Never-synced triage (DB-first):** pair logs ok + `lastHeartbeatAt`
+  == the pair stamp (the pair route writes that field) + `eaVersion=null`
+  = no heartbeat ever succeeded → suspect a poisoned event queue, not
+  transport. A silent 422 is a diagnosis failure: rejections must land on
+  the connection row (lastError + sync log) so the card can say why.
+- **Owner migration:** after Publish, the owner's EXISTING v1.0.3 EA
+  self-heals (queue drains within a minute) — no re-download required;
+  v1.0.4 is the corrected download for new attaches.
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

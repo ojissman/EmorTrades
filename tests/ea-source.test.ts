@@ -106,10 +106,10 @@ describe('CONNECT-3: MT5 EA uses the 7-parameter WebRequest overload', () => {
     expect(call).toBeGreaterThan(resize)
   })
 
-  it('keeps the version triplet consistent (1.0.3 / "1.03" / "1.0.3")', () => {
-    expect(mt5).toMatch(/Version 1\.0\.3 · CONNECT-4/)
-    expect(mt5).toMatch(/#property version   "1\.03"/)
-    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.3"/)
+  it('keeps the version triplet consistent (1.0.4 / "1.04" / "1.0.4")', () => {
+    expect(mt5).toMatch(/Version 1\.0\.4 · CONNECT-5/)
+    expect(mt5).toMatch(/#property version   "1\.04"/)
+    expect(mt5).toMatch(/#define EA_VERSION          "1\.0\.4"/)
   })
 })
 
@@ -133,10 +133,10 @@ describe('CONNECT-3: MT4 EA keeps MQL4’s documented 8-parameter form', () => {
     ])
   })
 
-  it('keeps the version triplet consistent (1.0.2 / "1.02" / "1.0.2")', () => {
-    expect(mt4).toMatch(/Version 1\.0\.2 · CONNECT-4/)
-    expect(mt4).toMatch(/#property version   "1\.02"/)
-    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.2"/)
+  it('keeps the version triplet consistent (1.0.3 / "1.03" / "1.0.3")', () => {
+    expect(mt4).toMatch(/Version 1\.0\.3 · CONNECT-5/)
+    expect(mt4).toMatch(/#property version   "1\.03"/)
+    expect(mt4).toMatch(/#define EA_VERSION          "1\.0\.3"/)
   })
 })
 
@@ -186,5 +186,51 @@ describe('CONNECT-4: both EAs surface pairing failures on the chart panel (never
 
   it('MT4 additionally decodes 4060 (MQL4’s “function not allowed” family) to the same remedy', () => {
     expect(mt4).toContain('err == 4014 || err == 4060')
+  })
+})
+
+describe('CONNECT-5: the sync pipeline cannot silently die (the live incident pins)', () => {
+  // The owner's live attach (2026-11-19, EA v1.0.3, MetaQuotes-Demo
+  // 115890520) paired and then synced NOTHING for hours: MT5's
+  // ORDER_VOLUME_CURRENT (the REMAINING volume) reads 0 for every
+  // fully-filled order, the EA sent it as BOTH requestedVolume and
+  // filledVolume, the server's validator rejected the whole batch (422),
+  // the durable queue never drained, and the heartbeat — which ran AFTER
+  // the flush — was starved, so the card froze on pair-time data
+  // ("Connected · Never synced · Queue 0") and the "Sync now" nudge never
+  // reached the EA. These pins keep every link of that chain fixed.
+
+  it('MT5 order builders read ORDER_VOLUME_INITIAL for the requested volume (not the remaining volume)', () => {
+    expect(mt5).toContain('HistoryOrderGetDouble(ticket, ORDER_VOLUME_INITIAL)')
+    expect(mt5).toContain('OrderGetDouble(ORDER_VOLUME_INITIAL)')
+    // v1.0.3's defect must not come back: CURRENT as BOTH volume fields
+    const historyOrderJson = mt5.slice(mt5.indexOf('string HistoryOrderJson'))
+    const liveOrderJson = mt5.slice(mt5.indexOf('string OrderStateJson'))
+    expect(historyOrderJson.indexOf('ORDER_VOLUME_CURRENT'), 'ORDER_VOLUME_CURRENT may appear only as the remaining-volume read').toBeGreaterThan(-1)
+    expect(liveOrderJson).toContain('OrderGetDouble(ORDER_VOLUME_CURRENT)')
+  })
+
+  it('MT5 filled = INITIAL − CURRENT (what actually filled, floored at 0)', () => {
+    expect(mt5).toContain('MathMax(volReq - volRem, 0.0)')
+    expect(mt5).toContain('if(volReq <= 0.0) volReq = volRem;')
+  })
+
+  it('both EAs send the heartbeat BEFORE the flush (a failing flush must never starve the control channel)', () => {
+    for (const [name, src] of [
+      ['MT5', mt5],
+      ['MT4', mt4],
+    ] as const) {
+      const onTimer = src.slice(src.indexOf('void OnTimer()'))
+      const beat = onTimer.indexOf('DoHeartbeat();')
+      const flush = onTimer.indexOf('FlushQueue("live")')
+      expect(beat, `${name}: OnTimer must call DoHeartbeat`).toBeGreaterThan(-1)
+      expect(flush, `${name}: OnTimer must call FlushQueue("live")`).toBeGreaterThan(-1)
+      expect(beat, `${name}: the beat must come before the flush`).toBeLessThan(flush)
+    }
+  })
+
+  it('both EAs re-check g_stopped right after the heartbeat (a beat can carry a disconnect)', () => {
+    expect(mt5).toContain('if(g_stopped) return; // the beat may have carried a disconnect request')
+    expect(mt4).toContain('if(g_stopped) return; // the beat may have carried a disconnect request')
   })
 })

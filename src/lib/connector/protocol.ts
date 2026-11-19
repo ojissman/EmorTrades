@@ -252,7 +252,14 @@ function validateOrder(p: unknown): OrderPayload | null {
   const state = enumOf(o.state, ORDER_STATES)
   const symbol = str(o.symbol, 24)?.toUpperCase()
   const side = enumOf(o.side, ['buy', 'sell'] as const)
-  const requestedVolume = num(o.requestedVolume ?? o.volume, 1e-9, 1e9)
+  // CONNECT-5: MT5's ORDER_VOLUME_CURRENT is the REMAINING volume — it reads 0
+  // for every fully-filled order. The v1.0.3 EA sent it as requestedVolume,
+  // which this validator used to reject, poisoning the EA's whole recovery
+  // batch (422 = nothing applied, queue never drained, heartbeat starved).
+  // requestedVolume is now 0-tolerant; a 0 with a known fill falls back to the
+  // fill; a 0/0 pair (v1.0.3's filled-order shape) is stored as-is — order
+  // rows are a display-level state mirror, the deal events carry the math.
+  const requestedVolume = num(o.requestedVolume ?? o.volume, 0, 1e9)
   const filledVolume = num(o.filledVolume ?? o.volumeCurrent ?? 0, 0, 1e9) ?? 0
   const timePlaced = tsNotFuture(o.timePlaced ?? o.timeSetup)
   if (!orderId || !kind || !state || !symbol || !side || requestedVolume == null || !timePlaced) {
@@ -264,7 +271,7 @@ function validateOrder(p: unknown): OrderPayload | null {
     state,
     symbol,
     side,
-    requestedVolume,
+    requestedVolume: requestedVolume || filledVolume,
     filledVolume,
     price: optNum(o.price, 1e-9, 1e12),
     priceFill: optNum(o.priceFill ?? o.priceDone, 1e-9, 1e12),
@@ -363,6 +370,9 @@ export interface ValidatedBatch {
   batchSeq?: number
   queueDepth?: number
   events: ValidatedEvent[]
+  /** Repeated ids dropped from this batch (re-attach recovery re-appends
+   *  ids to the EA's durable queue; a re-send is a duplicate, not an error). */
+  duplicates: number
 }
 
 /** Validate a raw request body as an events batch. Returns null on any defect. */
@@ -378,11 +388,22 @@ export function validateEventBatch(body: unknown): ValidatedBatch | null {
   const queueDepth = int(o.queueDepth, 0, 1000000) ?? undefined
   const seen = new Set<string>()
   const events: ValidatedEvent[] = []
+  // CONNECT-5: the EA's durable queue re-appends event ids after a re-attach
+  // or recovery re-run (restart, rotate, server-nudge) — one batch can carry
+  // the same id twice. A re-send is a DUPLICATE (drop it, keep the first), not
+  // a validation error: the old within-batch 422 poisoned the queue forever.
+  // Cross-batch re-sends were always harmless ((connectionId, eventId) dedup
+  // in the ingest) — within-batch now matches that contract.
+  let duplicates = 0
   for (const raw of rawEvents) {
     if (typeof raw !== 'object' || raw === null) return null
     const e = raw as Record<string, unknown>
     const id = str(e.id, 64)
-    if (!id || !EVENT_ID_RE.test(id) || seen.has(id)) return null
+    if (!id || !EVENT_ID_RE.test(id)) return null
+    if (seen.has(id)) {
+      duplicates++
+      continue
+    }
     seen.add(id)
     const type = enumOf(e.type, EVENT_TYPES)
     if (!type) return null
@@ -400,7 +421,7 @@ export function validateEventBatch(body: unknown): ValidatedBatch | null {
     const time = tsNotFuture(e.time)
     events.push({ id, type, seq, time, payload })
   }
-  return { phase, batchSeq, queueDepth, events }
+  return { phase, batchSeq, queueDepth, events, duplicates }
 }
 
 // ── pair validation ─────────────────────────────────────────────────────────

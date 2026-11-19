@@ -59,14 +59,10 @@ export async function POST(req: NextRequest) {
     const raw = rawTokenFromRequest(req, (body as Record<string, unknown> | null)?.token)
     if (!raw) return unauthorizedConnector()
 
-    const batch = validateEventBatch(body)
-    if (!batch) {
-      return NextResponse.json(
-        { error: 'Invalid event batch (each event needs a stable id, a known type and a valid payload)' },
-        { status: 422 },
-      )
-    }
-
+    // CONNECT-5: auth runs BEFORE batch validation — a rejected batch is now
+    // attributed to the connection (lastError + sync log) instead of dying
+    // anonymously at 422. The owner's live attach sat on "Connected / Never
+    // synced / Queue 0" for hours because the 422 left no server-side trace.
     const auth = await resolveConnectorAuth(raw, clientIpOf(req))
     if (!auth.ok) {
       return NextResponse.json(
@@ -90,6 +86,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Connection is disconnected' }, { status: 409 })
     }
 
+    const batch = validateEventBatch(body)
+    if (!batch) {
+      const eventsIn = Array.isArray((body as Record<string, unknown>)?.events)
+        ? (body as { events: unknown[] }).events.length
+        : 0
+      const at = new Date()
+      // never-silent law: the refusal lands on the connection card (red
+      // lastError line) and in its sync-history dialog, best-effort
+      await db.platformConnection
+        .update({
+          where: { id: connection.id },
+          data: {
+            status: 'sync_error',
+            lastError:
+              'Event batch rejected (422): every event needs a stable id, a known type and a valid payload — nothing was applied. The EA keeps its queue and retries; if this persists re-download the current EA from Settings → Connections.',
+            updatedAt: at,
+          },
+        })
+        .catch(() => {})
+      await db.connectorSyncLog
+        .create({
+          data: {
+            connectionId: connection.id,
+            kind: 'events',
+            status: 'error',
+            eventsIn,
+            error: 'invalid event batch (422) — nothing applied',
+            detail: JSON.stringify({ phase: 'rejected' }),
+            startedAt: at,
+            finishedAt: at,
+          },
+        })
+        .catch(() => {})
+      return NextResponse.json(
+        { error: 'Invalid event batch (each event needs a stable id, a known type and a valid payload)' },
+        { status: 422 },
+      )
+    }
+
     const connRef = {
       id: connection.id,
       userId: connection.userId,
@@ -99,7 +134,8 @@ export async function POST(req: NextRequest) {
 
     const acks: string[] = []
     const failed: string[] = []
-    let duplicates = 0
+    let duplicates = 0 // events already applied on the server (cross-batch re-sends)
+    const batchDuplicates = batch.duplicates // repeated ids INSIDE this batch (dropped)
     let recovered = 0
     const startedAt = new Date()
     let newestEventAt: Date | null = null
@@ -187,7 +223,10 @@ export async function POST(req: NextRequest) {
     const finishedAt = new Date()
     const statusPatch: Record<string, unknown> = {
       lastSyncAt: finishedAt,
+      // genuinely-new events: acked minus cross-batch re-sends (a dropped
+      // within-batch repeat was never stored, so it must not shrink this)
       eventsSynced: { increment: acks.length - duplicates },
+      lastError: null, // CONNECT-5: healthy flush clears the card's error line
       updatedAt: finishedAt,
     }
     if (batch.queueDepth != null) statusPatch.queueDepth = batch.queueDepth
@@ -217,8 +256,8 @@ export async function POST(req: NextRequest) {
         connectionId: connection.id,
         kind: batch.phase === 'history' ? 'recovery' : 'events',
         status: failed.length ? 'error' : 'ok',
-        eventsIn: batch.events.length,
-        duplicates,
+        eventsIn: batch.events.length + batchDuplicates,
+        duplicates: duplicates + batchDuplicates,
         tradesCreated: ingestCounts.tradesCreated,
         tradesUpdated: ingestCounts.tradesUpdated,
         executionsCreated: ingestCounts.executionsCreated,
@@ -235,7 +274,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       acks,
       failed,
-      duplicates,
+      duplicates: duplicates + batchDuplicates,
       recovered,
       checkpoint: { lastEventAt: updated.lastEventAt },
       desired: updated.desired,

@@ -2,7 +2,7 @@
 //|                                          EmorTradesAutoSync-MT5.mq5 |
 //|                     EmorTrades — Trading Journal connector EA       |
 //|                                                                      |
-//| Version 1.0.3 · CONNECT-4 · READ-ONLY by construction               |
+//| Version 1.0.4 · CONNECT-5 · READ-ONLY by construction               |
 //|                                                                      |
 //| WHAT THIS IS                                                         |
 //|   A read-only synchronization Expert Advisor. It watches YOUR MT5    |
@@ -39,7 +39,7 @@
 //|   dedup makes re-sends harmless).                                    |
 //+------------------------------------------------------------------+
 #property copyright "EmorTrades"
-#property version   "1.03"
+#property version   "1.04"
 #property description "EmorTrades read-only trading sync connector (MetaTrader 5)."
 
 //── inputs ────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ input int    InpSnapshotSecs = 60;                              // live-state sn
 input bool   InpDebug        = false;                           // verbose journal logging
 
 //── constants ─────────────────────────────────────────────────────────────
-#define EA_VERSION          "1.0.3"
+#define EA_VERSION          "1.0.4"
 #define EA_FOLDER           "EmorTrades"
 #define MAX_EVENTS_BATCH    200
 #define HTTP_TIMEOUT_MS     15000
@@ -408,12 +408,21 @@ string OrderStateJson(const ulong ticket, const string stateOverride)
    if(placedMs <= 0) placedMs = OrderGetInteger(ORDER_TIME_SETUP) * 1000;
    long doneMs = OrderGetInteger(ORDER_TIME_DONE) * 1000;
    string doneField = (doneMs > 0) ? StringFormat(",\"timeDone\":%s", JNum((double)doneMs / 1000.0)) : "";
+   // CONNECT-5: volumes read the RIGHT properties — v1.0.3 sent
+   // ORDER_VOLUME_CURRENT as BOTH requested and filled, which is the
+   // REMAINING volume: 0 for every fully-filled order. The server rejected
+   // those batches wholesale, the durable queue never drained and the
+   // heartbeat was starved (it ran after the flush). requested = INITIAL,
+   // filled = INITIAL − CURRENT (what actually filled).
+   double volReq = OrderGetDouble(ORDER_VOLUME_INITIAL);
+   double volRem = OrderGetDouble(ORDER_VOLUME_CURRENT);
+   double volFill = (volReq > 0.0) ? MathMax(volReq - volRem, 0.0) : MathMax(volRem, 0.0);
+   if(volReq <= 0.0) volReq = volRem;
    return StringFormat("{\"orderId\":%s,\"kind\":%s,\"state\":%s,\"symbol\":%s,\"side\":%s,"
                        "\"requestedVolume\":%s,\"filledVolume\":%s,\"price\":%s,\"sl\":%s,\"tp\":%s,"
                        "\"timePlaced\":%s%s,\"comment\":%s}",
                        JInt((long)ticket), JStr(kind), JStr(state), JStr(OrderGetString(ORDER_SYMBOL)),
-                       JStr(side), JNum(OrderGetDouble(ORDER_VOLUME_CURRENT)),
-                       JNum(OrderGetDouble(ORDER_VOLUME_CURRENT)),
+                       JStr(side), JNum(volReq), JNum(volFill),
                        JNum(OrderGetDouble(ORDER_PRICE_OPEN)),
                        JNum(OrderGetDouble(ORDER_SL)), JNum(OrderGetDouble(ORDER_TP)),
                        JNum((double)placedMs / 1000.0), doneField,
@@ -450,13 +459,22 @@ string HistoryOrderJson(const ulong ticket)
    if(placedMs <= 0) placedMs = HistoryOrderGetInteger(ticket, ORDER_TIME_SETUP) * 1000;
    long doneMs = HistoryOrderGetInteger(ticket, ORDER_TIME_DONE) * 1000;
    string doneField = (doneMs > 0) ? StringFormat(",\"timeDone\":%s", JNum((double)doneMs / 1000.0)) : "";
+   // CONNECT-5: volumes read the RIGHT properties — v1.0.3 sent
+   // ORDER_VOLUME_CURRENT as BOTH requested and filled, which is the
+   // REMAINING volume: 0 for every fully-filled order. The server rejected
+   // those batches wholesale, the durable queue never drained and the
+   // heartbeat was starved (it ran after the flush). requested = INITIAL,
+   // filled = INITIAL − CURRENT (what actually filled).
+   double volReq = HistoryOrderGetDouble(ticket, ORDER_VOLUME_INITIAL);
+   double volRem = HistoryOrderGetDouble(ticket, ORDER_VOLUME_CURRENT);
+   double volFill = (volReq > 0.0) ? MathMax(volReq - volRem, 0.0) : MathMax(volRem, 0.0);
+   if(volReq <= 0.0) volReq = volRem;
    return StringFormat("{\"orderId\":%s,\"kind\":%s,\"state\":%s,\"symbol\":%s,\"side\":%s,"
                        "\"requestedVolume\":%s,\"filledVolume\":%s,\"price\":%s,\"sl\":%s,\"tp\":%s,"
                        "\"timePlaced\":%s%s,\"comment\":%s}",
                        JInt((long)ticket), JStr(kind), JStr(state),
                        JStr(HistoryOrderGetString(ticket, ORDER_SYMBOL)), JStr(side),
-                       JNum(HistoryOrderGetDouble(ticket, ORDER_VOLUME_CURRENT)),
-                       JNum(HistoryOrderGetDouble(ticket, ORDER_VOLUME_CURRENT)),
+                       JNum(volReq), JNum(volFill),
                        JNum(HistoryOrderGetDouble(ticket, ORDER_PRICE_OPEN)),
                        JNum(HistoryOrderGetDouble(ticket, ORDER_SL)),
                        JNum(HistoryOrderGetDouble(ticket, ORDER_TP)),
@@ -804,6 +822,18 @@ void OnTimer()
       return;
      }
 
+   // CONNECT-5: the heartbeat rides FIRST — a failing flush used to return
+   // before it, so a poisoned queue starved the control channel (the server
+   // saw no beats: no eaVersion, no queue depth, and the "Sync now" nudge
+   // that rides the beat response never reached the EA). The beat must flow
+   // even while event flushes keep failing.
+   if(TimeCurrent() - g_lastHeartbeat >= HEARTBEAT_S)
+     {
+      g_lastHeartbeat = TimeCurrent();
+      DoHeartbeat();
+     }
+   if(g_stopped) return; // the beat may have carried a disconnect request
+
    if(!FlushQueue("live"))
      {
       g_failStreak++;
@@ -838,12 +868,6 @@ void OnTimer()
         }
       Enqueue("as" + IntegerToString(g_seq), "account", (long)TimeCurrent() * 1000, AccountJson(true));
       FlushQueue("live");
-     }
-
-   if(TimeCurrent() - g_lastHeartbeat >= HEARTBEAT_S)
-     {
-      g_lastHeartbeat = TimeCurrent();
-      DoHeartbeat();
      }
 
    // periodic full reconciliation (the anti-corruption guarantee)

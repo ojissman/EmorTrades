@@ -164,8 +164,18 @@ describe('connector protocol — the universal event contract', () => {
     expect(d.side).toBe('sell')
   })
 
-  it('rejects duplicate event ids in one batch (EA bug guard)', () => {
-    expect(validateEventBatch({ events: [ev('d105', 'deal', dealP({})), ev('d105', 'deal', dealP({}))] })).toBeNull()
+  it('de-duplicates repeated ids within one batch (re-attach recovery re-appends ids to the durable queue — a re-send is a duplicate, not an error)', () => {
+    // CONNECT-5: the EA re-runs its history recovery on every re-attach
+    // (restart, rotate, server-nudge) and re-appends the SAME ids to a
+    // queue that may not have drained. The old within-batch 422 poisoned
+    // the queue forever; now the first occurrence wins and the repeats are
+    // counted (the ingest's (connectionId, eventId) dedup then acks the
+    // id so the EA drops both queue lines across two flushes).
+    const out = validateEventBatch({ events: [ev('d105', 'deal', dealP({})), ev('d105', 'deal', dealP({}))] })
+    expect(out).not.toBeNull()
+    expect(out!.events).toHaveLength(1)
+    expect(out!.events[0].id).toBe('d105')
+    expect(out!.duplicates).toBe(1)
   })
 
   it('rejects malformed payloads wholesale (nothing can half-apply)', () => {
@@ -173,11 +183,41 @@ describe('connector protocol — the universal event contract', () => {
     expect(validateEventBatch({ events: [ev('x', 'deal', dealP({ volume: 0 }))] })).toBeNull()
     expect(validateEventBatch({ events: [ev('x', 'deal', dealP({ symbol: '' }))] })).toBeNull()
     expect(validateEventBatch({ events: [ev('x', 'order', { orderId: 1, kind: 'warp_drive', state: 'pending', symbol: 'X', side: 'buy', requestedVolume: 1, timePlaced: t0 })] })).toBeNull()
+    expect(validateEventBatch({ events: [ev('x', 'order', { orderId: 1, kind: 'buy_limit', state: 'pending', symbol: 'X', side: 'buy', timePlaced: t0 })] })).toBeNull()
     expect(validateEventBatch({ events: [ev('x', 'position', { positionId: 1, symbol: 'X', side: 'long', volumeCurrent: -1, timeOpen: t0, state: 'open' })] })).toBeNull()
     expect(validateEventBatch({ events: [ev('x', 'account', { name: 'no numbers' })] })).toBeNull()
     expect(validateEventBatch({ events: [ev('x', 'connection', { status: 'exploding' })] })).toBeNull()
     expect(validateEventBatch({ events: [ev('bad id!', 'deal', dealP({}))] })).toBeNull()
     expect(validateEventBatch({ events: [] })).toBeNull()
+  })
+
+  it('accepts the v1.0.3 filled-order shape (requestedVolume 0 — MT5 ORDER_VOLUME_CURRENT is the REMAINING volume)', () => {
+    // CONNECT-5: the live incident — MT5's ORDER_VOLUME_CURRENT reads 0 for
+    // every fully-filled order; the v1.0.3 EA sent it as BOTH volume fields
+    // and every real history batch was rejected wholesale (422 = nothing
+    // applied, queue never drained, heartbeat starved, card frozen on
+    // "Connected / Never synced"). The shape is now accepted.
+    const out = validateEventBatch({
+      events: [ev('o900', 'order', {
+        orderId: 900, kind: 'buy_limit', state: 'filled', symbol: 'EURUSD',
+        side: 'buy', requestedVolume: 0, filledVolume: 0, price: 1.23, timePlaced: t0,
+      })],
+    })
+    expect(out).not.toBeNull()
+    const o = out!.events[0].payload as { requestedVolume: number; filledVolume: number }
+    expect(o.requestedVolume).toBe(0)
+    expect(o.filledVolume).toBe(0)
+  })
+
+  it('normalizes requestedVolume 0 with a known fill to the fill (best known volume)', () => {
+    const out = validateEventBatch({
+      events: [ev('o901', 'order', {
+        orderId: 901, kind: 'market', state: 'partial', symbol: 'XAUUSD',
+        side: 'sell', requestedVolume: 0, filledVolume: 0.5, timePlaced: t0,
+      })],
+    })
+    const o = out!.events[0].payload as { requestedVolume: number; filledVolume: number }
+    expect(o.requestedVolume).toBeCloseTo(0.5, 8)
   })
 
   it('caps batch size at 200 events', () => {
