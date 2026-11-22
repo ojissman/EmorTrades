@@ -49,6 +49,10 @@ export async function GET(req: NextRequest) {
     const q = parsed.data
 
     const where: Prisma.JournalWhereInput = {}
+    // ARCHIVE-1 — the admin console's journal view mirrors the live journal:
+    // entries of filed/binned trades stay out (nested trade include bypasses
+    // the live-read filter).
+    where.trade = { deletedAt: null, archivedAt: null }
     if (q.search) {
       where.OR = [
         { title: { contains: q.search } },
@@ -81,18 +85,22 @@ export async function GET(req: NextRequest) {
             user: { select: { name: true, email: true } },
           },
         }),
-        db.journal.count(),
-        db.journal.count({ where: { createdAt: { gte: weekAgo } } }),
+        // ARCHIVE-1 — every stat below mirrors the LIVE journal (the
+        // per-user live-read filter can't leak into these admin aggregates,
+        // so the predicates are explicit; raw SQL carries them by hand).
+        db.journal.count({ where: { trade: { deletedAt: null, archivedAt: null } } }),
+        db.journal.count({ where: { createdAt: { gte: weekAgo }, trade: { deletedAt: null, archivedAt: null } } }),
         // Journals whose linked trade has at least one screenshot (raw SQL,
         // epoch-millis not needed — plain join/count only)
         db.$queryRaw<{ n: number | bigint }[]>`
           SELECT COUNT(DISTINCT j.id) AS n
           FROM Journal j JOIN Trade t ON t.id = j.tradeId
-          WHERE EXISTS (SELECT 1 FROM Screenshot s WHERE s.tradeId = t.id)`,
-        db.trade.count(),
-        db.trade.groupBy({ by: ['symbol'], _count: { _all: true }, orderBy: { _count: { symbol: 'desc' } }, take: 50 }),
-        db.trade.groupBy({ by: ['assetClass'], _count: { _all: true }, orderBy: { _count: { assetClass: 'desc' } } }),
-        db.journal.groupBy({ by: ['mood'], _count: { _all: true }, orderBy: { _count: { mood: 'desc' } } }),
+          WHERE t.archivedAt IS NULL AND t.deletedAt IS NULL
+            AND EXISTS (SELECT 1 FROM Screenshot s WHERE s.tradeId = t.id)`,
+        db.trade.count({ where: { deletedAt: null, archivedAt: null } }),
+        db.trade.groupBy({ by: ['symbol'], where: { deletedAt: null, archivedAt: null }, _count: { _all: true }, orderBy: { _count: { symbol: 'desc' } }, take: 50 }),
+        db.trade.groupBy({ by: ['assetClass'], where: { deletedAt: null, archivedAt: null }, _count: { _all: true }, orderBy: { _count: { assetClass: 'desc' } } }),
+        db.journal.groupBy({ by: ['mood'], where: { trade: { deletedAt: null, archivedAt: null } }, _count: { _all: true }, orderBy: { _count: { mood: 'desc' } } }),
       ])
 
     return NextResponse.json({

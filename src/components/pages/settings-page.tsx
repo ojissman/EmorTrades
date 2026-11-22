@@ -31,6 +31,7 @@ import {
   Mail,
   KeyRound,
   Link2,
+  Archive,
   Users,
   SlidersHorizontal,
   Landmark,
@@ -52,12 +53,14 @@ import { TradingAccountsSection } from '@/components/settings/sections/trading-a
 import { SubscriptionSection } from '@/components/settings/sections/subscription-section'
 import { ReferralsSection } from '@/components/settings/sections/referrals-section'
 import { DataBackupsSection } from '@/components/settings/sections/data-backups-section'
+import { ArchiveBinSection } from '@/components/settings/sections/archive-bin-section'
 
 /** Top-level sections — verbatim L1 labels, in L1 order. */
 const SECTIONS = [
   { id: 'email-settings', label: 'Email Settings', icon: Mail },
   { id: 'change-password', label: 'Change Password', icon: KeyRound },
   { id: 'connected-accounts', label: 'Connections', icon: Link2 },
+  { id: 'archive-bin', label: 'Archive & Recycle', icon: Archive },
   { id: 'account-sharing', label: 'Account Sharing', icon: Users },
   { id: 'global-account-settings', label: 'Global Account Settings', icon: SlidersHorizontal },
   { id: 'trading-accounts', label: 'Trading Accounts', icon: Landmark },
@@ -185,6 +188,7 @@ export function SettingsPage() {
       {section === 'email-settings' && <EmailSettingsSection />}
       {section === 'change-password' && <ChangePasswordSection />}
       {section === 'connected-accounts' && <ConnectedAccountsSection />}
+      {section === 'archive-bin' && <ArchiveBinSection />}
       {section === 'account-sharing' && <AccountSharingSection />}
       {section === 'global-account-settings' && <GlobalAccountSettingsSection tab={tab} />}
       {section === 'trading-accounts' && <TradingAccountsSection />}

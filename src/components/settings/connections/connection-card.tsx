@@ -2,29 +2,54 @@
 
 /**
  * ============================================================================
- * CONNECT-1 — one connection card (the hub's list row).
+ * CONNECT-1 + ARCHIVE-1 — one connection card (the hub's list row).
  * ============================================================================
  * Everything rendered comes from the live /api/connections row: status badge
  * (STATUS_META colors), platform badge, label, EA-reported identity
- * (login @ server — broker), linked journal account (or the honest
- * "auto-created on first sync" placeholder), monitoring line (heartbeat age,
- * last sync, events synced/recovered, EA queue depth, EA version), and
- * lastError in red when present.
+ * (login @ server — broker), linked journal account, the broker's latest
+ * reported metrics (balance/equity/floating — ARCHIVE-1), monitoring line
+ * (heartbeat age, last sync, events synced/recovered, EA queue depth, EA
+ * version), and lastError in red when present.
  *
- * Actions are all real endpoints:
+ * Actions (ARCHIVE-1 full lifecycle — every one hits a real endpoint):
  *   Sync now      → POST /api/connections/{id}/sync (local busy state)
  *   Sync history  → opens SyncHistoryDialog (section-level target)
- *   Rotate token  → opens RotateTokenDialog (section-level target)
- *   Disconnect…   → opens DisconnectDialog (section-level target)
- *   View trades   → drillToTrades({ accountId }) — only when a journal
- *                   account is linked (the drill needs a real account id).
+ *   View trades   → drillToTrades({ accountId }) — when a journal account is
+ *                   linked
+ *   Rotate token  → RotateTokenDialog (overflow menu)
+ *   Reconnect     → ReconnectDialog (overflow; disconnected rows)
+ *   Disconnect    → DisconnectDialog (overflow; keeps history)
+ *   Archive       → ArchiveConnectionDialog (overflow)
+ *   Unarchive     → direct PATCH action=unarchive (archived rows)
+ *   Remove row    → RemoveRowDialog → Recycle Bin (overflow)
+ *
+ * CONNECT-6 trap law, kept: retired rows (desired=disconnect) lose the trap
+ * actions (no Sync now, no Rotate token, no Reconnect — a fresh token on a
+ * dead row is the exact wedge that minted the 7-connection storm). They keep
+ * Sync history + Remove row + an honest retired note.
  */
 
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, History, KeyRound, RefreshCw, Trash2 } from 'lucide-react'
+import {
+  ArchiveRestore,
+  ArrowUpRight,
+  History,
+  KeyRound,
+  MoreHorizontal,
+  PlugZap,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useToast } from '@/hooks/use-toast'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -36,15 +61,25 @@ export function ConnectionCard({
   onHistory,
   onRotate,
   onRemove,
+  onReconnect,
+  onArchive,
+  onDisconnect,
+  onUnarchived,
 }: {
   c: ConnectionRow
   onHistory: () => void
   onRotate: () => void
   onRemove: () => void
+  onReconnect: () => void
+  onArchive: () => void
+  onDisconnect: () => void
+  /** Direct unarchive (archived rows only) — no dialog needed. */
+  onUnarchived: () => void
 }) {
   const { toast } = useToast()
   const qc = useQueryClient()
   const [syncing, setSyncing] = useState(false)
+  const [unarchiving, setUnarchiving] = useState(false)
 
   const meta = statusMeta(c.status)
   const heartbeat = heartbeatAgo(c.lastHeartbeatAt)
@@ -57,9 +92,14 @@ export function ConnectionCard({
   // must NOT offer the trap actions — a token rotated on a dead row binds the
   // EA to a ghost and wedges its flushes (the exact 7-connection mess this
   // card list is recovering from). "Sync now" on a dead row nudges a row no
-  // EA beats to — useless noise. "Rotate token" here is actively harmful.
+  // EA beats to — useless noise. "Reconnect" on a superseded row re-mints the
+  // same wedge (the server refuses it; the menu never offers it).
   const retired = c.desired === 'disconnect'
   const superseded = !!c.lastError && c.lastError.startsWith('superseded')
+  const archived = !!c.archivedAt
+  // Reconnect is offered on genuinely user-disconnected rows only (never on
+  // superseded ghosts, never on rows that are already set to sync).
+  const canReconnect = !retired && (c.status === 'disconnected' || c.status === 'offline')
 
   async function syncNow() {
     if (syncing) return
@@ -84,22 +124,61 @@ export function ConnectionCard({
     }
   }
 
+  async function unarchive() {
+    if (unarchiving) return
+    setUnarchiving(true)
+    try {
+      const res = await fetch(`/api/connections/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unarchive' }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || `Failed (${res.status})`)
+      toast({ title: 'Connection unarchived', description: 'Back in the active list.' })
+      onUnarchived()
+    } catch (e) {
+      toast({
+        title: 'Could not unarchive',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setUnarchiving(false)
+    }
+  }
+
+  const snap = c.latestSnapshot
+  const snapCurrency = snap?.currency ?? linked?.currency ?? ''
+
   return (
     <div
-      className="rounded-lg border p-4 space-y-3 transition-colors hover:border-white/15"
-      style={{ borderColor: 'var(--border-strong)', background: 'var(--bg-card)' }}
+      className={cn(
+        'rounded-lg border p-4 space-y-3 transition-colors',
+        !archived && 'hover:border-white/15',
+      )}
+      style={{
+        borderColor: 'var(--border-strong)',
+        background: 'var(--bg-card)',
+        opacity: archived ? 0.75 : undefined,
+      }}
       data-testid={`connection-card-${c.id}`}
     >
       {/* Header: label + platform + status */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
               {PLATFORM_TAG[c.platform]}
             </Badge>
             <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }} title={c.label}>
               {c.label}
             </p>
+            {archived && (
+              <Badge variant="outline" className="text-[10px] shrink-0 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                Archived
+              </Badge>
+            )}
           </div>
           {/* Identity — empty until the EA first pairs */}
           <p
@@ -111,7 +190,7 @@ export function ConnectionCard({
               ? `${c.login} @ ${c.server ?? c.broker ?? '—'}${c.server && c.broker ? ` — ${c.broker}` : ''}`
               : 'Waiting for the EA to pair — login, broker and server arrive on its first connect.'}
           </p>
-          {!c.login && (
+          {!c.login && !retired && (
             <p className="text-[11px] mt-1 leading-snug text-amber-600 dark:text-amber-400">
               No EA contact yet — in MetaTrader open Tools → Options → Expert Advisors, tick “Allow
               WebRequest for listed URL” and add {CONNECTOR_SERVER_URL}. The EA’s chart panel “last:”
@@ -138,6 +217,43 @@ export function ConnectionCard({
           'Journal account: auto-created on first sync'
         )}
       </p>
+
+      {/* Broker metrics — the EA's latest account report (ARCHIVE-1) */}
+      {snap && (snap.balance !== null || snap.equity !== null || snap.floatingPnl !== null) && (
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          {snap.balance !== null && (
+            <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {snap.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-secondary)' }}>
+                balance{snapCurrency ? ` ${snapCurrency}` : ''}
+              </span>
+            </span>
+          )}
+          {snap.equity !== null && (
+            <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {snap.equity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-secondary)' }}>
+                equity
+              </span>
+            </span>
+          )}
+          {snap.floatingPnl !== null && (
+            <span
+              className={cn('text-sm font-semibold tabular-nums', snap.floatingPnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}
+              title={`Floating P&L reported ${formatDateTime(snap.recordedAt)}`}
+            >
+              {snap.floatingPnl >= 0 ? '+' : ''}
+              {snap.floatingPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-secondary)' }}>
+                floating
+              </span>
+            </span>
+          )}
+          <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            as of {heartbeatAgo(snap.recordedAt) ?? '—'}
+          </span>
+        </div>
+      )}
 
       {/* Monitoring line */}
       <div
@@ -187,10 +303,11 @@ export function ConnectionCard({
         </p>
       )}
 
-      {/* Actions — every button hits a real endpoint; retired rows keep only
-          history + disconnect (their sync/rotate would be a trap) */}
-      <div className="flex flex-wrap gap-1.5 pt-0.5">
-        {!retired && (
+      {/* Actions — primary row + overflow menu. CONNECT-6 law: retired rows
+          keep only history + remove (their sync/rotate/reconnect would be a
+          trap). Archived rows keep monitoring + unarchive + remove. */}
+      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+        {!retired && !archived && (
           <Button
             variant="outline"
             size="sm"
@@ -214,47 +331,105 @@ export function ConnectionCard({
           <History className="h-3.5 w-3.5" aria-hidden />
           Sync history
         </Button>
-        {!retired && (
+        {archived ? (
           <Button
             variant="outline"
             size="sm"
-            onClick={onRotate}
-            title="Issue a new one-time token — the old EA session dies"
-            data-testid={`connection-rotate-${c.id}`}
+            onClick={unarchive}
+            disabled={unarchiving}
+            title="Bring this connection back to the active list"
+            data-testid={`connection-unarchive-${c.id}`}
           >
-            <KeyRound className="h-3.5 w-3.5" aria-hidden />
-            Rotate token
+            <ArchiveRestore className={cn('h-3.5 w-3.5', unarchiving && 'animate-pulse')} aria-hidden />
+            Unarchive
           </Button>
+        ) : (
+          linked && !retired && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => drillToTrades({ accountId: linked.id })}
+              title="Open this connection’s trades in the trades table"
+              data-testid={`connection-trades-${c.id}`}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+              View trades
+            </Button>
+          )
         )}
-        {linked && !retired && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => drillToTrades({ accountId: linked.id })}
-            title="Open this connection’s trades in the trades table"
-            data-testid={`connection-trades-${c.id}`}
-          >
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-            View trades
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-red-600 hover:text-red-700 dark:text-red-400 ml-auto"
-          onClick={onRemove}
-          title={retired ? 'Remove this retired row (history is kept)' : 'Disconnect the EA and revoke its token — trades and history are kept'}
-          data-testid={`connection-disconnect-${c.id}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-          {retired ? 'Remove row' : 'Disconnect…'}
-        </Button>
+
+        {/* Overflow menu — the full lifecycle */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={`More actions for ${c.label}`}
+              data-testid={`connection-menu-${c.id}`}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {!retired && !archived && (
+              <DropdownMenuItem onClick={onRotate} data-testid={`connection-rotate-menu-${c.id}`}>
+                <KeyRound className="h-3.5 w-3.5 mr-2" aria-hidden />
+                Rotate token
+              </DropdownMenuItem>
+            )}
+            {canReconnect && !archived && (
+              <DropdownMenuItem onClick={onReconnect} data-testid={`connection-reconnect-menu-${c.id}`}>
+                <PlugZap className="h-3.5 w-3.5 mr-2" aria-hidden />
+                Reconnect
+              </DropdownMenuItem>
+            )}
+            {!retired && !archived && (
+              <DropdownMenuItem onClick={onArchive} data-testid={`connection-archive-menu-${c.id}`}>
+                <ArchiveRestore className="h-3.5 w-3.5 mr-2 rotate-180" aria-hidden />
+                Archive
+              </DropdownMenuItem>
+            )}
+            {!retired && !archived && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDisconnect} data-testid={`connection-disconnect-menu-${c.id}`}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden />
+                  Disconnect (keeps history)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onRemove} className="text-red-600 dark:text-red-400" data-testid={`connection-remove-menu-${c.id}`}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden />
+                  Remove to Recycle Bin
+                </DropdownMenuItem>
+              </>
+            )}
+            {retired && (
+              <DropdownMenuItem onClick={onRemove} className="text-red-600 dark:text-red-400" data-testid={`connection-remove-menu-${c.id}`}>
+                <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden />
+                Remove to Recycle Bin
+              </DropdownMenuItem>
+            )}
+            {archived && (
+              <>
+                <DropdownMenuItem onClick={onRemove} className="text-red-600 dark:text-red-400" data-testid={`connection-remove-menu-${c.id}`}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden />
+                  Remove to Recycle Bin
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {retired && (
         <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
           {superseded
             ? 'Retired connection — the active card for this account owns the EA sync. Remove this row whenever you like; the synced history stays.'
             : 'Disconnected — tokens revoked, journal history kept. Remove this row whenever you like.'}
+        </p>
+      )}
+      {archived && (
+        <p className="text-[11px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
+          Archived — the EA keeps syncing in the background; this card is filed out of the active list.
+          Unarchive brings it straight back.
         </p>
       )}
     </div>

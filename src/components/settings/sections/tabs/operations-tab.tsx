@@ -124,8 +124,8 @@ export function OperationsTab() {
         toast({ title: 'Deletion endpoint unavailable — nothing was removed.', variant: 'destructive' })
       } else {
         toast({
-          title: `Removed ${removed} empty trade${removed === 1 ? '' : 's'}`,
-          description: failed > 0 ? `${failed} failed.` : undefined,
+          title: `Removed ${removed} empty trade${removed === 1 ? '' : 's'} to the Recycle Bin`,
+          description: failed > 0 ? `${failed} failed.` : 'Restorable from Settings → Archive & Recycle.',
           variant: failed > 0 ? 'destructive' : undefined,
         })
         await recordRun('removeEmpty')

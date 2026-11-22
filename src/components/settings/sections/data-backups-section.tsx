@@ -309,7 +309,7 @@ export function DataBackupsSection() {
       }
       toast({
         title: 'Reset complete',
-        description: `Deleted ${deletedCount} trades. Skipped ${skippedCount} trades in protected accounts.`,
+        description: `Moved ${deletedCount} trades to the Recycle Bin (restore or purge from Settings → Archive & Recycle). Skipped ${skippedCount} trades in protected accounts.`,
       })
       queryClient.invalidateQueries()
     } catch {

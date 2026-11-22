@@ -45,6 +45,13 @@ export async function GET(req: NextRequest) {
       orderBy: { timestamp: 'desc' },
       take: 1000,
     })
+    // ARCHIVE-1 — an execution stays visible (it is raw broker content), but
+    // its to-one trade context must not leak a filed/binned trade: null the
+    // included trade when the trade is not live (nested includes bypass the
+    // live-read filter — post-map is the only correct shape here).
+    for (const row of executions) {
+      if (row.trade && (row.trade.archivedAt !== null || row.trade.deletedAt !== null)) row.trade = null
+    }
     return NextResponse.json({ executions, total: executions.length })
   } catch (e) {
     console.error("Error in src/app/api/executions/route.ts:", e)

@@ -24,9 +24,15 @@ export async function GET() {
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
       include: {
-        trade: { select: { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true } },
+        trade: { select: { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true, archivedAt: true, deletedAt: true } },
       },
     })
+    // ARCHIVE-1 — the screenshot stays (it is content), its to-one trade
+    // context must not leak a filed/binned trade (nested includes bypass the
+    // live-read filter — post-map the included row).
+    for (const s of screenshots) {
+      if (s.trade && (s.trade.archivedAt !== null || s.trade.deletedAt !== null)) s.trade = null
+    }
 
     // Screenshot rows carry no size column — stat the file on disk. A failed
     // stat means the row is an ORPHAN (file deleted outside the app — e.g. a

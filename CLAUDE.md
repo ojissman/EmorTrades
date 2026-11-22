@@ -629,6 +629,32 @@ One-link Setup discipline (MODAL-SETUP-UNIFY → TAGCORE-A2Z, 2026-11-05):
   download.
 
 
+## Task ARCHIVE-1 — filing-system + connections-hub disciplines (2026-11-22)
+
+- **Filing law:** journal content (Trade/DayNote/MiscNote/Watchlist/
+  PlatformConnection) never hard-deletes at the UI layer — `archivedAt`
+  (filed away) and `deletedAt` (Recycle Bin) carry it; Settings → Archive &
+  Recycle is the only place a purge happens. Deleting an archived row keeps
+  its archivedAt; restoring returns it to that pre-delete state.
+- **Two clients:** default `db` injects the live-only read filter on the five
+  filed models (writes unfiltered); `dbAll` sees everything and needs a
+  documented reason (archive/bin, pair identity lookups, ingest dedup,
+  restore matching, backup fidelity). Never add a read surface that files
+  rows without the filter (or an explicit relation filter for nested
+  to-one includes — `$extends` does not filter nested loads).
+- **Pair semantics:** a re-pair resurrects a binned connection row and
+  auto-unarchives an archived one; remove-to-bin revokes tokens; restore
+  returns disconnected (Reconnect mints + reveals a fresh one-time token).
+- **Controller types are singular** (trade, dayNote…) — UI group keys are
+  plural; keep the explicit mapping in archive-bin-section.tsx.
+- **New UI law:** connections hub = filter tabs w/ counts + sort + search +
+  grouped cards + the card's real broker snapshot metrics; per-connection
+  actions live in the overflow menu with confirm dialogs; retired rows keep
+  the CONNECT-6 trap law.
+- Tests: tests/archive-bin.test.ts pins the filter, the lifecycle, the
+  ownership predicate, the pair resurrection, and the purge cascades.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

@@ -8,7 +8,9 @@ import { UPLOADS_DIR, filenameFromUrl } from '@/lib/library-store'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const TRADE_SELECT = { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true } as const
+// ARCHIVE-1 — archivedAt/deletedAt ride along so the post-map can blank a
+// filed/binned trade's context (nested includes bypass the live filter).
+const TRADE_SELECT = { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true, archivedAt: true, deletedAt: true } as const
 
 /**
  * /api/library/[id] — update (PUT) or delete (DELETE) a screenshot.
@@ -48,6 +50,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       data,
       include: { trade: { select: TRADE_SELECT } },
     })
+    // ARCHIVE-1 — same leak law as the list route: the row's trade context
+    // must not show a filed/binned trade.
+    if (screenshot.trade && (screenshot.trade.archivedAt !== null || screenshot.trade.deletedAt !== null)) {
+      screenshot.trade = null
+    }
     return NextResponse.json({ screenshot })
   } catch (e) {
     console.error('PUT /api/library/[id] error:', e)

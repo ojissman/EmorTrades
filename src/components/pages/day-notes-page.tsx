@@ -174,11 +174,12 @@ export function DayNotesPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this day note?')) return
+    // ARCHIVE-1 — delete lands in the Recycle Bin (restorable there).
+    if (!confirm('Delete this day note? It moves to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.')) return
     try {
       const res = await fetch(`/api/day-notes?id=${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: 'Note deleted' })
+      toast({ title: 'Note moved to the Recycle Bin' })
       queryClient.invalidateQueries({ queryKey: ['day-notes'] })
     } catch {
       toast({ title: 'Failed', variant: 'destructive' })

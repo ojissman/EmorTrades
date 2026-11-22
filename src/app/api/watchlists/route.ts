@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, dbAll } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
@@ -163,9 +163,16 @@ export async function DELETE(req: NextRequest) {
       if (!parent) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       await db.watchlistItem.delete({ where: { id } })
     } else {
-      const existing = await db.watchlist.findFirst({ where: { id, userId: user.id } })
+      // ARCHIVE-1 — the LIST soft-deletes into the Recycle Bin (its items
+      // ride along — they are only ever read through their parent list; the
+      // Bin restores/purges the whole list with items). Items themselves
+      // (kind=item above) stay a hard delete: removing one row from a list
+      // is a normal edit, not a filing action.
+      const existing = await dbAll.watchlist.findFirst({ where: { id, userId: user.id } })
       if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      await db.watchlist.delete({ where: { id: existing.id } })
+      if (!existing.deletedAt) {
+        await dbAll.watchlist.update({ where: { id: existing.id }, data: { deletedAt: new Date() } })
+      }
     }
     return NextResponse.json({ success: true })
   } catch (e) {

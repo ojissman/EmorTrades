@@ -50,6 +50,21 @@ export async function GET() {
       ),
     )
 
+    // ARCHIVE-1 — latest EA-reported account metrics (balance/equity/floating
+    // P&L) per connection: the broker numbers the EA actually pushed. Only
+    // pairs with a heartbeat that ever reported them; null otherwise.
+    const lastSnapshots = await Promise.all(
+      connections.map((c) =>
+        c.id
+          ? db.accountSnapshot.findFirst({
+              where: { connectionId: c.id },
+              orderBy: { recordedAt: 'desc' },
+              select: { balance: true, equity: true, floatingPnl: true, currency: true, recordedAt: true },
+            })
+          : Promise.resolve(null),
+      ),
+    )
+
     return NextResponse.json({
       connections: connections.map((c, i) => ({
         id: c.id,
@@ -75,6 +90,17 @@ export async function GET() {
         createdAt: c.createdAt,
         tradeCount: c._count.rawEvents, // events count is the honest volume; journal rows are visible in Tables
         lastSyncLog: lastLogs[i],
+        // ARCHIVE-1 — filing state + the broker's latest reported metrics.
+        archivedAt: c.archivedAt,
+        latestSnapshot: lastSnapshots[i]
+          ? {
+              balance: lastSnapshots[i].balance,
+              equity: lastSnapshots[i].equity,
+              floatingPnl: lastSnapshots[i].floatingPnl,
+              currency: lastSnapshots[i].currency,
+              recordedAt: lastSnapshots[i].recordedAt,
+            }
+          : null,
       })),
     })
   } catch {

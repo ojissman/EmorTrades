@@ -14,8 +14,8 @@
  *      creating the connection in the UI);
  *   3. otherwise auto-create "MT5 <login>" / "MT4 <login>" (name deduped).
  */
-import { db } from '@/lib/db'
-import { externalKeyOf, type ValidatedPair } from './protocol'
+import { db, dbAll } from '@/lib/db'
+import { externalKeyOf, PLATFORMS, type ValidatedPair } from './protocol'
 
 export interface PairOutcome {
   connectionId: string
@@ -43,7 +43,14 @@ async function uniqueLabel(userId: string, base: string): Promise<string> {
   }
 }
 
-/** Find-or-create the PlatformConnection for this EA identity. */
+/** Find-or-create the PlatformConnection for this EA identity.
+ *
+ * ARCHIVE-1: the lookup runs on the RAW client (dbAll) — the identity owner
+ * may be a row the user archived (EA keeps pairing into it: the archived row
+ * auto-unarchives — the account is genuinely live again) or even a row the
+ * user removed into the Recycle Bin (a deliberate re-connect of the same
+ * account RESURRECTS it: clear the stamps + revive, or the (userId,
+ * externalKey) unique constraint would 500 on every reconnect). */
 async function resolveConnection(
   userId: string,
   platform: string,
@@ -51,11 +58,21 @@ async function resolveConnection(
   pair: ValidatedPair,
 ): Promise<{ connection: { id: string; accountId: string | null; externalKey: string | null; userId: string }; created: boolean }> {
   // Same external account reconnecting → same connection row.
-  const existing = await db.platformConnection.findFirst({
+  const existing = await dbAll.platformConnection.findFirst({
     where: { userId, externalKey },
-    select: { id: true, accountId: true, externalKey: true, userId: true },
+    select: { id: true, accountId: true, externalKey: true, userId: true, archivedAt: true, deletedAt: true },
   })
-  if (existing) return { connection: existing, created: false }
+  if (existing) {
+    // Resurrect/unarchive deliberately: the account is pairing again RIGHT
+    // NOW — a binned/archived row would hold the identity key forever.
+    if (existing.deletedAt || existing.archivedAt) {
+      await dbAll.platformConnection.update({
+        where: { id: existing.id },
+        data: { deletedAt: null, archivedAt: null },
+      })
+    }
+    return { connection: existing, created: false }
+  }
 
   const label = await uniqueLabel(userId, `${PLATFORM_LABEL[platform] ?? platform} ${pair.account.login}`)
   const created = await db.platformConnection.create({
@@ -164,12 +181,23 @@ export async function pairConnection(
   }
 
   // 2) The existing owner of this identity (ANY status — a disconnected row
-  //    still owns the account identity; reconnecting revives it).
-  const owner = await db.platformConnection.findFirst({
+  //    still owns the account identity; reconnecting revives it). ARCHIVE-1:
+  //    dbAll — the owner may be a row the user archived (a live EA pairing
+  //    the same account un-archives it below) or removed into the Recycle
+  //    Bin (a deliberate re-connect of the same account resurrects it: the
+  //    identity key can only ever live on ONE row, so the pair clears the
+  //    stamps instead of colliding with the unique constraint).
+  const owner = await dbAll.platformConnection.findFirst({
     where: { userId: tokenRow.userId, externalKey },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, accountId: true },
+    select: { id: true, accountId: true, archivedAt: true, deletedAt: true },
   })
+  if (owner && (owner.deletedAt || owner.archivedAt)) {
+    await dbAll.platformConnection.update({
+      where: { id: owner.id },
+      data: { deletedAt: null, archivedAt: null },
+    })
+  }
   if (owner && bound && owner.id !== bound.id) {
     // The user created a NEW connection row in the UI while an old row for
     // the same account existed — the old row wins (it owns the history).
@@ -211,7 +239,8 @@ export async function pairConnection(
   let isNewConnection = false
   if (targetId) {
     connectionId = targetId
-    // revive: clear the disconnect markers so events flow again
+    // revive: clear the disconnect markers (and ARCHIVE-1 filing stamps —
+    // a re-pairing EA means the account is live again) so events flow again
     await db.platformConnection.update({
       where: { id: targetId },
       data: {
@@ -221,6 +250,8 @@ export async function pairConnection(
         server: pair.account.server ?? null,
         desired: 'sync',
         lastError: null,
+        archivedAt: null,
+        deletedAt: null,
       },
     })
   } else {
@@ -321,10 +352,14 @@ export async function resolveTokenBinding(
   const retired = ghost.desired === 'disconnect' && (ghost.status === 'disconnected' || ghost.status === 'offline')
   if (!retired) return { connectionId: ghost.id, rebound: false, unresolved: false }
 
-  // Owner by the ghost's identity facts (the CONNECT-6 breadcrumb) → external key
+  // Owner by the ghost's identity facts (the CONNECT-6 breadcrumb) → external key.
+  // ARCHIVE-1 note + the platform guard: the recomputed key is only valid
+  // when the token's platform is a real one (tokenRow.platform is a plain
+  // DB string — an unknown platform can never match an external key, so the
+  // binding resolves to nothing and the caller's 401 path applies).
   let owner: { id: string } | null = null
-  if (ghost.login && ghost.login.trim()) {
-    const key = externalKeyOf(tokenRow.platform, ghost.server ?? undefined, ghost.broker ?? undefined, ghost.login)
+  if (ghost.login && ghost.login.trim() && (PLATFORMS as readonly string[]).includes(tokenRow.platform)) {
+    const key = externalKeyOf(tokenRow.platform as 'mt5' | 'mt4', ghost.server ?? undefined, ghost.broker ?? undefined, ghost.login)
     owner = await db.platformConnection.findFirst({
       where: { userId: tokenRow.userId, externalKey: key, id: { not: ghost.id } },
       orderBy: { createdAt: 'asc' },

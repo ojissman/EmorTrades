@@ -862,9 +862,12 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
     // Task 16-c — one stray click on the modal footer must not permanently
     // erase a trade AND its executions and screenshots (the cascades
     // the schema deletes). Same guard the trades table rows already use.
+    // ARCHIVE-1 — delete = the Recycle Bin now: the row (with its
+    // executions and screenshots) waits in Settings → Archive & Recycle for
+    // restore or permanent purge.
     if (
       !window.confirm(
-        `Delete this trade${form.symbol ? ` (${form.symbol})` : ''}? Its executions and screenshots are deleted with it — this cannot be undone.`
+        `Delete this trade${form.symbol ? ` (${form.symbol})` : ''}? It moves to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.`
       )
     )
       return
@@ -872,7 +875,7 @@ export function TradeModal({ accounts: accountsProp, setups: setupsProp, tags: t
     try {
       const res = await fetch(`/api/trades/${editingTradeId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: 'Trade deleted' })
+      toast({ title: 'Moved to the Recycle Bin', description: 'Restore or delete forever from Settings → Archive & Recycle.' })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['trades'] })
       // Task 8-b — keep the calendar grid in sync on deletes too.

@@ -65,6 +65,7 @@ import {
   Plus,
   MoreVertical,
   Edit2,
+  Archive,
   Trash2,
   Eye,
   ArrowUpDown,
@@ -905,15 +906,33 @@ export function TradesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this trade?')) return
+    // ARCHIVE-1 — delete = move to the Recycle Bin (Settings → Archive & Recycle).
+    if (!confirm('Delete this trade? It moves to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.')) return
     try {
       const res = await fetch(`/api/trades/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: 'Trade deleted' })
+      toast({ title: 'Moved to the Recycle Bin', description: 'Restore or delete forever from Settings → Archive & Recycle.' })
       queryClient.invalidateQueries({ queryKey: ['trades'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     } catch {
       toast({ title: 'Delete failed', variant: 'destructive' })
+    }
+  }
+
+  // ARCHIVE-1 — file one trade away (row action; the mirror of delete).
+  async function handleArchive(id: string) {
+    try {
+      const res = await fetch('/api/trades/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tradeIds: [id], action: 'archive' }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      toast({ title: 'Trade archived', description: 'Out of the journal and every KPI — bring it back from Settings → Archive & Recycle.' })
+      queryClient.invalidateQueries({ queryKey: ['trades'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    } catch {
+      toast({ title: 'Archive failed', variant: 'destructive' })
     }
   }
 
@@ -1002,9 +1021,21 @@ export function TradesPage() {
 
   function handleDeleteSelected() {
     if (selectedIds.size === 0) return
-    if (confirm(`Delete ${selectedIds.size} trades? This cannot be undone.`)) {
+    // ARCHIVE-1 — deletes land in the Recycle Bin (restorable until purged).
+    if (confirm(`Delete ${selectedIds.size} trades? They move to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.`)) {
       bulkAction('delete')
     }
+  }
+
+  // ARCHIVE-1 — file the selected trades away (out of the live journal + all
+  // KPIs) / bring archived rows back. The Actions menu carries both.
+  function handleArchiveSelected() {
+    if (selectedIds.size === 0) return
+    bulkAction('archive')
+  }
+  function handleUnarchiveSelected() {
+    if (selectedIds.size === 0) return
+    bulkAction('unarchive')
   }
 
   function clearFilters() {
@@ -1376,8 +1407,24 @@ export function TradesPage() {
       title: 'Persist the grid\u2019s column order, widths, sort & visibility',
     },
     {
+      id: 'archive-selected',
+      label: 'Archive Selected',
+      icon: TRADES_ACTION_ICONS.archive,
+      onClick: handleArchiveSelected,
+      disabled: selectedIds.size === 0,
+      title: 'File the selected trades away — out of the journal and every KPI, until you unarchive them',
+    },
+    {
+      id: 'unarchive-selected',
+      label: 'Unarchive Selected',
+      icon: TRADES_ACTION_ICONS.archive,
+      onClick: handleUnarchiveSelected,
+      disabled: selectedIds.size === 0,
+      title: 'Bring archived trades back to the live journal',
+    },
+    {
       id: 'delete-selected',
-      label: 'Delete Selected',
+      label: 'Delete Selected (to Recycle Bin)',
       icon: TRADES_ACTION_ICONS.delete,
       onClick: handleDeleteSelected,
       disabled: selectedIds.size === 0,
@@ -2667,11 +2714,15 @@ export function TradesPage() {
                             <DropdownMenuItem onClick={() => openTradeModal(t.id)}>
                               <Edit2 className="h-3.5 w-3.5 mr-2" /> Edit Trade
                             </DropdownMenuItem>
+                            {/* ARCHIVE-1 — file away (the row-level filing action). */}
+                            <DropdownMenuItem onClick={() => handleArchive(t.id)}>
+                              <Archive className="h-3.5 w-3.5 mr-2" /> Archive
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDelete(t.id)}
                               className="text-red-500 focus:text-red-500"
                             >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete (to Recycle Bin)
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

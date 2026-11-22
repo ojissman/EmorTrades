@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
     const where: any = { userId: user.id }
     if (kind && kind !== 'all') where.kind = kind
     if (tradeId) where.tradeId = tradeId
+    // ARCHIVE-1 — reports of filed/binned trades stay out of the live list
+    // (nested trade include bypasses the live-read filter).
+    where.trade = { deletedAt: null, archivedAt: null }
 
     const reports = await db.aiReport.findMany({
       where,

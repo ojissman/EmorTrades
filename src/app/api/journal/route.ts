@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
 
     const where: any = { userId: user.id }
     if (tradeId) where.tradeId = tradeId
+    // ARCHIVE-1 — a journal entry is trade-day content: when its trade is
+    // filed (archived) or binned (deleted), the entry leaves the live
+    // journal with it. Relation filter (nested includes bypass the db
+    // client's live-read filter — this is the to-one side of that law).
+    where.trade = { deletedAt: null, archivedAt: null }
 
     const journals = await db.journal.findMany({
       where,

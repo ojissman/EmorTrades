@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, dbAll } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
@@ -94,10 +94,14 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
-    const existing = await db.dayNote.findFirst({ where: { id, userId: user.id } })
+    // ARCHIVE-1 — soft delete into the Recycle Bin (dbAll: the row may be
+    // archived — delete on an archived note files it into the Bin instead).
+    const existing = await dbAll.dayNote.findFirst({ where: { id, userId: user.id } })
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    await db.dayNote.delete({ where: { id: existing.id } })
-    return NextResponse.json({ success: true })
+    if (!existing.deletedAt) {
+      await dbAll.dayNote.update({ where: { id: existing.id }, data: { deletedAt: new Date() } })
+    }
+    return NextResponse.json({ success: true, binned: true })
   } catch (e) {
     console.error("Error in src/app/api/day-notes/route.ts:", e)
     return NextResponse.json ({ error: 'Failed' }, { status: 500 })

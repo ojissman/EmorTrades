@@ -185,11 +185,12 @@ export function MiscNotesPage() {
   }
 
   async function del(id: string) {
-    if (!confirm('Delete this note?')) return
+    // ARCHIVE-1 — delete lands in the Recycle Bin (restorable there).
+    if (!confirm('Delete this note? It moves to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.')) return
     try {
       const res = await fetch(`/api/misc-notes?id=${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      toast({ title: 'Note deleted' })
+      toast({ title: 'Note moved to the Recycle Bin' })
       queryClient.invalidateQueries({ queryKey: ['misc-notes'] })
     } catch {
       toast({ title: 'Failed', variant: 'destructive' })

@@ -27,7 +27,14 @@
  * Everything is scoped by connectionId → userId → accountId; a connection
  * can only ever write its own user's rows.
  */
-import { db } from '@/lib/db'
+// ARCHIVE-1 — the ingest engine uses the RAW client (dbAll): its dedup
+// lookups key on (platformConnectionId, externalTicket) and MUST still see a
+// row the user binned, else the next EA flush would try to re-CREATE the
+// same ticket and die on the unique constraint. EA updates therefore land
+// silently on a binned synced trade and the row STAYS binned (the file
+// cabinet is never emptied behind the user's back); the row un-bins only by
+// the user's explicit Restore in Settings → Archive & Recycle.
+import { dbAll as db } from '@/lib/db'
 import type { Mt5DealInput, PositionPlan, SegmentPlan } from '../mt5/normalize'
 import { planPositions } from '../mt5/normalize'
 import type { AccountPayload, ConnectionPayload, DealPayload, OrderPayload, PositionPayload, ValidatedEvent } from './protocol'

@@ -191,6 +191,10 @@ async function runExecutions(
     if (endDate) where.timestamp.lte = new Date(endDate)
   }
 
+  // ARCHIVE-1 — exclude fills whose parent trade is filed/binned from the
+  // per-symbol aggregation (nested trade include bypasses the live filter).
+  if (!where.trade) where.trade = {}
+  where.trade = { ...where.trade, deletedAt: null, archivedAt: null }
   const executions = await db.execution.findMany({
     where,
     include: { trade: { select: { pnl: true, symbol: true } } },
@@ -564,7 +568,9 @@ async function runChallenges(userId: string): Promise<NextResponse> {
     db.user.findUnique({ where: { id: userId }, select: { startingCapital: true } }),
     db.challenge.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
     db.tradeMistake.findMany({
-      where: { trade: { userId } },
+      // ARCHIVE-1 — mistakes of filed/binned trades stay out of the coach
+      // aggregation (relation filter — nested include bypass).
+      where: { trade: { userId, deletedAt: null, archivedAt: null } },
       include: { mistake: { select: { name: true } } },
       take: 2000,
     }),

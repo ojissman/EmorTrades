@@ -81,6 +81,12 @@ export interface ConnectionRow {
   /** Raw connector events recorded (processed + duplicate + failed). */
   tradeCount: number
   lastSyncLog: LastSyncLog | null
+  /** ARCHIVE-1 — set when the user filed this connection away (hidden from
+   *  the hub's active tabs; the EA keeps syncing; unarchive restores it). */
+  archivedAt: string | null
+  /** ARCHIVE-1 — the newest EA-reported account metrics (null until the EA
+   *  has ever reported balance/equity). The broker numbers on the card. */
+  latestSnapshot: { balance: number | null; equity: number | null; floatingPnl: number | null; currency: string | null; recordedAt: string } | null
 }
 
 /** Full sync-log row of GET /api/connections/{id} (the detail payload). */

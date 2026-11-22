@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, dbAll } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 
 export const dynamic = 'force-dynamic'
@@ -59,6 +59,10 @@ type BackupTrade = {
   symbol?: string
   side?: string
   assetClass?: string
+  // ARCHIVE-1 — the filing state round-trips through backups (a binned
+  // trade restores into the bin; an archived one into the archive).
+  archivedAt?: string | null
+  deletedAt?: string | null
   // Task 179 — futures multiplier + options structure round-trip
   multiplier?: number | string | null
   strategy?: string | null
@@ -188,7 +192,10 @@ export async function POST(req: NextRequest) {
 
     // ---- Phase 2: trades (fingerprint skip, faithful field copy)
     if (bTrades.length) {
-      const existingTrades = await db.trade.findMany({
+      // ARCHIVE-1 — dbAll: the fingerprint match must see archived AND
+      // binned rows, else a backup containing a row the user later binned
+      // would restore as a live DUPLICATE of the binned row.
+      const existingTrades = await dbAll.trade.findMany({
         where: { userId: user.id },
         select: { accountId: true, symbol: true, entryTime: true, quantity: true, entryPrice: true },
       })
@@ -226,6 +233,10 @@ export async function POST(req: NextRequest) {
           continue
         }
         const exitTime = dateOf(t.exitTime)
+        // ARCHIVE-1 — restore is faithful: a backup row that was archived or
+        // binned comes back in exactly that state (hidden until unfiled).
+        const archivedAt = dateOf(t.archivedAt)
+        const deletedAt = dateOf(t.deletedAt)
         await db.trade.create({
           data: {
             userId: user.id,
@@ -233,6 +244,8 @@ export async function POST(req: NextRequest) {
             symbol: symbol.toUpperCase(),
             side: t.side === 'short' ? 'short' : 'long',
             assetClass: typeof t.assetClass === 'string' && t.assetClass ? t.assetClass : 'stock',
+            archivedAt,
+            deletedAt,
             // Task 179 — round-trip the multiplier + strategy + structure
             multiplier: num(t.multiplier, 1) ?? 1,
             strategy: typeof t.strategy === 'string' && t.strategy ? t.strategy : null,
@@ -562,7 +575,9 @@ export async function POST(req: NextRequest) {
     const bMarks: any[] = Array.isArray(body.planMarks) ? body.planMarks : []
     if (bMarks.length > 0) {
       const tradeIds = new Set(
-        (await db.trade.findMany({ where: { userId: user.id }, select: { id: true } })).map((t) => t.id)
+        // ARCHIVE-1 — dbAll: binned/archived trades are still the user's rows
+        // for mark attachment (same-db restore re-attaches their marks).
+        (await dbAll.trade.findMany({ where: { userId: user.id }, select: { id: true } })).map((t) => t.id)
       )
       const existingMarkIds = new Set(
         (await db.planMark.findMany({ where: { userId: user.id }, select: { id: true } })).map((m) => m.id)
@@ -598,7 +613,8 @@ export async function POST(req: NextRequest) {
     const bWarnLogs: any[] = Array.isArray(body.tradeWarningLogs) ? body.tradeWarningLogs : []
     if (bWarnLogs.length > 0) {
       const tradeIds = new Set(
-        (await db.trade.findMany({ where: { userId: user.id }, select: { id: true } })).map((t) => t.id)
+        // ARCHIVE-1 — dbAll, same law as planMarks above.
+        (await dbAll.trade.findMany({ where: { userId: user.id }, select: { id: true } })).map((t) => t.id)
       )
       for (const w of bWarnLogs) {
         if (!w?.id || !w.tradeId || !tradeIds.has(w.tradeId)) { result.tradeWarningLogs.skipped++; continue }

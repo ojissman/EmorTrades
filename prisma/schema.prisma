@@ -289,12 +289,19 @@ model Trade {
   platformConnectionId String?
   platformConnection    PlatformConnection? @relation("PlatformConnectionTrades", fields: [platformConnectionId], references: [id], onDelete: SetNull)
 
+  // ARCHIVE-1 filing stamps — see the DayNote block comment for semantics.
+  archivedAt DateTime?
+  deletedAt  DateTime?
+
   @@index([userId, tradingPlanId])
   @@index([userId, systemId])
   @@index([userId, setupId])
   @@index([userId, adherenceStatus])
   @@index([userId, mt5ConnectionId])
   @@index([userId, platformConnectionId])
+  // ARCHIVE-1 — the Settings→Archive & Recycle listing filters.
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
   @@unique([mt5ConnectionId, externalTicket])
   @@unique([platformConnectionId, externalTicket])
 }
@@ -552,8 +559,16 @@ model Watchlist {
   description String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  // ARCHIVE-1 filing stamps — see the DayNote block comment for semantics.
+  // Items ride with their parent list (they are only ever read through it).
+  archivedAt  DateTime?
+  deletedAt   DateTime?
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   items       WatchlistItem[]
+
+  // ARCHIVE-1 — the Settings→Archive & Recycle listing filters.
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
 }
 
 model WatchlistItem {
@@ -649,7 +664,18 @@ model DayNote {
   rating    Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // ARCHIVE-1 filing stamps. archivedAt: user-filed away (hidden from the
+  // live notes surfaces; visible + unarchivable in Settings → Archive &
+  // Recycle). deletedAt: soft-deleted into the Recycle Bin (hidden from the
+  // live app; restorable or permanently purgeable from the Bin — nothing is
+  // hard-deleted at the UI layer any more). Both null = live.
+  archivedAt DateTime?
+  deletedAt  DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ARCHIVE-1 — the Settings→Archive & Recycle listing filters.
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
 }
 
 model MiscNote {
@@ -660,8 +686,15 @@ model MiscNote {
   tradeId   String?  // optional link to any trade
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // ARCHIVE-1 filing stamps — see the DayNote block comment for semantics.
+  archivedAt DateTime?
+  deletedAt  DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags      MiscNoteNoteTag[]
+
+  // ARCHIVE-1 — the Settings→Archive & Recycle listing filters.
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
 }
 
 // Day Plans - sleep/stress/mood + checklist per day
@@ -1271,6 +1304,14 @@ model PlatformConnection {
   syncRequestedAt DateTime?
   // Last EA-reported local pending-queue depth (its durable backlog).
   queueDepth      Int       @default(0)
+  // ARCHIVE-1 filing stamps. archivedAt: filed away (hidden from the
+  // connections hub's active lists; the EA keeps syncing — beats and events
+  // still land; visible + unarchivable from the hub's Archived tab and
+  // Settings → Archive & Recycle). deletedAt: removed into the Recycle Bin
+  // (tokens revoked + desired=disconnect at removal time; restorable from
+  // the Bin as a disconnected row — reconnect mints a fresh EA token).
+  archivedAt      DateTime?
+  deletedAt       DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1287,6 +1328,9 @@ model PlatformConnection {
   @@index([userId])
   @@index([userId, platform])
   @@index([userId, status])
+  // ARCHIVE-1 — the hub's active/archived/bin tabs read these.
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
 }
 
 /** Individually scoped, revocable EA credential. Raw token shown ONCE at

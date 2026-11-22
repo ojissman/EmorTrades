@@ -114,6 +114,9 @@ export async function GET(req: NextRequest) {
       db.journal.findMany({
         where: {
           userId: user.id,
+          // ARCHIVE-1 — journal entries of filed/binned trades stay out of
+          // search (nested trade include bypasses the live-read filter).
+          trade: { deletedAt: null, archivedAt: null },
           OR: [
             { title: { contains: q } },
             { content: { contains: q } },

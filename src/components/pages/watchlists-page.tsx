@@ -875,11 +875,12 @@ export function WatchlistsPage() {
   }
 
   async function deleteWatchlist(id: string) {
-    if (!confirm('Delete this watchlist and all its items?')) return
+    // ARCHIVE-1 — the list (with its items) lands in the Recycle Bin.
+    if (!confirm('Delete this watchlist and all its items? They move to the Recycle Bin — restore or delete forever from Settings → Archive & Recycle.')) return
     try {
       const res = await fetch(`/api/watchlists?id=${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed')
-      toast({ title: 'Watchlist deleted' })
+      toast({ title: 'Watchlist moved to the Recycle Bin' })
       queryClient.invalidateQueries({ queryKey: ['watchlists'] })
     } catch {
       toast({ title: 'Failed to delete watchlist', variant: 'destructive' })

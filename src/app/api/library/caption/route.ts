@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     const row = await db.screenshot.findUnique({
       where: { id },
-      include: { trade: { select: { symbol: true, side: true, entryTime: true } } },
+      include: { trade: { select: { symbol: true, side: true, entryTime: true, archivedAt: true, deletedAt: true } } },
     })
     if (!row || row.userId !== auth.user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -92,8 +92,12 @@ export async function POST(req: NextRequest) {
     const screenshot = await db.screenshot.update({
       where: { id },
       data: { caption },
-      include: { trade: { select: { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true } } },
+      include: { trade: { select: { id: true, symbol: true, side: true, entryTime: true, pnl: true, status: true, archivedAt: true, deletedAt: true } } },
     })
+    // ARCHIVE-1 — blank a filed/binned trade's context on the returned row.
+    if (screenshot.trade && (screenshot.trade.archivedAt !== null || screenshot.trade.deletedAt !== null)) {
+      screenshot.trade = null
+    }
     return NextResponse.json({ screenshot, caption })
   } catch (e) {
     console.error('POST /api/library/caption error:', e)

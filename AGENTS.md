@@ -1678,6 +1678,69 @@ defects, both command-proven from the pulled production DB:
   cleanest single post-Publish action.
 
 
+## Task ARCHIVE-1 — the journal-wide Archive & Recycle Bin + the Connections hub redesign (2026-11-22)
+
+Owner report: the settings lacked an Archive/Recycle-Bin page ("all archived
+files goes to archive … all delete file goes to Recycle bin awaiting to be
+parmently be deleted/removed or restored") and the Connections hub was "too
+basic" — only MT5/MT4, no filters, no per-connection lifecycle, everything in
+one flat list. Full entry + certificate in worklog.md. Permanent-record laws:
+
+- **THE FILING LAW (ARCHIVE-1):** journal content never hard-deletes at the
+  UI layer. `archivedAt` = filed away (hidden from every live surface +
+  KPI); `deletedAt` = the Recycle Bin (restorable, or purged permanently
+  from Settings → Archive & Recycle). Scoped models: **Trade, DayNote,
+  MiscNote, Watchlist, PlatformConnection**. Restores return a row to its
+  PRE-DELETE state (a trade deleted while archived restores INTO the
+  archive). Purges ride the schema's onDelete cascades (Journal rows are
+  deleted explicitly — they are SetNull; connection purges keep the synced
+  trades, only the provenance link dies).
+- **THE TWO CLIENTS (src/lib/db.ts):** `db` = the DEFAULT extended client —
+  every top-level READ on the five filed models injects the live-only
+  predicate (trade/notes/watchlists: deletedAt ∧ archivedAt null;
+  platformConnection: deletedAt null only — archived connections keep
+  syncing). WRITES are never filtered. `dbAll` = the RAW client — use ONLY
+  with a documented reason (the Archive/Bin controllers, pair's
+  identity-key lookups, ingest's ticket dedup, restore's fingerprint match,
+  backup fidelity). The global cache keys are deliberately fresh
+  (prismaLive/prismaRaw) — the old 'prisma' key held a raw client and an
+  HMR reload would silently drop the filter. When adding a model to the
+  filing system: schema fields + indexes + LIVE_WHERE entry + the delete
+  route becomes a stamp + the nested-include audit below.
+- **THE NESTED-INCLUDE LEAK LAW:** `$extends` never filters nested relation
+  loads — every to-one `include: { trade }` must carry a relation filter
+  (`where: { trade: { deletedAt: null, archivedAt: null } }`) or a post-map
+  null-ing (executions/library keep the row, null the filed trade's
+  context; journal/search rows leave with their trade). Audit sites:
+  journal, search, executions, ai/tools (×2), ai/reports, library (list/
+  [id]/caption ×2), admin/journals. Raw SQL carries the predicates by hand.
+- **PAIR RESURRECTION (connector contract):** a re-pair of the same account
+  RESURRECTS a binned connection row (the (userId, externalKey) unique
+  constraint makes the owner row the only holder — otherwise every
+  reconnect 500s) and auto-unarchives an archived row. Connection
+  remove-to-bin revokes its tokens + retires the row; restore returns it
+  disconnected — Reconnect (PATCH /api/connections/[id] action=reconnect)
+  mints the fresh one-time token and reveals it once; superseded ghosts
+  are refused with the CONNECT-6 reason. The ingest engine writes through
+  dbAll: EA updates on a binned synced trade land silently and the row
+  STAYS binned — the cabinet never empties behind the user's back.
+- **UI ROUTES OF RECORD:** GET/POST `/api/archive` (list + archive/unarchive/
+  delete-to-bin) and GET/POST `/api/recycle-bin` (list + restore/purge) —
+  zod `archiveActionSchema` types the SINGULAR entity names (trade,
+  dayNote, miscNote, watchlist, connection). The settings section passes
+  GROUP keys (plural) — the mapping from group → type is explicit in
+  archive-bin-section.tsx (a plural key 422'd live in E2E before the fix;
+  the unit tests had missed it because they post the singular directly —
+  ALWAYS E2E the UI's real payload).
+- **The Connections hub structure:** platform directory (EA connectors +
+  a REAL CSV Import bridge deep-link + honest Open API/Planned chips —
+  never fake buttons), status filter tabs with live counts, sort, search,
+  platform-grouped cards, live-first ranking (CONNECT-6 law), the card's
+  real broker metrics (latest AccountSnapshot balance/equity/floating),
+  and the full lifecycle action set. cTrader-class integrations stay
+  honest-planned until the owner supplies broker API credentials.
+
+
 ### THE RITUAL — MANDATORY DEVELOPMENT PROTOCOL
 
 This protocol is permanent and must remain intact at the absolute end of

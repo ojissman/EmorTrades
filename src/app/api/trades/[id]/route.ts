@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, dbAll } from '@/lib/db'
 import { requireUser } from '@/lib/server/auth'
 import { z } from 'zod'
 import { aggregateLegs, classifyStrategy, computeLegPnl, STRATEGY_KINDS, type LegInput } from '@/lib/legs'
@@ -397,6 +397,10 @@ export async function PUT(
 }
 
 // DELETE /api/trades/[id]
+// ARCHIVE-1 — soft delete into the Recycle Bin (never a hard delete at the
+// UI layer): sets deletedAt, the row vanishes from every live surface (the
+// db client's live-read filter), and it waits in Settings → Archive &
+// Recycle for restore or permanent purge. Purging is the Bin's job.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -409,13 +413,19 @@ export async function DELETE(
     if (!user) {
       return NextResponse.json({ error: 'No user found' }, { status: 404 })
     }
-    // Task 176 — ownership scoped (was: world-deletable by id)
-    const existing = await db.trade.findFirst({ where: { id, userId: user.id } })
+    // Task 176 — ownership scoped (was: world-deletable by id).
+    // dbAll (not db): the row may currently be ARCHIVED — a delete on an
+    // archived trade moves it from the Archive into the Bin (it must be
+    // findable). deletedAt lands on top of archivedAt; the Bin lists rows
+    // with deletedAt set regardless of archivedAt.
+    const existing = await dbAll.trade.findFirst({ where: { id, userId: user.id } })
     if (!existing) {
       return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
     }
-    await db.trade.delete({ where: { id } })
-    return NextResponse.json({ success: true })
+    if (!existing.deletedAt) {
+      await dbAll.trade.update({ where: { id }, data: { deletedAt: new Date() } })
+    }
+    return NextResponse.json({ success: true, binned: true })
   } catch (e) {
     console.error('DELETE /api/trades/[id] error:', e)
     return NextResponse.json({ error: 'Failed to delete trade' }, { status: 500 })

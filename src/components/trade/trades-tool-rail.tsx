@@ -33,6 +33,7 @@ import {
   Save,
   SlidersHorizontal,
   Square,
+  Archive,
   Trash2,
   UnfoldVertical,
   X,
@@ -346,6 +347,8 @@ export const TRADES_ACTION_ICONS = {
   collapseRows: FoldVertical,
   save: Save,
   delete: Trash2,
+  // ARCHIVE-1 — filing a trade away to Settings → Archive & Recycle.
+  archive: Archive,
   clearFilters: FilterX,
   reset: RotateCcw,
 } as const
